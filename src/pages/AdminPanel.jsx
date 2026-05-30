@@ -3,7 +3,9 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
-const FUNCTIONS = [];
+const FUNCTIONS = [
+  { name: 'assignDonRechFlotToAssets', label: 'Присвоить ДонРечФлот судам без клиента', desc: 'Добавляет клиента ДонРечФлот ко всем судам без клиента' },
+];
 
 export default function AdminPanel() {
   const [loading, setLoading] = useState(null);
