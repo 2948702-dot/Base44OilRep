@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 const FUNCTIONS = [
+  { name: 'generateFleetTestData', label: 'Сгенерировать данные для флота', desc: 'Создаёт реалистичные данные по пробам масла, анализам и событиям смены масла за последний год' },
   { name: 'deleteTestData', label: 'Удалить все тестовые данные', desc: 'Удаляет активы, узлы, пробы и прочие тестовые данные' },
 ];
 
