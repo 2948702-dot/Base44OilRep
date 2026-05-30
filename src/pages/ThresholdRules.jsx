@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
+import ThresholdRangeBar from '@/components/ThresholdRangeBar';
 import { EQ_TYPES } from '@/utils/labels';
 
 const PARAMS = ['iron_mg_l', 'water_activity', 'water_ppm', 'density', 'viscosity_40', 'viscosity_100', 'dielectric_constant'];
@@ -126,9 +127,20 @@ export default function ThresholdRules() {
                 <td className="px-4 py-2.5 text-slate-500 text-xs">
                   {r.parameter_name === 'dielectric_constant' ? 'б/р' : (PARAM_UNITS[r.parameter_name] || r.unit || '—')}
                 </td>
-                <td className="px-4 py-2.5 text-green-700">{r.green_min ?? '—'} – {r.green_max ?? '—'}</td>
-                <td className="px-4 py-2.5 text-yellow-700">{r.yellow_min ?? '—'} – {r.yellow_max ?? '—'}</td>
-                <td className="px-4 py-2.5 text-red-700">{r.red_min ?? '—'} – {r.red_max ?? '—'}</td>
+                <td className="px-4 py-2.5" colSpan={3}>
+                  <div className="space-y-1">
+                    <ThresholdRangeBar compact
+                      greenMin={r.green_min} greenMax={r.green_max}
+                      yellowMin={r.yellow_min} yellowMax={r.yellow_max}
+                      redMin={r.red_min} redMax={r.red_max}
+                    />
+                    <div className="flex gap-3 text-xs">
+                      <span className="text-green-700 font-medium">{r.green_min ?? '—'}–{r.green_max ?? '—'}</span>
+                      <span className="text-yellow-700 font-medium">{r.yellow_min ?? '—'}–{r.yellow_max ?? '—'}</span>
+                      <span className="text-red-700 font-medium">{r.red_min ?? '—'}–{r.red_max ?? '—'}</span>
+                    </div>
+                  </div>
+                </td>
                 <td className="px-4 py-2.5">
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(r); setOpen(true); }}>
@@ -184,6 +196,17 @@ export default function ThresholdRules() {
                 </SelectContent>
               </Select>
             </div>
+            {/* Live range preview */}
+            {(form.green_min !== '' || form.yellow_min !== '' || form.red_min !== '') && (
+              <div className="col-span-2 space-y-1">
+                <Label className="text-xs text-slate-500">Предпросмотр диапазонов</Label>
+                <ThresholdRangeBar
+                  greenMin={form.green_min} greenMax={form.green_max}
+                  yellowMin={form.yellow_min} yellowMax={form.yellow_max}
+                  redMin={form.red_min} redMax={form.red_max}
+                />
+              </div>
+            )}
             <div className="col-span-2 grid grid-cols-3 gap-3 bg-green-50 rounded-lg p-3">
               <p className="col-span-3 text-xs font-semibold text-green-700 mb-1">🟢 Зелёный диапазон</p>
               <NI label="Мин." value={form.green_min} onChange={v => f('green_min', v)} step={step} min={isWaterActivity ? 0 : undefined} max={isWaterActivity ? 100 : undefined} />

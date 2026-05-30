@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, AlertCircle, Upload, X, Image } from 'lucide-react';
+import HierarchyPath from '@/components/HierarchyPath';
 import { EVENT_TYPES } from '@/utils/labels';
 
 const DEF = {
@@ -196,33 +197,44 @@ export default function MaintenanceEvents() {
               <Label>Дата *</Label>
               <Input type="date" value={form.event_date} onChange={e => f('event_date', e.target.value)} />
             </div>
-            <div className="space-y-1">
-              <Label>Клиент *</Label>
-              <Select value={form.client_id} onValueChange={v => setForm(p => ({ ...p, client_id: v, asset_id: '', equipment_unit_id: '', sampling_point_id: '' }))}>
-                <SelectTrigger><SelectValue placeholder="Клиент" /></SelectTrigger>
-                <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Актив *</Label>
-              <Select value={form.asset_id} onValueChange={v => setForm(p => ({ ...p, asset_id: v, equipment_unit_id: '', sampling_point_id: '' }))}>
-                <SelectTrigger><SelectValue placeholder="Актив" /></SelectTrigger>
-                <SelectContent>{filtAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Оборудование</Label>
-              <Select value={form.equipment_unit_id} onValueChange={v => setForm(p => ({ ...p, equipment_unit_id: v, sampling_point_id: '' }))}>
-                <SelectTrigger><SelectValue placeholder="Оборудование" /></SelectTrigger>
-                <SelectContent>{filtUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Точка отбора</Label>
-              <Select value={form.sampling_point_id} onValueChange={v => f('sampling_point_id', v)}>
-                <SelectTrigger><SelectValue placeholder="Точка" /></SelectTrigger>
-                <SelectContent>{filtPoints.map(p => <SelectItem key={p.id} value={p.id}>{p.point_name}</SelectItem>)}</SelectContent>
-              </Select>
+            <div className="col-span-2 space-y-2">
+              <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Иерархия объекта</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Клиент *</Label>
+                  <Select value={form.client_id} onValueChange={v => setForm(p => ({ ...p, client_id: v, asset_id: '', equipment_unit_id: '', sampling_point_id: '' }))}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Клиент" /></SelectTrigger>
+                    <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Актив *</Label>
+                  <Select value={form.asset_id} onValueChange={v => setForm(p => ({ ...p, asset_id: v, equipment_unit_id: '', sampling_point_id: '' }))} disabled={!form.client_id}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.client_id ? 'Актив' : '← сначала клиент'} /></SelectTrigger>
+                    <SelectContent>{filtAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Оборудование</Label>
+                  <Select value={form.equipment_unit_id} onValueChange={v => setForm(p => ({ ...p, equipment_unit_id: v, sampling_point_id: '' }))} disabled={!form.asset_id}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.asset_id ? 'Оборудование' : '← сначала актив'} /></SelectTrigger>
+                    <SelectContent>{filtUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Точка отбора</Label>
+                  <Select value={form.sampling_point_id} onValueChange={v => f('sampling_point_id', v)} disabled={!form.equipment_unit_id}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.equipment_unit_id ? 'Точка' : '← сначала оборудование'} /></SelectTrigger>
+                    <SelectContent>{filtPoints.map(p => <SelectItem key={p.id} value={p.id}>{p.point_name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <HierarchyPath
+                client={clients.find(c => c.id === form.client_id)?.company_name}
+                asset={assets.find(a => a.id === form.asset_id)?.asset_name}
+                unit={units.find(u => u.id === form.equipment_unit_id)?.unit_name}
+                point={points.find(p => p.id === form.sampling_point_id)?.point_name}
+              />
             </div>
             <div className="space-y-1">
               <Label>М/ч на момент события</Label>
