@@ -7,17 +7,18 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, AlertCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertCircle, Upload, X, Image } from 'lucide-react';
 import { EVENT_TYPES } from '@/utils/labels';
 
 const DEF = {
   event_type: '', event_date: '', client_id: '', asset_id: '', equipment_unit_id: '',
   sampling_point_id: '', total_operating_hours: '', old_oil_type_id: '', new_oil_type_id: '',
-  replaced_oil_volume: '', added_oil_volume: '', comment: ''
+  replaced_oil_volume: '', added_oil_volume: '', comment: '', attachments: []
 };
 
 export default function MaintenanceEvents() {
   const [open, setOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState(DEF);
   const [filterClient, setFilterClient] = useState('');
   const [filterType, setFilterType] = useState('');
@@ -74,6 +75,21 @@ export default function MaintenanceEvents() {
     (!filterType || e.event_type === filterType)
   );
   const getName = (list, id, field) => list.find(x => x.id === id)?.[field] || '—';
+
+  const handleUpload = async (files) => {
+    setUploading(true);
+    const urls = [];
+    for (const file of Array.from(files)) {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      urls.push(file_url);
+    }
+    setForm(p => ({ ...p, attachments: [...(p.attachments || []), ...urls] }));
+    setUploading(false);
+  };
+
+  const removeAttachment = (url) => {
+    setForm(p => ({ ...p, attachments: (p.attachments || []).filter(a => a !== url) }));
+  };
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const isOilChange = form.event_type === 'oil_change';
 
@@ -116,6 +132,7 @@ export default function MaintenanceEvents() {
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Оборудование</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">М/ч</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Объём замены, л</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Фото</th>
               <th className="w-20 px-4 py-2.5"></th>
             </tr>
           </thead>
@@ -140,6 +157,14 @@ export default function MaintenanceEvents() {
                 <td className="px-4 py-2.5 text-slate-600 text-xs">{getName(units, e.equipment_unit_id, 'unit_name')}</td>
                 <td className="px-4 py-2.5 text-slate-600">{e.total_operating_hours ?? '—'}</td>
                 <td className="px-4 py-2.5 text-slate-600">{e.replaced_oil_volume ?? '—'}</td>
+                <td className="px-4 py-2.5">
+                  {e.attachments?.length > 0 ? (
+                    <div className="flex items-center gap-1 text-slate-500">
+                      <Image className="w-3.5 h-3.5" />
+                      <span className="text-xs">{e.attachments.length}</span>
+                    </div>
+                  ) : '—'}
+                </td>
                 <td className="px-4 py-2.5">
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(e); setOpen(true); }}>
@@ -240,6 +265,29 @@ export default function MaintenanceEvents() {
             <div className="col-span-2 space-y-1">
               <Label>Комментарий</Label>
               <Textarea value={form.comment} onChange={e => f('comment', e.target.value)} rows={2} />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Фотографии</Label>
+              <label className="flex items-center gap-2 border-2 border-dashed border-slate-200 rounded-md p-3 cursor-pointer hover:border-slate-400 transition-colors">
+                <Upload className="w-4 h-4 text-slate-400" />
+                <span className="text-sm text-slate-500">{uploading ? 'Загрузка...' : 'Прикрепить фото'}</span>
+                <input type="file" accept="image/*" multiple className="hidden" disabled={uploading} onChange={e => handleUpload(e.target.files)} />
+              </label>
+              {(form.attachments || []).length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {(form.attachments || []).map((url, i) => (
+                    <div key={i} className="relative group">
+                      <img src={url} alt="" className="w-20 h-20 object-cover rounded-md border border-slate-200" />
+                      <button
+                        onClick={() => removeAttachment(url)}
+                        className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

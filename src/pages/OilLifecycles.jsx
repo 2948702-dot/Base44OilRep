@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
+import LifecycleChart from '@/components/LifecycleChart';
 import StatusBadge from '@/components/StatusBadge';
 
 function Req() { return <span className="text-red-500 ml-0.5">*</span>; }
@@ -25,6 +26,7 @@ export default function OilLifecycles() {
   const { data: lifecycles = [], isLoading } = useQuery({ queryKey: ['oil-lifecycles'], queryFn: () => base44.entities.OilLifecycle.list() });
   const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
+  const { data: maintenanceEvents = [] } = useQuery({ queryKey: ['maintenance-events'], queryFn: () => base44.entities.MaintenanceEvent.list() });
 
   const save = useMutation({
     mutationFn: d => { const c = clean(d); return c.id ? base44.entities.OilLifecycle.update(c.id, c) : base44.entities.OilLifecycle.create(c); },
@@ -50,6 +52,17 @@ export default function OilLifecycles() {
           <Plus className="w-4 h-4 mr-1.5" />Новый цикл
         </Button>
       </div>
+
+      {lifecycles.length > 0 && (
+        <div className="mb-5">
+          <LifecycleChart
+            lifecycles={filterPoint ? lifecycles.filter(l => l.sampling_point_id === filterPoint) : lifecycles}
+            maintenanceEvents={maintenanceEvents}
+            points={points}
+            oils={oils}
+          />
+        </div>
+      )}
 
       <div className="mb-3">
         <Select value={filterPoint} onValueChange={setFilterPoint}>
