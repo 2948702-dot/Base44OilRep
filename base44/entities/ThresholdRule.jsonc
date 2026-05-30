@@ -2,9 +2,25 @@
   "name": "ThresholdRule",
   "type": "object",
   "properties": {
+    "client_id": {
+      "type": "string",
+      "title": "Client (Optional)"
+    },
+    "asset_id": {
+      "type": "string",
+      "title": "Asset (Optional)"
+    },
+    "equipment_unit_id": {
+      "type": "string",
+      "title": "Equipment Unit (Optional)"
+    },
+    "sampling_point_id": {
+      "type": "string",
+      "title": "Sampling Point (Optional)"
+    },
     "oil_type_id": {
       "type": "string",
-      "title": "Oil Type (optional)"
+      "title": "Oil Type (Optional)"
     },
     "equipment_type": {
       "type": "string",
