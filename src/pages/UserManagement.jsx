@@ -36,7 +36,9 @@ export default function UserManagement() {
       setAssetId('');
       setShowDialog(false);
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.refetchQueries({ queryKey: ['users'] });
     } catch (error) {
+      console.error('Invite error:', error);
       alert('Ошибка при приглашении: ' + error.message);
     } finally {
       setLoading(false);
