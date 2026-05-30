@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Play } from 'lucide-react';
 import LifecycleChart from '@/components/LifecycleChart';
+import LifecycleKPICards from '@/components/LifecycleKPICards';
 import StatusBadge from '@/components/StatusBadge';
 
 function Req() { return <span className="text-red-500 ml-0.5">*</span>; }
@@ -20,13 +21,54 @@ const clean = (d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v 
 export default function OilLifecycles() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
-  const [filterPoint, setFilterPoint] = useState('');
+  const [filterAsset, setFilterAsset] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [seeding, setSeeding] = useState(false);
+  const [seedResult, setSeedResult] = useState(null);
   const qc = useQueryClient();
 
-  const { data: lifecycles = [], isLoading } = useQuery({ queryKey: ['oil-lifecycles'], queryFn: () => base44.entities.OilLifecycle.list() });
-  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
+  const { data: lifecycles = [], isLoading } = useQuery({ queryKey: ['oil-lifecycles'], queryFn: () => base44.entities.OilLifecycle.list(undefined, 1000) });
+  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list(undefined, 500) });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
-  const { data: maintenanceEvents = [] } = useQuery({ queryKey: ['maintenance-events'], queryFn: () => base44.entities.MaintenanceEvent.list() });
+  const { data: maintenanceEvents = [] } = useQuery({ queryKey: ['maintenance-events'], queryFn: () => base44.entities.MaintenanceEvent.list(undefined, 2000) });
+  const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list(undefined, 500) });
+  const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
+
+  const handleSeed = async () => {
+    if (!window.confirm('Сгенерировать реалистичные события ТО? Существующие события будут удалены и пересозданы.')) return;
+    setSeeding(true); setSeedResult(null);
+    const res = await base44.functions.invoke('seedMaintenanceEvents', {});
+    setSeedResult(res.data);
+    qc.invalidateQueries({ queryKey: ['maintenance-events'] });
+    setSeeding(false);
+  };
+
+  // Enrich lifecycles with computed fields
+  const enriched = useMemo(() => {
+    const pointMap = Object.fromEntries(points.map(p => [p.id, p]));
+    const unitMap = Object.fromEntries(units.map(u => [u.id, u]));
+    const assetMap = Object.fromEntries(assets.map(a => [a.id, a]));
+    const INTERVALS_H = { main_engine: 1000, aux_engine: 500, generator: 500, hydraulic: 2000, gearbox: 2000, compressor: 1000, pump: 2000, other: 1000 };
+    return lifecycles.map(l => {
+      const pt = pointMap[l.sampling_point_id];
+      const unit = pt ? unitMap[pt.equipment_unit_id] : null;
+      const asset = pt ? assetMap[pt.asset_id] : null;
+      const typInterval = unit ? (INTERVALS_H[unit.equipment_type] || 1000) : 1000;
+      const currentH = pt?.current_total_hours || l.start_operating_hours || 0;
+      const usedH = l.start_operating_hours != null ? currentH - l.start_operating_hours : null;
+      const durationH = l.end_operating_hours && l.start_operating_hours ? l.end_operating_hours - l.start_operating_hours : usedH;
+      const remainH = l.status === 'active' && usedH != null ? typInterval - usedH : null;
+      const pctUsed = durationH != null ? Math.min(100, Math.round((durationH / typInterval) * 100)) : null;
+      return { ...l, _pt: pt, _unit: unit, _asset: asset, _usedH: usedH, _durationH: durationH, _remainH: remainH, _pctUsed: pctUsed };
+    });
+  }, [lifecycles, points, units, assets]);
+
+  const filtered = useMemo(() => enriched.filter(l =>
+    (!filterAsset || l._asset?.id === filterAsset) &&
+    (!filterStatus || l.status === filterStatus)
+  ), [enriched, filterAsset, filterStatus]);
+
+  const chartLCs = filterAsset || filterStatus ? filtered : lifecycles;
 
   const save = useMutation({
     mutationFn: d => { const c = clean(d); return c.id ? base44.entities.OilLifecycle.update(c.id, c) : base44.entities.OilLifecycle.create(c); },
@@ -39,24 +81,42 @@ export default function OilLifecycles() {
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const getName = (list, id, field) => list.find(x => x.id === id)?.[field] || '—';
-  const filtered = lifecycles.filter(l => !filterPoint || l.sampling_point_id === filterPoint);
 
   return (
     <div className="p-6">
       <div className="flex justify-between items-start mb-5">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Жизненные циклы масла</h1>
-          <p className="text-slate-500 text-sm mt-0.5">{lifecycles.length} записей</p>
+          <p className="text-slate-500 text-sm mt-0.5">{lifecycles.length} записей · {maintenanceEvents.length} событий ТО</p>
         </div>
-        <Button size="sm" onClick={() => { setForm(DEF); setOpen(true); }}>
-          <Plus className="w-4 h-4 mr-1.5" />Новый цикл
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={handleSeed} disabled={seeding} className="gap-1.5 text-violet-700 border-violet-200 hover:bg-violet-50">
+            <Play className="w-3.5 h-3.5" />{seeding ? 'Генерация...' : 'Сгенерировать данные'}
+          </Button>
+          <Button size="sm" onClick={() => { setForm(DEF); setOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1.5" />Новый цикл
+          </Button>
+        </div>
       </div>
+
+      {seedResult && (
+        <div className={`mb-4 px-4 py-3 rounded-lg text-sm border ${seedResult.success ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+          {seedResult.message || seedResult.error}
+          {seedResult.breakdown && <span className="ml-2 text-xs opacity-70">(замены: {seedResult.breakdown.oil_change}, доливы: {seedResult.breakdown.oil_topup}, фильтры: {seedResult.breakdown.oil_filter})</span>}
+        </div>
+      )}
+
+      <LifecycleKPICards
+        lifecycles={lifecycles}
+        maintenanceEvents={maintenanceEvents}
+        points={points}
+        units={units}
+      />
 
       {lifecycles.length > 0 && (
         <div className="mb-5">
           <LifecycleChart
-            lifecycles={filterPoint ? lifecycles.filter(l => l.sampling_point_id === filterPoint) : lifecycles}
+            lifecycles={chartLCs}
             maintenanceEvents={maintenanceEvents}
             points={points}
             oils={oils}
@@ -64,54 +124,87 @@ export default function OilLifecycles() {
         </div>
       )}
 
-      <div className="mb-3">
-        <Select value={filterPoint} onValueChange={setFilterPoint}>
-          <SelectTrigger className="w-64"><SelectValue placeholder="Все точки отбора" /></SelectTrigger>
+      <div className="flex gap-2 mb-3">
+        <Select value={filterAsset} onValueChange={setFilterAsset}>
+          <SelectTrigger className="w-52"><SelectValue placeholder="Все суда" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={null}>Все точки отбора</SelectItem>
-            {points.map(p => <SelectItem key={p.id} value={p.id}>{p.point_name}</SelectItem>)}
+            <SelectItem value={''}>Все суда</SelectItem>
+            {assets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-36"><SelectValue placeholder="Все статусы" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={''}>Все статусы</SelectItem>
+            <SelectItem value="active">Активные</SelectItem>
+            <SelectItem value="closed">Закрытые</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-slate-400 self-center ml-auto">{filtered.length} из {lifecycles.length}</p>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden overflow-x-auto">
+        <table className="w-full text-sm min-w-max">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Точка отбора</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Судно / Точка отбора</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Масло</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Начало</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">М/ч начало</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Окончание</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Наработка / Ресурс</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">% использован</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Остаток, м/ч</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Статус</th>
               <th className="w-20 px-4 py-2.5"></th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={7} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
+              <tr><td colSpan={8} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-10 text-slate-400">Циклы не найдены</td></tr>
-            ) : filtered.map(l => (
-              <tr key={l.id} className="border-b border-slate-50 hover:bg-slate-50">
-                <td className="px-4 py-2.5 font-medium text-slate-900">{getName(points, l.sampling_point_id, 'point_name')}</td>
-                <td className="px-4 py-2.5 text-slate-600">{getName(oils, l.oil_type_id, 'oil_name')}</td>
-                <td className="px-4 py-2.5 text-slate-600">{l.start_date || '—'}</td>
-                <td className="px-4 py-2.5 text-slate-600">{l.start_operating_hours ?? '—'}</td>
-                <td className="px-4 py-2.5 text-slate-600">{l.end_date || '—'}</td>
-                <td className="px-4 py-2.5"><StatusBadge status={l.status} /></td>
-                <td className="px-4 py-2.5">
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(l); setOpen(true); }}>
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить цикл?') && del.mutate(l.id)}>
-                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+              <tr><td colSpan={8} className="text-center py-10 text-slate-400">Циклы не найдены</td></tr>
+            ) : filtered.map(l => {
+              const pctColor = l._pctUsed == null ? '' : l._pctUsed >= 90 ? 'bg-red-500' : l._pctUsed >= 70 ? 'bg-amber-400' : 'bg-emerald-500';
+              const remainColor = l._remainH == null ? 'text-slate-400' : l._remainH < 0 ? 'text-red-600 font-semibold' : l._remainH < 200 ? 'text-amber-600 font-semibold' : 'text-slate-600';
+              return (
+                <tr key={l.id} className="border-b border-slate-50 hover:bg-slate-50">
+                  <td className="px-4 py-2.5">
+                    <div className="font-medium text-slate-900 text-xs">{l._asset?.asset_name || '—'}</div>
+                    <div className="text-slate-400 text-xs">{l._pt?.point_name || getName([], l.sampling_point_id, 'point_name')}</div>
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-600 text-xs max-w-[140px] truncate">{getName(oils, l.oil_type_id, 'oil_name')}</td>
+                  <td className="px-4 py-2.5 text-slate-600 text-xs">{l.start_date || '—'}</td>
+                  <td className="px-4 py-2.5 text-slate-600 text-xs">
+                    {l._durationH != null ? `${l._durationH} м/ч` : '—'}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {l._pctUsed != null ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${pctColor}`} style={{ width: `${l._pctUsed}%` }} />
+                        </div>
+                        <span className="text-xs text-slate-600">{l._pctUsed}%</span>
+                      </div>
+                    ) : '—'}
+                  </td>
+                  <td className={`px-4 py-2.5 text-xs ${remainColor}`}>
+                    {l.status === 'active' && l._remainH != null ? (
+                      l._remainH < 0 ? `Просрочен ${Math.abs(l._remainH)} м/ч` : `${l._remainH} м/ч`
+                    ) : l.status === 'closed' ? <span className="text-slate-300">закрыт</span> : '—'}
+                  </td>
+                  <td className="px-4 py-2.5"><StatusBadge status={l.status} /></td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(l); setOpen(true); }}>
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить цикл?') && del.mutate(l.id)}>
+                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
