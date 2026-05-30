@@ -45,8 +45,14 @@ export default function OilSamples() {
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
   const { data: lifecycles = [] } = useQuery({ queryKey: ['oil-lifecycles'], queryFn: () => base44.entities.OilLifecycle.list() });
 
+  const cleanForm = (d) => {
+    const c = { ...d };
+    ['total_hours_at_sampling', 'oil_hours_at_sampling'].forEach(k => { if (c[k] === '' || c[k] === null) delete c[k]; });
+    return c;
+  };
+
   const save = useMutation({
-    mutationFn: d => d.id ? base44.entities.OilSample.update(d.id, d) : base44.entities.OilSample.create(d),
+    mutationFn: d => { const c = cleanForm(d); return c.id ? base44.entities.OilSample.update(c.id, c) : base44.entities.OilSample.create(c); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['oil-samples'] }); setOpen(false); setForm(DEF); }
   });
   const del = useMutation({
