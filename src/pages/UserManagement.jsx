@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,27 +12,58 @@ export default function UserManagement() {
   const [showDialog, setShowDialog] = useState(false);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('user');
+  const [clientId, setClientId] = useState('');
   const [assetId, setAssetId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: () => base44.entities.User.list() });
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
+  const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
+
+  useEffect(() => {
+    const getUser = async () => {
+      const user = await base44.auth.me();
+      setCurrentUser(user);
+    };
+    getUser();
+  }, []);
 
   const handleInvite = async () => {
     if (!email || !role) return;
-    
+
+    if (!currentUser) {
+      alert('Ошибка: не удалось определить текущего пользователя');
+      return;
+    }
+
+    if (currentUser.role === 'user') {
+      alert('Ошибка: у вас нет прав для приглашения пользователей');
+      return;
+    }
+
+    if (currentUser.role === 'superintendent' && role === 'admin') {
+      alert('Ошибка: только администратор может приглашать администраторов');
+      return;
+    }
+
+    if (currentUser.role === 'superintendent' && role === 'superintendent') {
+      alert('Ошибка: только администратор может приглашать суперинтендантов');
+      return;
+    }
+
+    if (currentUser.role === 'superintendent' && role === 'user' && !assetId) {
+      alert('Ошибка: выберите судно для пользователя');
+      return;
+    }
+
     setLoading(true);
     try {
       await base44.users.inviteUser(email, role);
-      
-      // Если капитан, сохраняем asset_id
-      if (role === 'captain' && assetId) {
-        // После регистрации пользователем, капитан должен получить asset_id
-        // Можно добавить note в приглашение или обновить после регистрации
-      }
 
       setEmail('');
       setRole('user');
+      setClientId('');
       setAssetId('');
       setShowDialog(false);
       queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -73,13 +104,14 @@ export default function UserManagement() {
               <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Email</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Имя</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Роль</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Назначенное судно</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Назначение</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Действия</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {users.map(user => {
               const assignedAsset = user.asset_id ? assets.find(a => a.id === user.asset_id) : null;
+              const assignedClient = user.client_id ? clients.find(c => c.id === user.client_id) : null;
               return (
                 <tr key={user.id} className="hover:bg-slate-50">
                   <td className="px-6 py-4 text-sm text-slate-900">{user.email}</td>
@@ -87,12 +119,16 @@ export default function UserManagement() {
                   <td className="px-6 py-4 text-sm">
                     <span className={`px-2 py-1 rounded text-xs font-semibold ${
                       user.role === 'admin' ? 'bg-red-100 text-red-700' :
-                      'bg-blue-100 text-blue-700'
+                      user.role === 'superintendent' ? 'bg-blue-100 text-blue-700' :
+                      'bg-green-100 text-green-700'
                     }`}>
-                      {user.role === 'admin' ? 'Администратор' : 'Пользователь'}
+                      {user.role === 'admin' ? 'Администратор' : 
+                       user.role === 'superintendent' ? 'Суперинтендант' : 'Капитан'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{assignedAsset?.asset_name || '—'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                    {assignedAsset?.asset_name || assignedClient?.company_name || '—'}
+                  </td>
                   <td className="px-6 py-4 text-sm">
                     <Button 
                       variant="ghost" 
@@ -132,12 +168,57 @@ export default function UserManagement() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">Администратор</SelectItem>
-                  <SelectItem value="user">Пользователь</SelectItem>
+                  {currentUser?.role === 'admin' && (
+                    <>
+                      <SelectItem value="admin">Администратор</SelectItem>
+                      <SelectItem value="superintendent">Суперинтендант</SelectItem>
+                    </>
+                  )}
+                  <SelectItem value="user">Капитан</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
+            {currentUser?.role === 'admin' && role === 'superintendent' && (
+              <div>
+                <label className="text-sm font-medium text-slate-900 block mb-1">Клиент</label>
+                <Select value={clientId} onValueChange={setClientId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Выберите клиента..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map(client => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.company_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {role === 'user' && (
+              <div>
+                <label className="text-sm font-medium text-slate-900 block mb-1">Судно</label>
+                <Select value={assetId} onValueChange={setAssetId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Выберите судно..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currentUser?.role === 'superintendent' 
+                      ? assets.filter(a => a.client_id === currentUser.client_id).map(asset => (
+                          <SelectItem key={asset.id} value={asset.id}>
+                            {asset.asset_name}
+                          </SelectItem>
+                        ))
+                      : assets.map(asset => (
+                          <SelectItem key={asset.id} value={asset.id}>
+                            {asset.asset_name}
+                          </SelectItem>
+                        ))
+                    }
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>Отмена</Button>
