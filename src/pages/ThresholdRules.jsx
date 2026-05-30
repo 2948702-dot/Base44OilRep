@@ -10,16 +10,45 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { EQ_TYPES } from '@/utils/labels';
 
-const PARAMS = ['iron_mg_l', 'water_ppm', 'water_activity', 'viscosity_40', 'viscosity_100', 'density', 'dielectric_constant'];
-const PARAM_LABELS = { iron_mg_l: 'Железо (мг/л)', water_ppm: 'Вода (ppm)', water_activity: 'Активность воды (aw)', viscosity_40: 'Вязкость 40°C', viscosity_100: 'Вязкость 100°C', density: 'Плотность', dielectric_constant: 'Диэлектрическая постоянная' };
+const PARAMS = ['iron_mg_l', 'water_activity', 'water_ppm', 'density', 'viscosity_40', 'viscosity_100', 'dielectric_constant'];
+
+const PARAM_UNITS = {
+  iron_mg_l:           'мг/л',
+  water_activity:      '% (0–100)',
+  water_ppm:           'ppm',
+  density:             'кг/м³',
+  viscosity_40:        'сСт (40°C)',
+  viscosity_100:       'сСт (100°C)',
+  dielectric_constant: '',
+};
+
+const PARAM_LABELS = {
+  iron_mg_l:           'Железо',
+  water_activity:      'Активная вода',
+  water_ppm:           'Растворённая вода',
+  density:             'Плотность',
+  viscosity_40:        'Вязкость 40°C',
+  viscosity_100:       'Вязкость 100°C',
+  dielectric_constant: 'Диэлектрическая постоянная',
+};
+
+const PARAM_STEP = { dielectric_constant: '0.01', water_activity: '0.1' };
 
 const DEF = { oil_type_id: '', equipment_type: 'all', parameter_name: '', green_min: '', green_max: '', yellow_min: '', yellow_max: '', red_min: '', red_max: '', unit: '', comments: '' };
 
-function NI({ label, value, onChange }) {
+function NI({ label, value, onChange, step = 'any', min, max }) {
   return (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
-      <Input type="number" step="any" className="h-8 text-sm" value={value ?? ''} onChange={e => onChange(e.target.value === '' ? '' : +e.target.value)} />
+      <Input
+        type="number"
+        step={step}
+        min={min}
+        max={max}
+        className="h-8 text-sm"
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value === '' ? '' : +e.target.value)}
+      />
     </div>
   );
 }
@@ -44,6 +73,10 @@ export default function ThresholdRules() {
 
   const filtered = rules.filter(r => !filterEq || r.equipment_type === filterEq);
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const setParam = v => setForm(p => ({ ...p, parameter_name: v, unit: PARAM_UNITS[v] ?? '' }));
+
+  const step = PARAM_STEP[form.parameter_name] || 'any';
+  const isWaterActivity = form.parameter_name === 'water_activity';
 
   return (
     <div className="p-6">
@@ -74,7 +107,7 @@ export default function ThresholdRules() {
             <tr>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Параметр</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Оборудование</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Ед.</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Ед. изм.</th>
               <th className="text-left px-4 py-2.5 font-medium text-green-700 text-xs">Зелёный (мин–макс)</th>
               <th className="text-left px-4 py-2.5 font-medium text-yellow-700 text-xs">Жёлтый (мин–макс)</th>
               <th className="text-left px-4 py-2.5 font-medium text-red-700 text-xs">Красный (мин–макс)</th>
@@ -90,7 +123,9 @@ export default function ThresholdRules() {
               <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50">
                 <td className="px-4 py-2.5 font-medium text-slate-900">{PARAM_LABELS[r.parameter_name] || r.parameter_name}</td>
                 <td className="px-4 py-2.5 text-slate-600">{r.equipment_type === 'all' ? 'Все' : EQ_TYPES[r.equipment_type] || r.equipment_type}</td>
-                <td className="px-4 py-2.5 text-slate-500 text-xs">{r.unit || '—'}</td>
+                <td className="px-4 py-2.5 text-slate-500 text-xs">
+                  {r.parameter_name === 'dielectric_constant' ? 'б/р' : (PARAM_UNITS[r.parameter_name] || r.unit || '—')}
+                </td>
                 <td className="px-4 py-2.5 text-green-700">{r.green_min ?? '—'} – {r.green_max ?? '—'}</td>
                 <td className="px-4 py-2.5 text-yellow-700">{r.yellow_min ?? '—'} – {r.yellow_max ?? '—'}</td>
                 <td className="px-4 py-2.5 text-red-700">{r.red_min ?? '—'} – {r.red_max ?? '—'}</td>
@@ -116,7 +151,7 @@ export default function ThresholdRules() {
           <div className="grid grid-cols-2 gap-3 py-2">
             <div className="space-y-1">
               <Label>Параметр *</Label>
-              <Select value={form.parameter_name} onValueChange={v => f('parameter_name', v)}>
+              <Select value={form.parameter_name} onValueChange={setParam}>
                 <SelectTrigger><SelectValue placeholder="Параметр" /></SelectTrigger>
                 <SelectContent>{PARAMS.map(p => <SelectItem key={p} value={p}>{PARAM_LABELS[p]}</SelectItem>)}</SelectContent>
               </Select>
@@ -133,7 +168,11 @@ export default function ThresholdRules() {
             </div>
             <div className="space-y-1">
               <Label>Единица измерения</Label>
-              <Input value={form.unit} onChange={e => f('unit', e.target.value)} placeholder="мг/л, ppm, ..." />
+              <div className="h-9 flex items-center px-3 rounded-md border border-input bg-muted text-sm text-slate-600">
+                {form.parameter_name
+                  ? (form.parameter_name === 'dielectric_constant' ? 'безразмерная (шаг 0.01)' : PARAM_UNITS[form.parameter_name])
+                  : '— выберите параметр —'}
+              </div>
             </div>
             <div className="space-y-1">
               <Label>Масло (необязательно)</Label>
@@ -147,18 +186,18 @@ export default function ThresholdRules() {
             </div>
             <div className="col-span-2 grid grid-cols-3 gap-3 bg-green-50 rounded-lg p-3">
               <p className="col-span-3 text-xs font-semibold text-green-700 mb-1">🟢 Зелёный диапазон</p>
-              <NI label="Мин." value={form.green_min} onChange={v => f('green_min', v)} />
-              <NI label="Макс." value={form.green_max} onChange={v => f('green_max', v)} />
+              <NI label="Мин." value={form.green_min} onChange={v => f('green_min', v)} step={step} min={isWaterActivity ? 0 : undefined} max={isWaterActivity ? 100 : undefined} />
+              <NI label="Макс." value={form.green_max} onChange={v => f('green_max', v)} step={step} min={isWaterActivity ? 0 : undefined} max={isWaterActivity ? 100 : undefined} />
             </div>
             <div className="col-span-2 grid grid-cols-3 gap-3 bg-yellow-50 rounded-lg p-3">
               <p className="col-span-3 text-xs font-semibold text-yellow-700 mb-1">🟡 Жёлтый диапазон</p>
-              <NI label="Мин." value={form.yellow_min} onChange={v => f('yellow_min', v)} />
-              <NI label="Макс." value={form.yellow_max} onChange={v => f('yellow_max', v)} />
+              <NI label="Мин." value={form.yellow_min} onChange={v => f('yellow_min', v)} step={step} min={isWaterActivity ? 0 : undefined} max={isWaterActivity ? 100 : undefined} />
+              <NI label="Макс." value={form.yellow_max} onChange={v => f('yellow_max', v)} step={step} min={isWaterActivity ? 0 : undefined} max={isWaterActivity ? 100 : undefined} />
             </div>
             <div className="col-span-2 grid grid-cols-3 gap-3 bg-red-50 rounded-lg p-3">
               <p className="col-span-3 text-xs font-semibold text-red-700 mb-1">🔴 Красный диапазон</p>
-              <NI label="Мин." value={form.red_min} onChange={v => f('red_min', v)} />
-              <NI label="Макс." value={form.red_max} onChange={v => f('red_max', v)} />
+              <NI label="Мин." value={form.red_min} onChange={v => f('red_min', v)} step={step} min={isWaterActivity ? 0 : undefined} max={isWaterActivity ? 100 : undefined} />
+              <NI label="Макс." value={form.red_max} onChange={v => f('red_max', v)} step={step} min={isWaterActivity ? 0 : undefined} max={isWaterActivity ? 100 : undefined} />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Комментарии</Label>
