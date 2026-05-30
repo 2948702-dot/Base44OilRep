@@ -16,11 +16,39 @@
     },
     "iso_vg_grade": {
       "type": "string",
-      "title": "ISO VG Grade"
+      "title": "ISO VG Grade",
+      "enum": [
+        "ISO VG 15",
+        "ISO VG 22",
+        "ISO VG 32",
+        "ISO VG 46",
+        "ISO VG 68",
+        "ISO VG 100",
+        "ISO VG 150",
+        "ISO VG 220",
+        "ISO VG 320",
+        "ISO VG 460",
+        "ISO VG 680",
+        "ISO VG 1000"
+      ]
     },
     "sae_grade": {
       "type": "string",
-      "title": "SAE Grade"
+      "title": "SAE Grade",
+      "enum": [
+        "SAE 10W",
+        "SAE 15W",
+        "SAE 20W",
+        "SAE 20",
+        "SAE 30",
+        "SAE 40",
+        "SAE 50",
+        "SAE 60",
+        "SAE 75W",
+        "SAE 85W",
+        "SAE 80W-90",
+        "SAE 85W-140"
+      ]
     },
     "passport_viscosity_40": {
       "type": "number",
@@ -61,39 +89,6 @@
     "passport_ash_content": {
       "type": "number",
       "title": "Ash Content (%)"
-    },
-    "lab_viscosity_40": {
-      "type": "number",
-      "title": "Lab Viscosity at 40C"
-    },
-    "lab_viscosity_100": {
-      "type": "number",
-      "title": "Lab Viscosity at 100C"
-    },
-    "lab_density": {
-      "type": "number",
-      "title": "Lab Density (kg/m3)"
-    },
-    "lab_dielectric": {
-      "type": "number",
-      "title": "Lab Dielectric Constant"
-    },
-    "lab_water_activity": {
-      "type": "number",
-      "title": "Lab Water Activity (aw)"
-    },
-    "lab_water_ppm": {
-      "type": "number",
-      "title": "Lab Dissolved Water (ppm)"
-    },
-    "lab_measured_date": {
-      "type": "string",
-      "title": "Lab Measurement Date",
-      "format": "date"
-    },
-    "lab_comments": {
-      "type": "string",
-      "title": "Lab Comments"
     },
     "comments": {
       "type": "string",

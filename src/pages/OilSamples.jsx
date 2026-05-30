@@ -13,10 +13,14 @@ import { useNavigate } from 'react-router-dom';
 import { ENGINE_STATES, SAMPLE_STATUSES } from '@/utils/labels';
 import StatusBadge from '@/components/StatusBadge';
 
+const STORAGE_TYPES = ['Закрытый склад', 'На открытом воздухе', 'Холодное хранилище', 'Другое'];
+
 const DEF = {
+  sample_type: 'in_service',
   sample_number: '', client_id: '', asset_id: '', equipment_unit_id: '', sampling_point_id: '',
   oil_type_id: '', lifecycle_id: '', sampling_date: '', total_hours_at_sampling: '',
   oil_hours_at_sampling: '', engine_state: 'warm', sample_status: 'pending',
+  batch_number: '', production_date: '', storage_type: '', delivery_date: '', supplier: '',
   operator_user_id: '', comments: ''
 };
 
@@ -134,6 +138,7 @@ export default function OilSamples() {
             <tr>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">№ пробы</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Дата</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Клиент / Актив</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Точка отбора</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Состояние</th>
@@ -144,19 +149,20 @@ export default function OilSamples() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={8} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
+              <tr><td colSpan={9} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="text-center py-10 text-slate-400">Пробы не найдены</td></tr>
+              <tr><td colSpan={9} className="text-center py-10 text-slate-400">Пробы не найдены</td></tr>
             ) : filtered.slice(0, 100).map(s => (
               <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50">
                 <td className="px-4 py-2.5 font-mono text-slate-900 text-xs font-medium">{s.sample_number}</td>
                 <td className="px-4 py-2.5 text-slate-600">{s.sampling_date}</td>
+                <td className="px-4 py-2.5 text-slate-600 text-xs">{s.sample_type === 'fresh_oil' ? 'Свежее' : 'Из узла'}</td>
                 <td className="px-4 py-2.5 text-slate-700">
                   <div className="text-xs font-medium">{getName(clients, s.client_id, 'company_name')}</div>
                   <div className="text-slate-400 text-xs">{getName(assets, s.asset_id, 'asset_name')}</div>
                 </td>
                 <td className="px-4 py-2.5 text-slate-600 text-xs">{getName(points, s.sampling_point_id, 'point_name')}</td>
-                <td className="px-4 py-2.5 text-slate-600 text-xs">{ENGINE_STATES[s.engine_state] || '—'}</td>
+                <td className="px-4 py-2.5 text-slate-600 text-xs">{s.sample_type === 'in_service' ? ENGINE_STATES[s.engine_state] || '—' : '—'}</td>
                 <td className="px-4 py-2.5 text-slate-600">{s.oil_hours_at_sampling ?? '—'}</td>
                 <td className="px-4 py-2.5"><StatusBadge status={s.sample_status} /></td>
                 <td className="px-4 py-2.5">
@@ -175,7 +181,7 @@ export default function OilSamples() {
               </tr>
             ))}
             {!isLoading && filtered.length > 100 && (
-              <tr><td colSpan={8} className="text-center py-3 text-slate-400 text-xs">Показано 100 из {filtered.length}. Используйте поиск или фильтры для уточнения.</td></tr>
+              <tr><td colSpan={9} className="text-center py-3 text-slate-400 text-xs">Показано 100 из {filtered.length}. Используйте поиск или фильтры для уточнения.</td></tr>
             )}
           </tbody>
         </table>
@@ -186,6 +192,16 @@ export default function OilSamples() {
           <DialogHeader><DialogTitle>{form.id ? 'Редактировать пробу' : 'Добавить пробу масла'}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-3 gap-3 py-2 max-h-[75vh] overflow-y-auto pr-1">
             <div className="space-y-1">
+              <Label>Тип пробы <span className="text-red-500">*</span></Label>
+              <Select value={form.sample_type} onValueChange={v => f('sample_type', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fresh_oil">Свежее (базовое) масло</SelectItem>
+                  <SelectItem value="in_service">Масло из узла</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
               <Label>№ пробы <span className="text-red-500">*</span></Label>
               <Input value={form.sample_number} onChange={e => f('sample_number', e.target.value)} placeholder="SO-2024-001" />
             </div>
@@ -193,60 +209,97 @@ export default function OilSamples() {
               <Label>Дата отбора <span className="text-red-500">*</span></Label>
               <Input type="date" value={form.sampling_date} onChange={e => f('sampling_date', e.target.value)} />
             </div>
-            <div className="space-y-1">
-              <Label>Состояние агрегата <span className="text-red-500">*</span></Label>
-              <Select value={form.engine_state} onValueChange={v => f('engine_state', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(ENGINE_STATES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-3 space-y-2">
-              <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Иерархия объекта</Label>
-              <div className="grid grid-cols-4 gap-2">
+
+            {form.sample_type === 'in_service' && (
+              <>
                 <div className="space-y-1">
-                  <Label className="text-xs">Клиент *</Label>
-                  <Select value={form.client_id} onValueChange={v => setForm(p => ({ ...p, client_id: v, asset_id: '', equipment_unit_id: '', sampling_point_id: '', lifecycle_id: '' }))}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Клиент" /></SelectTrigger>
-                    <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}</SelectContent>
+                  <Label>Состояние агрегата <span className="text-red-500">*</span></Label>
+                  <Select value={form.engine_state} onValueChange={v => f('engine_state', v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{Object.entries(ENGINE_STATES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Актив</Label>
-                  <Select value={form.asset_id} onValueChange={v => setForm(p => ({ ...p, asset_id: v, equipment_unit_id: '', sampling_point_id: '', lifecycle_id: '' }))} disabled={!form.client_id}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.client_id ? 'Актив' : '← сначала клиент'} /></SelectTrigger>
-                    <SelectContent>{filtAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}</SelectContent>
-                  </Select>
+                <div className="col-span-3 space-y-2">
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Иерархия объекта</Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Клиент *</Label>
+                      <Select value={form.client_id} onValueChange={v => setForm(p => ({ ...p, client_id: v, asset_id: '', equipment_unit_id: '', sampling_point_id: '', lifecycle_id: '' }))}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Клиент" /></SelectTrigger>
+                        <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Актив</Label>
+                      <Select value={form.asset_id} onValueChange={v => setForm(p => ({ ...p, asset_id: v, equipment_unit_id: '', sampling_point_id: '', lifecycle_id: '' }))} disabled={!form.client_id}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.client_id ? 'Актив' : '← сначала клиент'} /></SelectTrigger>
+                        <SelectContent>{filtAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Оборудование</Label>
+                      <Select value={form.equipment_unit_id} onValueChange={v => setForm(p => ({ ...p, equipment_unit_id: v, sampling_point_id: '', lifecycle_id: '' }))} disabled={!form.asset_id}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.asset_id ? 'Оборудование' : '← сначала актив'} /></SelectTrigger>
+                        <SelectContent>{filtUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Точка отбора</Label>
+                      <Select value={form.sampling_point_id} onValueChange={v => f('sampling_point_id', v)} disabled={!form.equipment_unit_id}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.equipment_unit_id ? 'Точка' : '← сначала оборудование'} /></SelectTrigger>
+                        <SelectContent>{filtPoints.map(p => <SelectItem key={p.id} value={p.id}>{p.point_name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <HierarchyPath
+                    client={clients.find(c => c.id === form.client_id)?.company_name}
+                    asset={assets.find(a => a.id === form.asset_id)?.asset_name}
+                    unit={units.find(u => u.id === form.equipment_unit_id)?.unit_name}
+                    point={points.find(p => p.id === form.sampling_point_id)?.point_name}
+                  />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Оборудование</Label>
-                  <Select value={form.equipment_unit_id} onValueChange={v => setForm(p => ({ ...p, equipment_unit_id: v, sampling_point_id: '', lifecycle_id: '' }))} disabled={!form.asset_id}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.asset_id ? 'Оборудование' : '← сначала актив'} /></SelectTrigger>
-                    <SelectContent>{filtUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Label>М/ч всего</Label>
+                  <Input type="number" value={form.total_hours_at_sampling} onChange={e => f('total_hours_at_sampling', e.target.value === '' ? '' : +e.target.value)} placeholder="не указано" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Точка отбора</Label>
-                  <Select value={form.sampling_point_id} onValueChange={v => f('sampling_point_id', v)} disabled={!form.equipment_unit_id}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.equipment_unit_id ? 'Точка' : '← сначала оборудование'} /></SelectTrigger>
-                    <SelectContent>{filtPoints.map(p => <SelectItem key={p.id} value={p.id}>{p.point_name}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Label>М/ч масла</Label>
+                  <Input type="number" value={form.oil_hours_at_sampling} onChange={e => f('oil_hours_at_sampling', e.target.value === '' ? '' : +e.target.value)} placeholder="не указано" />
+                </div>
+              </>
+            )}
+
+            {form.sample_type === 'fresh_oil' && (
+              <div className="col-span-3 space-y-2">
+                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Параметры свежего масла</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Партия</Label>
+                    <Input value={form.batch_number} onChange={e => f('batch_number', e.target.value)} placeholder="Номер партии" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Дата производства</Label>
+                    <Input type="date" value={form.production_date} onChange={e => f('production_date', e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Тип хранения</Label>
+                    <Select value={form.storage_type} onValueChange={v => f('storage_type', v)}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Выберите" /></SelectTrigger>
+                      <SelectContent>{STORAGE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Дата доставки</Label>
+                    <Input type="date" value={form.delivery_date} onChange={e => f('delivery_date', e.target.value)} />
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-xs">Поставщик</Label>
+                    <Input value={form.supplier} onChange={e => f('supplier', e.target.value)} placeholder="Имя поставщика" />
+                  </div>
                 </div>
               </div>
-              <HierarchyPath
-                client={clients.find(c => c.id === form.client_id)?.company_name}
-                asset={assets.find(a => a.id === form.asset_id)?.asset_name}
-                unit={units.find(u => u.id === form.equipment_unit_id)?.unit_name}
-                point={points.find(p => p.id === form.sampling_point_id)?.point_name}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>М/ч всего</Label>
-              <Input type="number" value={form.total_hours_at_sampling} onChange={e => f('total_hours_at_sampling', e.target.value === '' ? '' : +e.target.value)} placeholder="не указано" />
-            </div>
-            <div className="space-y-1">
-              <Label>М/ч масла</Label>
-              <Input type="number" value={form.oil_hours_at_sampling} onChange={e => f('oil_hours_at_sampling', e.target.value === '' ? '' : +e.target.value)} placeholder="не указано" />
-            </div>
+            )}
+
             <div className="space-y-1">
               <Label>Статус пробы</Label>
               <Select value={form.sample_status} onValueChange={v => f('sample_status', v)}>
@@ -254,7 +307,8 @@ export default function OilSamples() {
                 <SelectContent>{Object.entries(SAMPLE_STATUSES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            {activeLC.length > 0 && (
+
+            {form.sample_type === 'in_service' && activeLC.length > 0 && (
               <div className="col-span-3 space-y-1">
                 <Label>Жизненный цикл масла</Label>
                 <Select value={form.lifecycle_id} onValueChange={v => f('lifecycle_id', v)}>
@@ -263,6 +317,7 @@ export default function OilSamples() {
                 </Select>
               </div>
             )}
+
             <div className="col-span-3 space-y-1">
               <Label>Комментарии</Label>
               <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
@@ -270,7 +325,7 @@ export default function OilSamples() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
-            <Button onClick={() => save.mutate(form)} disabled={!form.sample_number || !form.client_id || !form.sampling_date || !form.engine_state || save.isPending}>
+            <Button onClick={() => save.mutate(form)} disabled={!form.sample_number || !form.sampling_date || (form.sample_type === 'in_service' && !form.client_id) || (form.sample_type === 'in_service' && !form.engine_state) || save.isPending}>
               {save.isPending ? 'Сохранение...' : 'Сохранить'}
             </Button>
           </DialogFooter>

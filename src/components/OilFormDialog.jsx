@@ -10,13 +10,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+const ISO_VG_GRADES = [
+  'ISO VG 15', 'ISO VG 22', 'ISO VG 32', 'ISO VG 46', 'ISO VG 68', 'ISO VG 100',
+  'ISO VG 150', 'ISO VG 220', 'ISO VG 320', 'ISO VG 460', 'ISO VG 680', 'ISO VG 1000'
+];
+
 const DEF = {
   oil_name: '', manufacturer: '', oil_category: '', iso_vg_grade: '', sae_grade: '',
   passport_viscosity_40: '', passport_viscosity_100: '', passport_viscosity_index: '',
   passport_density_15: '', passport_flash_point: '', passport_pour_point: '',
   passport_dielectric: '', passport_tbn: '', passport_tan: '', passport_ash_content: '',
-  lab_viscosity_40: '', lab_viscosity_100: '', lab_density: '', lab_dielectric: '',
-  lab_water_activity: '', lab_water_ppm: '', lab_measured_date: '', lab_comments: '', comments: ''
+  comments: ''
 };
 
 function Req() { return <span className="text-red-500 ml-0.5">*</span>; }
@@ -67,7 +71,6 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
         <Tabs defaultValue="passport">
           <TabsList className="mb-3">
             <TabsTrigger value="passport">Паспортные данные</TabsTrigger>
-            <TabsTrigger value="lab">Лабораторные данные</TabsTrigger>
           </TabsList>
           <TabsContent value="passport">
             <div className="grid grid-cols-3 gap-3 max-h-[55vh] overflow-y-auto pr-1">
@@ -85,7 +88,12 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
               </div>
               <div className="space-y-1">
                 <Label>ISO VG</Label>
-                <Input value={form.iso_vg_grade} onChange={e => f('iso_vg_grade', e.target.value)} placeholder="ISO VG 46" />
+                <Select value={form.iso_vg_grade || ''} onValueChange={v => f('iso_vg_grade', v)}>
+                  <SelectTrigger><SelectValue placeholder="Выберите ISO VG" /></SelectTrigger>
+                  <SelectContent>
+                    {ISO_VG_GRADES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <Label>SAE</Label>
@@ -109,25 +117,6 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
               <div className="col-span-3 space-y-1">
                 <Label>Комментарии</Label>
                 <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
-              </div>
-            </div>
-          </TabsContent>
-          <TabsContent value="lab">
-            <div className="grid grid-cols-3 gap-3 max-h-[55vh] overflow-y-auto pr-1">
-              <p className="col-span-3 text-xs text-slate-500 bg-blue-50 rounded-md px-3 py-2">Значения, измеренные в нашей лаборатории для нового масла из паспортной партии</p>
-              <NInput label="Вязкость при 40°C" unit="мм²/с" value={form.lab_viscosity_40} onChange={v => f('lab_viscosity_40', v)} />
-              <NInput label="Вязкость при 100°C" unit="мм²/с" value={form.lab_viscosity_100} onChange={v => f('lab_viscosity_100', v)} />
-              <NInput label="Плотность" unit="кг/м³" value={form.lab_density} onChange={v => f('lab_density', v)} />
-              <NInput label="Диэлектр. постоянная" value={form.lab_dielectric} onChange={v => f('lab_dielectric', v)} />
-              <NInput label="Активность воды (aw)" value={form.lab_water_activity} onChange={v => f('lab_water_activity', v)} />
-              <NInput label="Вода растворённая" unit="ppm" value={form.lab_water_ppm} onChange={v => f('lab_water_ppm', v)} />
-              <div className="space-y-1">
-                <Label>Дата измерения</Label>
-                <Input type="date" value={form.lab_measured_date} onChange={e => f('lab_measured_date', e.target.value)} />
-              </div>
-              <div className="col-span-3 space-y-1">
-                <Label>Комментарии лаборатории</Label>
-                <Textarea value={form.lab_comments} onChange={e => f('lab_comments', e.target.value)} rows={3} />
               </div>
             </div>
           </TabsContent>

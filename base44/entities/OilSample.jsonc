@@ -2,6 +2,14 @@
   "name": "OilSample",
   "type": "object",
   "properties": {
+    "sample_type": {
+      "type": "string",
+      "title": "Sample Type",
+      "enum": [
+        "fresh_oil",
+        "in_service"
+      ]
+    },
     "sample_number": {
       "type": "string",
       "title": "Sample Number"
@@ -61,6 +69,28 @@
         "cancelled"
       ]
     },
+    "batch_number": {
+      "type": "string",
+      "title": "Batch Number"
+    },
+    "production_date": {
+      "type": "string",
+      "title": "Production Date",
+      "format": "date"
+    },
+    "storage_type": {
+      "type": "string",
+      "title": "Storage Type"
+    },
+    "delivery_date": {
+      "type": "string",
+      "title": "Delivery Date",
+      "format": "date"
+    },
+    "supplier": {
+      "type": "string",
+      "title": "Supplier"
+    },
     "operator_user_id": {
       "type": "string",
       "title": "Operator"
@@ -80,8 +110,7 @@
   "required": [
     "sample_number",
     "client_id",
-    "asset_id",
-    "sampling_date",
-    "engine_state"
+    "sample_type",
+    "sampling_date"
   ]
 }
