@@ -26,7 +26,8 @@ export default function ScrollToTop() {
       return () => window.clearTimeout(timer);
     }
 
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    // scroll is managed by the Layout's <main> container, not window
+    document.querySelector('main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [pathname, hash, navigationType]);
 
   return null;
