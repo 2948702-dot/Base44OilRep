@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
     }
 
     // Получить всех клиентов и найти "ДонРечФлот"
-    const allClients = await base44.entities.Client.list();
+    const allClients = await base44.asServiceRole.entities.Client.list();
     const donRechFlot = allClients.find(c => c.company_name && c.company_name.includes('ДонРечФлот'));
     
     if (!donRechFlot) {
@@ -18,8 +18,8 @@ Deno.serve(async (req) => {
     }
 
     // Получить все суда и найти без клиента
-    const allAssets = await base44.entities.Asset.list();
-    const assetsWithoutClient = allAssets.filter(a => !a.client_id || a.client_id === '');
+    const allAssets = await base44.asServiceRole.entities.Asset.list();
+    const assetsWithoutClient = allAssets.filter(a => !a.client_id || String(a.client_id).trim() === '');
 
     if (assetsWithoutClient.length === 0) {
       return Response.json({ 
@@ -36,10 +36,10 @@ Deno.serve(async (req) => {
     
     for (const asset of assetsWithoutClient) {
       try {
-        await base44.entities.Asset.update(asset.id, { client_id: donRechFlot.id });
+        await base44.asServiceRole.entities.Asset.update(asset.id, { client_id: donRechFlot.id });
         updated++;
       } catch (err) {
-        errors.push({ assetId: asset.id, error: err.message });
+        errors.push({ assetId: asset.id, name: asset.asset_name, error: err.message });
       }
     }
 

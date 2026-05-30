@@ -94,7 +94,7 @@ export default function Assets() {
 
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200">
+          <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Наименование</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип</th>
