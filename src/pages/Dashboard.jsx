@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
 import KPICard from '@/components/KPICard';
 import StatusBadge from '@/components/StatusBadge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -8,17 +10,34 @@ import { FlaskConical, CheckCircle2, AlertTriangle, XCircle, Activity, CalendarC
 import { EQ_TYPES } from '@/utils/labels';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+  const { isAdmin, isSuperintendent, isCaptain, assignedAssetId } = useRoleAccess();
+  
   const { data: samples = [] } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list() });
   const { data: results = [] } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
   const { data: schedules = [] } = useQuery({ queryKey: ['maintenance-schedules'], queryFn: () => base44.entities.MaintenanceSchedule.list() });
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
 
-  const green = results.filter(r => r.overall_status === 'green').length;
-  const yellow = results.filter(r => r.overall_status === 'yellow').length;
-  const red = results.filter(r => r.overall_status === 'red').length;
-  const avgOHI = results.length > 0
-    ? Math.round(results.reduce((s, r) => s + (r.oil_health_index || 0), 0) / results.length)
+  // Filter data by role (before early return and hooks)
+  let filteredSamples = samples;
+  let filteredResults = results;
+  let filteredSchedules = schedules;
+  let filteredAssets = assets;
+  let filteredClients = clients;
+
+  if (isCaptain && assignedAssetId) {
+    filteredAssets = assets.filter(a => a.id === assignedAssetId);
+    filteredSamples = samples.filter(s => s.asset_id === assignedAssetId);
+    filteredSchedules = schedules.filter(s => s.asset_id === assignedAssetId);
+  }
+
+  // All hooks must be before early return
+  const green = filteredResults.filter(r => r.overall_status === 'green').length;
+  const yellow = filteredResults.filter(r => r.overall_status === 'yellow').length;
+  const red = filteredResults.filter(r => r.overall_status === 'red').length;
+  const avgOHI = filteredResults.length > 0
+    ? Math.round(filteredResults.reduce((s, r) => s + (r.oil_health_index || 0), 0) / filteredResults.length)
     : null;
 
   const samplesByMonth = useMemo(() => {
@@ -28,14 +47,14 @@ export default function Dashboard() {
       const key = d.toLocaleDateString('ru-RU', { month: 'short', year: '2-digit' });
       map[key] = 0;
     }
-    samples.forEach(s => {
+    filteredSamples.forEach(s => {
       if (!s.sampling_date) return;
       const d = new Date(s.sampling_date);
       const key = d.toLocaleDateString('ru-RU', { month: 'short', year: '2-digit' });
       if (map[key] !== undefined) map[key]++;
     });
     return Object.entries(map).map(([month, count]) => ({ month, count }));
-  }, [samples]);
+  }, [filteredSamples]);
 
   const statusData = [
     { name: 'Норма', value: green, color: '#16A34A' },
@@ -43,7 +62,13 @@ export default function Dashboard() {
     { name: 'Критично', value: red, color: '#DC2626' },
   ].filter(d => d.value > 0);
 
-  const needAttention = schedules.filter(s => s.status === 'due_soon' || s.status === 'overdue');
+  const needAttention = filteredSchedules.filter(s => s.status === 'due_soon' || s.status === 'overdue');
+
+  // Early return for captain after all hooks
+  if (isCaptain && assignedAssetId) {
+    navigate(`/vessel/${assignedAssetId}`, { replace: true });
+    return null;
+  }
 
   return (
     <div className="p-6 space-y-5">
@@ -53,12 +78,12 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <KPICard title="Всего проб" value={samples.length} icon={FlaskConical} color="blue" />
+        <KPICard title="Всего проб" value={filteredSamples.length} icon={FlaskConical} color="blue" />
         <KPICard title="Норма" value={green} icon={CheckCircle2} color="green" />
         <KPICard title="Внимание" value={yellow} icon={AlertTriangle} color="yellow" />
         <KPICard title="Критично" value={red} icon={XCircle} color="red" />
         <KPICard title="Средний OHI" value={avgOHI !== null ? `${avgOHI}%` : '—'} icon={Activity} color="blue" subtitle="Индекс здоровья масла" />
-        <KPICard title="Клиентов" value={clients.length} icon={CalendarClock} color="slate" subtitle={`${assets.length} активов`} />
+        <KPICard title={isAdmin ? "Клиентов" : "Судов"} value={isAdmin ? filteredClients.length : filteredAssets.length} icon={CalendarClock} color="slate" subtitle={isAdmin ? `${filteredAssets.length} активов` : ''} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -101,7 +126,7 @@ export default function Dashboard() {
           </div>
         </div>
         {needAttention.length === 0 ? (
-          <div className="py-10 text-center text-slate-400 text-sm">{schedules.length === 0 ? 'Планы ТО не заведены' : 'Все планы в норме ✓'}</div>
+          <div className="py-10 text-center text-slate-400 text-sm">{filteredSchedules.length === 0 ? 'Планы ТО не заведены' : 'Все планы в норме ✓'}</div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">

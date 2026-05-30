@@ -28,6 +28,7 @@ export default function FleetDashboard() {
   const { data: samples = [] } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list() });
   const { data: results = [] } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
   const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
+  const { data: schedules = [] } = useQuery({ queryKey: ['maintenance-schedules'], queryFn: () => base44.entities.MaintenanceSchedule.list() });
 
   // For each asset, find latest OHI across all its sampling points
   const assetOHI = assets.map(asset => {
@@ -57,7 +58,8 @@ export default function FleetDashboard() {
     }
 
     const client = clients.find(c => c.id === asset.client_id);
-    return { ...asset, ohi: latestOHI, latestDate, sampleCount, clientName: client?.company_name };
+    const assetSchedules = schedules.filter(s => s.asset_id === asset.id && s.status === 'overdue');
+    return { ...asset, ohi: latestOHI, latestDate, sampleCount, clientName: client?.company_name, overdueCount: assetSchedules.length };
   });
 
   // Filter by selected client
@@ -121,6 +123,9 @@ export default function FleetDashboard() {
                 <OHIGauge value={asset.ohi} size={110} label={asset.asset_name} />
                 <p className={`text-xs font-semibold mt-1 ${sl.cls}`}>{sl.text}</p>
                 {asset.latestDate && <p className="text-[10px] text-slate-400 mt-0.5">{ new Date(asset.latestDate).toLocaleDateString('ru-RU') }</p>}
+                {asset.overdueCount > 0 && (
+                  <p className="text-[10px] text-red-600 font-semibold mt-1">⚠️ {asset.overdueCount} просроч.</p>
+                )}
               </button>
             );
           })}

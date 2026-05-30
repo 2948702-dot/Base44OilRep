@@ -23,6 +23,9 @@ import Reports from './pages/Reports';
 import OilLifecycles from './pages/OilLifecycles';
 import FleetDashboard from './pages/FleetDashboard';
 import VesselDashboard from './pages/VesselDashboard';
+import CriticalVessels from './pages/CriticalVessels';
+import UserManagement from './pages/UserManagement';
+import EquipmentDetailPage from './pages/EquipmentDetailPage';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -64,6 +67,9 @@ const AuthenticatedApp = () => {
         <Route path="/oil-lifecycles" element={<OilLifecycles />} />
         <Route path="/fleet" element={<FleetDashboard />} />
         <Route path="/vessel/:assetId" element={<VesselDashboard />} />
+        <Route path="/critical" element={<CriticalVessels />} />
+        <Route path="/users" element={<UserManagement />} />
+        <Route path="/equipment/:equipmentId" element={<EquipmentDetailPage />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft } from 'lucide-react';
 import ParameterGauge from '@/components/ParameterGauge';
+import MaintenanceOverdueIndicator from '@/components/MaintenanceOverdueIndicator';
 
 const TREND_PARAMS = [
   { key: 'oil_health_index', label: 'OHI', color: '#3b82f6', result: true },
@@ -68,11 +69,13 @@ export default function VesselDashboard() {
   const { data: samples = [] } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list() });
   const { data: results = [] } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
+  const { data: schedules = [] } = useQuery({ queryKey: ['maintenance-schedules'], queryFn: () => base44.entities.MaintenanceSchedule.list() });
 
   const N = parseInt(probeCount);
 
   const assetPoints = points.filter(p => p.asset_id === assetId);
   const assetSamples = samples.filter(s => s.asset_id === assetId && s.sample_status === 'completed');
+  const assetSchedules = schedules.filter(s => s.asset_id === assetId);
 
   // Build per-point data
   const pointData = assetPoints.map(point => {
@@ -117,7 +120,8 @@ export default function VesselDashboard() {
         <div className="flex-1">
           <h1 className="text-xl font-bold text-slate-900">{asset?.asset_name || '...'}</h1>
           <p className="text-slate-500 text-sm">{client?.company_name} · {asset?.registration_number} · {assetPoints.length} точек отбора</p>
-        </div>
+          <MaintenanceOverdueIndicator schedules={assetSchedules} />
+          </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-slate-500">Показывать последних проб:</span>
           <Select value={probeCount} onValueChange={setProbeCount}>
@@ -143,6 +147,16 @@ export default function VesselDashboard() {
                   <p className="text-xs text-slate-500">{eq?.unit_name} · {eq?.equipment_type} · {oil?.oil_name || 'Масло не задано'}</p>
                   <p className="text-xs text-slate-400 mt-0.5">Всего проб: {sampleCount} · Последняя: {latestSample ? new Date(latestSample.sampling_date).toLocaleDateString('ru-RU') : '—'}</p>
                 </div>
+                {eq && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => navigate(`/equipment/${eq.id}`)}
+                    className="text-xs"
+                  >
+                    Детали
+                  </Button>
+                )}
                 {res && (
                   <div className="text-right">
                     <p className={`text-3xl font-bold ${ohiColor(res.oil_health_index)}`}>{res.oil_health_index != null ? Math.round(res.oil_health_index) : '—'}</p>
