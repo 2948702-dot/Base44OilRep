@@ -18,6 +18,18 @@ const DEF = {
   operator_user_id: '', comments: ''
 };
 
+const genSampleNumber = (existing) => {
+  const year = new Date().getFullYear();
+  const prefix = `SO-${year}-`;
+  const nums = existing
+    .map(s => s.sample_number)
+    .filter(n => n && n.startsWith(prefix))
+    .map(n => parseInt(n.replace(prefix, ''), 10))
+    .filter(n => !isNaN(n));
+  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+  return `${prefix}${String(next).padStart(3, '0')}`;
+};
+
 export default function OilSamples() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
@@ -62,7 +74,7 @@ export default function OilSamples() {
           <h1 className="text-xl font-bold text-slate-900">Пробы масла</h1>
           <p className="text-slate-500 text-sm mt-0.5">{samples.length} проб</p>
         </div>
-        <Button size="sm" onClick={() => { setForm({ ...DEF, sampling_date: new Date().toISOString().split('T')[0] }); setOpen(true); }}>
+        <Button size="sm" onClick={() => { setForm({ ...DEF, sampling_date: new Date().toISOString().split('T')[0], sample_number: genSampleNumber(samples) }); setOpen(true); }}>
           <Plus className="w-4 h-4 mr-1.5" />Добавить пробу
         </Button>
       </div>
@@ -136,22 +148,22 @@ export default function OilSamples() {
           <DialogHeader><DialogTitle>{form.id ? 'Редактировать пробу' : 'Добавить пробу масла'}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-3 gap-3 py-2 max-h-[75vh] overflow-y-auto pr-1">
             <div className="space-y-1">
-              <Label>№ пробы *</Label>
+              <Label>№ пробы <span className="text-red-500">*</span></Label>
               <Input value={form.sample_number} onChange={e => f('sample_number', e.target.value)} placeholder="SO-2024-001" />
             </div>
             <div className="space-y-1">
-              <Label>Дата отбора *</Label>
+              <Label>Дата отбора <span className="text-red-500">*</span></Label>
               <Input type="date" value={form.sampling_date} onChange={e => f('sampling_date', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Состояние агрегата *</Label>
+              <Label>Состояние агрегата <span className="text-red-500">*</span></Label>
               <Select value={form.engine_state} onValueChange={v => f('engine_state', v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{Object.entries(ENGINE_STATES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Клиент *</Label>
+              <Label>Клиент <span className="text-red-500">*</span></Label>
               <Select value={form.client_id} onValueChange={v => f('client_id', v)}>
                 <SelectTrigger><SelectValue placeholder="Клиент" /></SelectTrigger>
                 <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}</SelectContent>
@@ -209,7 +221,7 @@ export default function OilSamples() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
-            <Button onClick={() => save.mutate(form)} disabled={!form.sample_number || !form.client_id || !form.sampling_date || save.isPending}>
+            <Button onClick={() => save.mutate(form)} disabled={!form.sample_number || !form.client_id || !form.sampling_date || !form.engine_state || save.isPending}>
               {save.isPending ? 'Сохранение...' : 'Сохранить'}
             </Button>
           </DialogFooter>

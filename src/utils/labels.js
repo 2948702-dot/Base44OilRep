@@ -63,3 +63,13 @@ export const FREQ_TYPES = {
   hours: 'моточасов',
   hours_or_days_first: 'дней или моточасов (первое)'
 };
+
+export const SAE_GRADES = [
+  'SAE 0W-20', 'SAE 0W-30', 'SAE 0W-40',
+  'SAE 5W-20', 'SAE 5W-30', 'SAE 5W-40',
+  'SAE 10W-30', 'SAE 10W-40', 'SAE 10W-60',
+  'SAE 15W-40', 'SAE 20W-50',
+  'SAE 30', 'SAE 40', 'SAE 50',
+  'SAE 80W-90', 'SAE 85W-140',
+  'SAE 75W-90', 'SAE 75W-140'
+];

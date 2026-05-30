@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SAE_GRADES } from '@/utils/labels';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const DEF = {
   oil_name: '', manufacturer: '', oil_category: '', iso_vg_grade: '', sae_grade: '',
@@ -19,11 +21,14 @@ const DEF = {
 
 function Req() { return <span className="text-red-500 ml-0.5">*</span>; }
 
-function NInput({ label, value, onChange, unit, required }) {
+function NInput({ label, value, onChange, unit, required, allowNegative }) {
   return (
     <div className="space-y-1">
-      <Label>{label}{required && <Req />}{unit ? <span className="text-slate-400 text-xs ml-1">{unit}</span> : ''}</Label>
-      <Input type="number" step="any" value={value ?? ''} onChange={e => onChange(e.target.value === '' ? '' : +e.target.value)} />
+      <Label>
+        {label}{required && <Req />}
+        {unit && <span className="text-slate-400 text-xs ml-1">{unit}</span>}
+      </Label>
+      <Input type="number" step="any" min={allowNegative ? undefined : 0} value={value ?? ''} onChange={e => onChange(e.target.value === '' ? '' : +e.target.value)} />
     </div>
   );
 }
@@ -84,7 +89,12 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
               </div>
               <div className="space-y-1">
                 <Label>SAE</Label>
-                <Input value={form.sae_grade} onChange={e => f('sae_grade', e.target.value)} placeholder="SAE 15W-40" />
+                <Select value={form.sae_grade || ''} onValueChange={v => f('sae_grade', v)}>
+                  <SelectTrigger><SelectValue placeholder="Выберите SAE" /></SelectTrigger>
+                  <SelectContent>
+                    {SAE_GRADES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <NInput label="Вязкость при 40°C" unit="мм²/с" value={form.passport_viscosity_40} onChange={v => f('passport_viscosity_40', v)} />
               <NInput label="Вязкость при 100°C" unit="мм²/с" value={form.passport_viscosity_100} onChange={v => f('passport_viscosity_100', v)} />
@@ -92,7 +102,7 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
               <NInput label="Плотность при 15°C" unit="кг/м³" value={form.passport_density_15} onChange={v => f('passport_density_15', v)} />
               <NInput label="Диэлектр. постоянная" value={form.passport_dielectric} onChange={v => f('passport_dielectric', v)} />
               <NInput label="Т. вспышки" unit="°C" value={form.passport_flash_point} onChange={v => f('passport_flash_point', v)} />
-              <NInput label="Т. застывания" unit="°C" value={form.passport_pour_point} onChange={v => f('passport_pour_point', v)} />
+              <NInput label="Т. застывания" unit="°C" value={form.passport_pour_point} onChange={v => f('passport_pour_point', v)} allowNegative />
               <NInput label="TBN" unit="мг KOH/г" value={form.passport_tbn} onChange={v => f('passport_tbn', v)} />
               <NInput label="TAN" unit="мг KOH/г" value={form.passport_tan} onChange={v => f('passport_tan', v)} />
               <NInput label="Зольность" unit="%" value={form.passport_ash_content} onChange={v => f('passport_ash_content', v)} />
