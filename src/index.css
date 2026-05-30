@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body {
+  overscroll-behavior: none !important;
+}
+
+main {
+  overscroll-behavior: contain !important;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -86,6 +94,10 @@
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+  }
+
+  main {
+    overscroll-behavior: contain;
   }
 
   body {
