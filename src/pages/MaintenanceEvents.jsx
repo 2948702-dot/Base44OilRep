@@ -72,8 +72,8 @@ export default function MaintenanceEvents() {
   const filtUnits = units.filter(u => !form.asset_id || u.asset_id === form.asset_id);
   const filtPoints = points.filter(p => !form.equipment_unit_id || p.equipment_unit_id === form.equipment_unit_id);
   const filtered = events.filter(e =>
-    (!filterClient || e.client_id === filterClient) &&
-    (!filterType || e.event_type === filterType)
+    (filterClient === 'none' || e.client_id === filterClient) &&
+    (filterType === 'none' || e.event_type === filterType)
   );
   const getName = (list, id, field) => list.find(x => x.id === id)?.[field] || '—';
 
@@ -110,14 +110,14 @@ export default function MaintenanceEvents() {
         <Select value={filterClient} onValueChange={setFilterClient}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Все клиенты" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={null}>Все клиенты</SelectItem>
+            <SelectItem value="none">Все клиенты</SelectItem>
             {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Все типы" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={null}>Все типы</SelectItem>
+            <SelectItem value="none">Все типы</SelectItem>
             {Object.entries(EVENT_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>

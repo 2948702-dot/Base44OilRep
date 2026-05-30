@@ -73,9 +73,9 @@ export default function OilSamples() {
   const filteredAssetOptions = assets.filter(a => !filterClient || a.client_id === filterClient);
 
   const filtered = samples.filter(s =>
-    (!filterClient || s.client_id === filterClient) &&
-    (!filterAsset || s.asset_id === filterAsset) &&
-    (!filterStatus || s.sample_status === filterStatus) &&
+    (filterClient === 'none' || s.client_id === filterClient) &&
+    (filterAsset === 'none' || s.asset_id === filterAsset) &&
+    (filterStatus === 'none' || s.sample_status === filterStatus) &&
     (!searchText || s.sample_number?.toLowerCase().includes(searchText.toLowerCase()))
   );
 
@@ -108,21 +108,21 @@ export default function OilSamples() {
         <Select value={filterClient} onValueChange={v => { setFilterClient(v); setFilterAsset(''); }}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Все клиенты" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={null}>Все клиенты</SelectItem>
+            <SelectItem value="none">Все клиенты</SelectItem>
             {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterAsset} onValueChange={setFilterAsset}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Все суда" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={null}>Все суда</SelectItem>
+            <SelectItem value="none">Все суда</SelectItem>
             {filteredAssetOptions.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-40"><SelectValue placeholder="Все статусы" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={null}>Все статусы</SelectItem>
+            <SelectItem value="none">Все статусы</SelectItem>
             {Object.entries(SAMPLE_STATUSES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>

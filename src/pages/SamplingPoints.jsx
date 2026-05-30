@@ -41,7 +41,7 @@ export default function SamplingPoints() {
 
   const filteredAssets = assets.filter(a => !form.client_id || a.client_id === form.client_id);
   const filteredUnits = units.filter(u => !form.asset_id || u.asset_id === form.asset_id);
-  const filteredPoints = points.filter(p => !filterClient || p.client_id === filterClient);
+  const filteredPoints = points.filter(p => filterClient === 'none' || p.client_id === filterClient);
   const getName = (list, id, field) => list.find(x => x.id === id)?.[field] || '—';
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -61,7 +61,7 @@ export default function SamplingPoints() {
         <Select value={filterClient} onValueChange={setFilterClient}>
           <SelectTrigger className="w-48"><SelectValue placeholder="Все клиенты" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={null}>Все клиенты</SelectItem>
+            <SelectItem value="none">Все клиенты</SelectItem>
             {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
           </SelectContent>
         </Select>

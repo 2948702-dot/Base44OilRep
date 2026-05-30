@@ -34,10 +34,10 @@ export default function EquipmentUnits() {
 
   const filteredAssets = assets.filter(a => !form.client_id || a.client_id === form.client_id);
   const filteredUnits = units.filter(u =>
-    (!filterClient || u.client_id === filterClient) &&
-    (!filterAsset || u.asset_id === filterAsset)
+    (filterClient === 'none' || u.client_id === filterClient) &&
+    (filterAsset === 'none' || u.asset_id === filterAsset)
   );
-  const filterAssets = assets.filter(a => !filterClient || a.client_id === filterClient);
+  const filterAssets = assets.filter(a => filterClient === 'none' || a.client_id === filterClient);
   const getName = (list, id, field = 'company_name') => list.find(x => x.id === id)?.[field] || '—';
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -57,14 +57,14 @@ export default function EquipmentUnits() {
         <Select value={filterClient} onValueChange={v => { setFilterClient(v); setFilterAsset(''); }}>
           <SelectTrigger className="w-48"><SelectValue placeholder="Все клиенты" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={null}>Все клиенты</SelectItem>
+            <SelectItem value="none">Все клиенты</SelectItem>
             {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterAsset} onValueChange={setFilterAsset}>
           <SelectTrigger className="w-48"><SelectValue placeholder="Все активы" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={null}>Все активы</SelectItem>
+            <SelectItem value="none">Все активы</SelectItem>
             {filterAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}
           </SelectContent>
         </Select>

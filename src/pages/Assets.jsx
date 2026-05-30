@@ -57,7 +57,7 @@ export default function Assets() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['assets'] })
   });
 
-  const filtered = assets.filter(a => !filterClient || a.client_id === filterClient);
+  const filtered = assets.filter(a => filterClient === 'none' || a.client_id === filterClient);
   const getClient = id => clients.find(c => c.id === id)?.company_name || '—';
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -86,7 +86,7 @@ export default function Assets() {
             <SelectValue placeholder="Все клиенты" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={null}>Все клиенты</SelectItem>
+            <SelectItem value="none">Все клиенты</SelectItem>
             {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
           </SelectContent>
         </Select>

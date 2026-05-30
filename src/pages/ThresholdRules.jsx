@@ -72,7 +72,7 @@ export default function ThresholdRules() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['threshold-rules'] })
   });
 
-  const filtered = rules.filter(r => !filterEq || r.equipment_type === filterEq);
+  const filtered = rules.filter(r => filterEq === 'none' || r.equipment_type === filterEq);
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const setParam = v => setForm(p => ({ ...p, parameter_name: v, unit: PARAM_UNITS[v] ?? '' }));
 
@@ -95,7 +95,7 @@ export default function ThresholdRules() {
         <Select value={filterEq} onValueChange={setFilterEq}>
           <SelectTrigger className="w-52"><SelectValue placeholder="Все типы оборудования" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={null}>Все</SelectItem>
+            <SelectItem value="none">Все</SelectItem>
             <SelectItem value="all">Универсальный</SelectItem>
             {Object.entries(EQ_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
@@ -191,7 +191,7 @@ export default function ThresholdRules() {
               <Select value={form.oil_type_id} onValueChange={v => f('oil_type_id', v)}>
                 <SelectTrigger><SelectValue placeholder="Все масла" /></SelectTrigger>
                 <SelectContent>
-                    <SelectItem value={null}>Все масла</SelectItem>
+                    <SelectItem value="none">Все масла</SelectItem>
                     {oils.map(o => <SelectItem key={o.id} value={o.id}>{o.oil_name}</SelectItem>)}
                 </SelectContent>
               </Select>

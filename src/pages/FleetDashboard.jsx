@@ -63,7 +63,7 @@ export default function FleetDashboard() {
   });
 
   // Filter by selected client
-  const filtered = selectedClientId ? assetOHI.filter(a => a.client_id === selectedClientId) : assetOHI;
+  const filtered = (selectedClientId && selectedClientId !== 'none') ? assetOHI.filter(a => a.client_id === selectedClientId) : assetOHI;
   
   const total = filtered.length;
   const withData = filtered.filter(a => a.ohi != null).length;
@@ -79,10 +79,10 @@ export default function FleetDashboard() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-slate-500">Фильтр по клиенту:</span>
-          <Select value={selectedClientId || ''} onValueChange={(v) => setSelectedClientId(v || null)}>
+          <Select value={selectedClientId || 'none'} onValueChange={(v) => setSelectedClientId(v === 'none' ? null : v)}>
             <SelectTrigger className="w-48"><SelectValue placeholder="Все клиенты" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={null}>Все клиенты</SelectItem>
+              <SelectItem value="none">Все клиенты</SelectItem>
               {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
             </SelectContent>
           </Select>
