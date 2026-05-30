@@ -77,7 +77,7 @@ export default function AnalysisResults() {
     setForm(prev => calcIndexes({ ...prev }, oilRef));
   };
 
-  const filtered = results.filter(r => !filterSample || r.sample_id === filterSample);
+  const filtered = results.filter(r => filterSample === 'none' || r.sample_id === filterSample);
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const num = (k, v) => f(k, v === '' ? '' : +v);
 
@@ -121,7 +121,7 @@ export default function AnalysisResults() {
         <Select value={filterSample} onValueChange={setFilterSample}>
           <SelectTrigger className="w-64"><SelectValue placeholder="Все пробы" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={null}>Все пробы</SelectItem>
+            <SelectItem value="none">Все пробы</SelectItem>
             {samples.map(s => <SelectItem key={s.id} value={s.id}>{s.sample_number} · {s.sampling_date}</SelectItem>)}
           </SelectContent>
         </Select>

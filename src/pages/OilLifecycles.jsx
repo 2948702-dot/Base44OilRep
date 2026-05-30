@@ -64,8 +64,8 @@ export default function OilLifecycles() {
   }, [lifecycles, points, units, assets]);
 
   const filtered = useMemo(() => enriched.filter(l =>
-    (!filterAsset || l._asset?.id === filterAsset) &&
-    (!filterStatus || l.status === filterStatus)
+    (filterAsset === 'none' || l._asset?.id === filterAsset) &&
+    (filterStatus === 'none' || l.status === filterStatus)
   ), [enriched, filterAsset, filterStatus]);
 
   const chartLCs = filterAsset || filterStatus ? filtered : lifecycles;
@@ -128,14 +128,14 @@ export default function OilLifecycles() {
         <Select value={filterAsset} onValueChange={setFilterAsset}>
           <SelectTrigger className="w-52"><SelectValue placeholder="Все суда" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={''}>Все суда</SelectItem>
+            <SelectItem value="none">Все суда</SelectItem>
             {assets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-36"><SelectValue placeholder="Все статусы" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={''}>Все статусы</SelectItem>
+            <SelectItem value="none">Все статусы</SelectItem>
             <SelectItem value="active">Активные</SelectItem>
             <SelectItem value="closed">Закрытые</SelectItem>
           </SelectContent>
