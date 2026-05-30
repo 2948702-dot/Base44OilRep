@@ -19,7 +19,7 @@ export default function Dashboard() {
   const red = results.filter(r => r.overall_status === 'red').length;
   const avgOHI = results.length > 0
     ? Math.round(results.reduce((s, r) => s + (r.oil_health_index || 0), 0) / results.length)
-    : 0;
+    : null;
 
   const samplesByMonth = useMemo(() => {
     const map = {};
@@ -57,7 +57,7 @@ export default function Dashboard() {
         <KPICard title="Норма" value={green} icon={CheckCircle2} color="green" />
         <KPICard title="Внимание" value={yellow} icon={AlertTriangle} color="yellow" />
         <KPICard title="Критично" value={red} icon={XCircle} color="red" />
-        <KPICard title="Средний OHI" value={`${avgOHI}%`} icon={Activity} color="blue" subtitle="Индекс здоровья масла" />
+        <KPICard title="Средний OHI" value={avgOHI !== null ? `${avgOHI}%` : '—'} icon={Activity} color="blue" subtitle="Индекс здоровья масла" />
         <KPICard title="Клиентов" value={clients.length} icon={CalendarClock} color="slate" subtitle={`${assets.length} активов`} />
       </div>
 
@@ -101,7 +101,7 @@ export default function Dashboard() {
           </div>
         </div>
         {needAttention.length === 0 ? (
-          <div className="py-10 text-center text-slate-400 text-sm">Все планы в норме ✓</div>
+          <div className="py-10 text-center text-slate-400 text-sm">{schedules.length === 0 ? 'Планы ТО не заведены' : 'Все планы в норме ✓'}</div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">

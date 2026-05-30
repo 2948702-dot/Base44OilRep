@@ -48,7 +48,7 @@ export default function OilForecast() {
     // From maintenance schedules (planned oil changes)
     schedules.forEach(s => {
       if (!assetIds.includes(s.asset_id)) return;
-      if (!s.maintenance_type?.toLowerCase().includes('масл') && !s.maintenance_type?.toLowerCase().includes('oil')) return;
+      // include all oil-related maintenance schedules
       const pt = points.find(p => p.id === s.sampling_point_id);
       if (!pt?.oil_type_id || !pt.oil_volume) return;
       const k = key(s.asset_id, pt.oil_type_id);
@@ -61,8 +61,9 @@ export default function OilForecast() {
     const topups = {};
     events.forEach(e => {
       if (e.event_type !== 'oil_topup' || !assetIds.includes(e.asset_id)) return;
-      if (!e.new_oil_type_id && !e.old_oil_type_id) return;
-      const oilId = e.new_oil_type_id || e.old_oil_type_id;
+      const pt2 = points.find(p => p.id === e.sampling_point_id);
+      const oilId = e.new_oil_type_id || e.old_oil_type_id || pt2?.oil_type_id;
+      if (!oilId) return;
       const k = key(e.asset_id, oilId);
       if (!topups[k]) topups[k] = { asset_id: e.asset_id, oil_id: oilId, total: 0, count: 0 };
       topups[k].total += (e.added_oil_volume || 0);

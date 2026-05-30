@@ -41,9 +41,10 @@ function calcIndexes(r, oilRef) {
 const DEF = { sample_id: '', iron_mg_l: '', water_ppm: '', water_activity: '', viscosity_40: '', viscosity_100: '', density: '', dielectric_constant: '', recommendation_text: '' };
 
 export default function AnalysisResults() {
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(DEF);
-  const [filterSample, setFilterSample] = useState('');
+  const urlSampleId = new URLSearchParams(window.location.search).get('sample') || '';
+  const [open, setOpen] = useState(!!urlSampleId);
+  const [form, setForm] = useState(urlSampleId ? { ...DEF, sample_id: urlSampleId } : DEF);
+  const [filterSample, setFilterSample] = useState(urlSampleId);
   const qc = useQueryClient();
 
   const { data: results = [], isLoading } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });

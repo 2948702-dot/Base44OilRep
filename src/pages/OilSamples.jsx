@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, FlaskConical, Search } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { ENGINE_STATES, SAMPLE_STATUSES } from '@/utils/labels';
 import StatusBadge from '@/components/StatusBadge';
 
@@ -36,7 +37,9 @@ export default function OilSamples() {
   const [filterClient, setFilterClient] = useState('');
   const [filterAsset, setFilterAsset] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [searchText, setSearchText] = useState('');
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: samples = [], isLoading } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list() });
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
@@ -71,7 +74,8 @@ export default function OilSamples() {
   const filtered = samples.filter(s =>
     (!filterClient || s.client_id === filterClient) &&
     (!filterAsset || s.asset_id === filterAsset) &&
-    (!filterStatus || s.sample_status === filterStatus)
+    (!filterStatus || s.sample_status === filterStatus) &&
+    (!searchText || s.sample_number?.toLowerCase().includes(searchText.toLowerCase()))
   );
 
   const getName = (list, id, field) => list.find(x => x.id === id)?.[field] || '—';
@@ -89,7 +93,17 @@ export default function OilSamples() {
         </Button>
       </div>
 
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-2 mb-3 flex-wrap">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Поиск по № пробы..."
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            className="pl-8 pr-3 h-9 w-44 rounded-md border border-input bg-transparent text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </div>
         <Select value={filterClient} onValueChange={v => { setFilterClient(v); setFilterAsset(''); }}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Все клиенты" /></SelectTrigger>
           <SelectContent>
@@ -121,7 +135,7 @@ export default function OilSamples() {
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Дата</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Клиент / Актив</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Точка отбора</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Агрегат</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Состояние</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">М/ч масла</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Статус</th>
               <th className="w-20 px-4 py-2.5"></th>
@@ -132,7 +146,7 @@ export default function OilSamples() {
               <tr><td colSpan={8} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
             ) : filtered.length === 0 ? (
               <tr><td colSpan={8} className="text-center py-10 text-slate-400">Пробы не найдены</td></tr>
-            ) : filtered.map(s => (
+            ) : filtered.slice(0, 100).map(s => (
               <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50">
                 <td className="px-4 py-2.5 font-mono text-slate-900 text-xs font-medium">{s.sample_number}</td>
                 <td className="px-4 py-2.5 text-slate-600">{s.sampling_date}</td>
@@ -146,6 +160,9 @@ export default function OilSamples() {
                 <td className="px-4 py-2.5"><StatusBadge status={s.sample_status} /></td>
                 <td className="px-4 py-2.5">
                   <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Добавить результат анализа" onClick={() => navigate(`/analysis-results?sample=${s.id}`)}>
+                      <FlaskConical className="w-3.5 h-3.5 text-blue-500" />
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(s); setOpen(true); }}>
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
@@ -156,6 +173,9 @@ export default function OilSamples() {
                 </td>
               </tr>
             ))}
+            {!isLoading && filtered.length > 100 && (
+              <tr><td colSpan={8} className="text-center py-3 text-slate-400 text-xs">Показано 100 из {filtered.length}. Используйте поиск или фильтры для уточнения.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -181,21 +201,21 @@ export default function OilSamples() {
             </div>
             <div className="space-y-1">
               <Label>Клиент <span className="text-red-500">*</span></Label>
-              <Select value={form.client_id} onValueChange={v => f('client_id', v)}>
+              <Select value={form.client_id} onValueChange={v => setForm(p => ({ ...p, client_id: v, asset_id: '', equipment_unit_id: '', sampling_point_id: '', lifecycle_id: '' }))}>
                 <SelectTrigger><SelectValue placeholder="Клиент" /></SelectTrigger>
                 <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
               <Label>Актив</Label>
-              <Select value={form.asset_id} onValueChange={v => f('asset_id', v)}>
+              <Select value={form.asset_id} onValueChange={v => setForm(p => ({ ...p, asset_id: v, equipment_unit_id: '', sampling_point_id: '', lifecycle_id: '' }))}>
                 <SelectTrigger><SelectValue placeholder="Актив" /></SelectTrigger>
                 <SelectContent>{filtAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
               <Label>Оборудование</Label>
-              <Select value={form.equipment_unit_id} onValueChange={v => f('equipment_unit_id', v)}>
+              <Select value={form.equipment_unit_id} onValueChange={v => setForm(p => ({ ...p, equipment_unit_id: v, sampling_point_id: '', lifecycle_id: '' }))}>
                 <SelectTrigger><SelectValue placeholder="Оборудование" /></SelectTrigger>
                 <SelectContent>{filtUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}</SelectContent>
               </Select>

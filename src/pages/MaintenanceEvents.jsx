@@ -198,21 +198,21 @@ export default function MaintenanceEvents() {
             </div>
             <div className="space-y-1">
               <Label>Клиент *</Label>
-              <Select value={form.client_id} onValueChange={v => f('client_id', v)}>
+              <Select value={form.client_id} onValueChange={v => setForm(p => ({ ...p, client_id: v, asset_id: '', equipment_unit_id: '', sampling_point_id: '' }))}>
                 <SelectTrigger><SelectValue placeholder="Клиент" /></SelectTrigger>
                 <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
               <Label>Актив *</Label>
-              <Select value={form.asset_id} onValueChange={v => f('asset_id', v)}>
+              <Select value={form.asset_id} onValueChange={v => setForm(p => ({ ...p, asset_id: v, equipment_unit_id: '', sampling_point_id: '' }))}>
                 <SelectTrigger><SelectValue placeholder="Актив" /></SelectTrigger>
                 <SelectContent>{filtAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
               <Label>Оборудование</Label>
-              <Select value={form.equipment_unit_id} onValueChange={v => f('equipment_unit_id', v)}>
+              <Select value={form.equipment_unit_id} onValueChange={v => setForm(p => ({ ...p, equipment_unit_id: v, sampling_point_id: '' }))}>
                 <SelectTrigger><SelectValue placeholder="Оборудование" /></SelectTrigger>
                 <SelectContent>{filtUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}</SelectContent>
               </Select>
