@@ -26,8 +26,10 @@ export default function SamplingPoints() {
   const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
 
+  const clean = (d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v === '' ? undefined : v]));
+
   const save = useMutation({
-    mutationFn: d => d.id ? base44.entities.SamplingPoint.update(d.id, d) : base44.entities.SamplingPoint.create(d),
+    mutationFn: d => { const c = clean(d); return c.id ? base44.entities.SamplingPoint.update(c.id, c) : base44.entities.SamplingPoint.create(c); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['sampling-points'] }); setOpen(false); setForm(DEF); }
   });
   const del = useMutation({
@@ -149,15 +151,15 @@ export default function SamplingPoints() {
             </div>
             <div className="space-y-1">
               <Label>Объём масла, л</Label>
-              <Input type="number" value={form.oil_volume} onChange={e => f('oil_volume', +e.target.value)} />
+              <Input type="number" value={form.oil_volume ?? ''} onChange={e => f('oil_volume', e.target.value === '' ? '' : +e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>М/ч всего</Label>
-              <Input type="number" value={form.current_total_hours} onChange={e => f('current_total_hours', +e.target.value)} />
+              <Input type="number" value={form.current_total_hours ?? ''} onChange={e => f('current_total_hours', e.target.value === '' ? '' : +e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>М/ч масла</Label>
-              <Input type="number" value={form.current_oil_hours} onChange={e => f('current_oil_hours', +e.target.value)} />
+              <Input type="number" value={form.current_oil_hours ?? ''} onChange={e => f('current_oil_hours', e.target.value === '' ? '' : +e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>QR код</Label>
