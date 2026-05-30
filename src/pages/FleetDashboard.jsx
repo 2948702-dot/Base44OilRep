@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import OHIGauge from '@/components/OHIGauge';
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 function statusColor(ohi) {
   if (ohi == null) return 'border-slate-200 bg-white';
@@ -19,6 +21,7 @@ function statusLabel(ohi) {
 
 export default function FleetDashboard() {
   const navigate = useNavigate();
+  const [selectedClientId, setSelectedClientId] = useState(null);
 
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
@@ -57,16 +60,31 @@ export default function FleetDashboard() {
     return { ...asset, ohi: latestOHI, latestDate, sampleCount, clientName: client?.company_name };
   });
 
-  const total = assetOHI.length;
-  const withData = assetOHI.filter(a => a.ohi != null).length;
-  const avgOHI = withData > 0 ? Math.round(assetOHI.filter(a => a.ohi != null).reduce((s, a) => s + a.ohi, 0) / withData) : null;
-  const critical = assetOHI.filter(a => a.ohi != null && a.ohi < 40).length;
+  // Filter by selected client
+  const filtered = selectedClientId ? assetOHI.filter(a => a.client_id === selectedClientId) : assetOHI;
+  
+  const total = filtered.length;
+  const withData = filtered.filter(a => a.ohi != null).length;
+  const avgOHI = withData > 0 ? Math.round(filtered.filter(a => a.ohi != null).reduce((s, a) => s + a.ohi, 0) / withData) : null;
+  const critical = filtered.filter(a => a.ohi != null && a.ohi < 40).length;
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-slate-900">Дашборд флота</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Состояние масла по всем судам — нажмите на судно для детализации</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Дашборд флота</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Состояние масла по всем судам — нажмите на судно для детализации</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-slate-500">Фильтр по клиенту:</span>
+          <Select value={selectedClientId || ''} onValueChange={(v) => setSelectedClientId(v || null)}>
+            <SelectTrigger className="w-48"><SelectValue placeholder="Все клиенты" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={null}>Все клиенты</SelectItem>
+              {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* KPI strip */}
@@ -102,8 +120,7 @@ export default function FleetDashboard() {
               >
                 <OHIGauge value={asset.ohi} size={110} label={asset.asset_name} />
                 <p className={`text-xs font-semibold mt-1 ${sl.cls}`}>{sl.text}</p>
-                {asset.clientName && <p className="text-[10px] text-slate-400 mt-0.5 truncate w-full text-center">{asset.clientName}</p>}
-                {asset.latestDate && <p className="text-[10px] text-slate-400">{ new Date(asset.latestDate).toLocaleDateString('ru-RU') }</p>}
+                {asset.latestDate && <p className="text-[10px] text-slate-400 mt-0.5">{ new Date(asset.latestDate).toLocaleDateString('ru-RU') }</p>}
               </button>
             );
           })}

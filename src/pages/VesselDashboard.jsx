@@ -85,19 +85,22 @@ export default function VesselDashboard() {
     const latestSample = ptSamples[0];
     const latestResult = latestSample ? results.find(r => r.sample_id === latestSample.id) : null;
 
-    // Trend data (chronological)
-    const trendData = lastN.reverse().map(s => {
-      const r = results.find(x => x.sample_id === s.id);
-      return {
-        date: new Date(s.sampling_date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }),
-        oil_health_index: r?.oil_health_index,
-        iron_mg_l: r?.iron_mg_l,
-        water_ppm: r?.water_ppm,
-        viscosity_40: r?.viscosity_40,
-        water_activity: r?.water_activity,
-        dielectric_constant: r?.dielectric_constant,
-      };
-    });
+    // Trend data (chronological) - include only samples with results
+    const trendData = lastN
+      .filter(s => results.some(r => r.sample_id === s.id))
+      .reverse()
+      .map(s => {
+        const r = results.find(x => x.sample_id === s.id);
+        return {
+          date: new Date(s.sampling_date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }),
+          oil_health_index: r?.oil_health_index,
+          iron_mg_l: r?.iron_mg_l,
+          water_ppm: r?.water_ppm,
+          viscosity_40: r?.viscosity_40,
+          water_activity: r?.water_activity,
+          dielectric_constant: r?.dielectric_constant,
+        };
+      });
 
     const oil = oils.find(o => o.id === point.oil_type_id);
 
