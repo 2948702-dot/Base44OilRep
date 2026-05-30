@@ -46,7 +46,7 @@ export default function OilSamples() {
   const qc = useQueryClient();
   const navigate = useNavigate();
 
-  const { data: samples = [], isLoading } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list() });
+  const { data: samples = [], isLoading } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list(), staleTime: 0 });
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
@@ -62,11 +62,11 @@ export default function OilSamples() {
 
   const save = useMutation({
     mutationFn: d => { const c = cleanForm(d); return c.id ? base44.entities.OilSample.update(c.id, c) : base44.entities.OilSample.create(c); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['oil-samples'] }); setOpen(false); setForm(DEF); }
+    onSuccess: () => { setOpen(false); setForm(DEF); qc.invalidateQueries({ queryKey: ['oil-samples'] }); qc.refetchQueries({ queryKey: ['oil-samples'] }); }
   });
   const del = useMutation({
     mutationFn: id => base44.entities.OilSample.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['oil-samples'] })
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['oil-samples'] }); qc.refetchQueries({ queryKey: ['oil-samples'] }); }
   });
 
   const filtAssets = assets.filter(a => !form.client_id || a.client_id === form.client_id);
