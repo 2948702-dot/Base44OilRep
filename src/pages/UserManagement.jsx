@@ -11,7 +11,7 @@ export default function UserManagement() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('superintendent');
+  const [role, setRole] = useState('user');
   const [assetId, setAssetId] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -32,7 +32,7 @@ export default function UserManagement() {
       }
 
       setEmail('');
-      setRole('superintendent');
+      setRole('user');
       setAssetId('');
       setShowDialog(false);
       queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -87,11 +87,9 @@ export default function UserManagement() {
                   <td className="px-6 py-4 text-sm">
                     <span className={`px-2 py-1 rounded text-xs font-semibold ${
                       user.role === 'admin' ? 'bg-red-100 text-red-700' :
-                      user.role === 'superintendent' ? 'bg-blue-100 text-blue-700' :
-                      'bg-green-100 text-green-700'
+                      'bg-blue-100 text-blue-700'
                     }`}>
-                      {user.role === 'admin' ? 'Администратор' : 
-                       user.role === 'superintendent' ? 'Суперинтендант' : 'Капитан'}
+                      {user.role === 'admin' ? 'Администратор' : 'Пользователь'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">{assignedAsset?.asset_name || '—'}</td>
@@ -135,28 +133,11 @@ export default function UserManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">Администратор</SelectItem>
-                  <SelectItem value="superintendent">Суперинтендант</SelectItem>
-                  <SelectItem value="captain">Капитан</SelectItem>
+                  <SelectItem value="user">Пользователь</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {role === 'captain' && (
-              <div>
-                <label className="text-sm font-medium text-slate-900 block mb-1">Назначить судно</label>
-                <Select value={assetId} onValueChange={setAssetId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Выберите судно..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {assets.map(asset => (
-                      <SelectItem key={asset.id} value={asset.id}>
-                        {asset.asset_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>Отмена</Button>
