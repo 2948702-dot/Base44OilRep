@@ -8,8 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { Slider } from '@/components/ui/slider';
 import ThresholdRangeBar from '@/components/ThresholdRangeBar';
+import StepperInput from '@/components/StepperInput';
 import { EQ_TYPES } from '@/utils/labels';
 
 const PARAMS = ['iron_mg_l', 'water_activity', 'water_ppm', 'density', 'viscosity_40', 'viscosity_100', 'dielectric_constant'];
@@ -36,46 +36,9 @@ const PARAM_LABELS = {
 
 const PARAM_STEP = { dielectric_constant: '0.01', water_activity: '0.1' };
 
-const DEF = { oil_type_id: '', equipment_type: 'all', parameter_name: '', green_min: '', green_max: '', yellow_min: '', yellow_max: '', red_min: '', red_max: '', unit: '', comments: '' };
+const DEF = { oil_type_id: '', equipment_unit_id: '', equipment_type: 'all', parameter_name: '', green_min: '', green_max: '', yellow_min: '', yellow_max: '', red_min: '', red_max: '', unit: '', comments: '' };
 
-function NI({ label, value, onChange, step = 'any', min, max, hasSlider = false }) {
-  return (
-    <div className="space-y-1">
-      <Label className="text-xs">{label}</Label>
-      {hasSlider && min !== undefined && max !== undefined ? (
-        <div className="space-y-1.5">
-          <Slider
-            value={[value ?? (min + max) / 2]}
-            onValueChange={v => onChange(v[0])}
-            min={min}
-            max={max}
-            step={step === 'any' ? 0.1 : parseFloat(step)}
-            className="w-full"
-          />
-          <Input
-            type="number"
-            step={step}
-            min={min}
-            max={max}
-            className="h-8 text-sm"
-            value={value ?? ''}
-            onChange={e => onChange(e.target.value === '' ? '' : +e.target.value)}
-          />
-        </div>
-      ) : (
-        <Input
-          type="number"
-          step={step}
-          min={min}
-          max={max}
-          className="h-8 text-sm"
-          value={value ?? ''}
-          onChange={e => onChange(e.target.value === '' ? '' : +e.target.value)}
-        />
-      )}
-    </div>
-  );
-}
+
 
 export default function ThresholdRules() {
   const [open, setOpen] = useState(false);
@@ -85,6 +48,7 @@ export default function ThresholdRules() {
 
   const { data: rules = [], isLoading } = useQuery({ queryKey: ['threshold-rules'], queryFn: () => base44.entities.ThresholdRule.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
+  const { data: equipmentUnits = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
 
   const save = useMutation({
     mutationFn: d => d.id ? base44.entities.ThresholdRule.update(d.id, d) : base44.entities.ThresholdRule.create(d),
@@ -130,7 +94,7 @@ export default function ThresholdRules() {
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Параметр</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Оборудование</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип/Узел</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Ед. изм.</th>
               <th className="text-left px-4 py-2.5 font-medium text-green-700 text-xs">Зелёный (мин–макс)</th>
               <th className="text-left px-4 py-2.5 font-medium text-yellow-700 text-xs">Жёлтый (мин–макс)</th>
@@ -146,7 +110,15 @@ export default function ThresholdRules() {
             ) : filtered.map(r => (
               <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50">
                 <td className="px-4 py-2.5 font-medium text-slate-900">{PARAM_LABELS[r.parameter_name] || r.parameter_name}</td>
-                <td className="px-4 py-2.5 text-slate-600">{r.equipment_type === 'all' ? 'Все' : EQ_TYPES[r.equipment_type] || r.equipment_type}</td>
+                <td className="px-4 py-2.5 text-slate-600">
+                  {r.equipment_unit_id ? (
+                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-medium">
+                      {equipmentUnits.find(e => e.id === r.equipment_unit_id)?.unit_name || 'Узел'}
+                    </span>
+                  ) : (
+                    <span>{r.equipment_type === 'all' ? 'Все типы' : EQ_TYPES[r.equipment_type] || r.equipment_type}</span>
+                  )}
+                </td>
                 <td className="px-4 py-2.5 text-slate-500 text-xs">
                   {r.parameter_name === 'dielectric_constant' ? 'б/р' : (PARAM_UNITS[r.parameter_name] || r.unit || '—')}
                 </td>
@@ -210,11 +182,21 @@ export default function ThresholdRules() {
               </div>
             </div>
             <div className="space-y-1">
+              <Label>Единица оборудования (индивид.)</Label>
+              <Select value={form.equipment_unit_id} onValueChange={v => f('equipment_unit_id', v)}>
+                <SelectTrigger><SelectValue placeholder="Не установлено" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={null}>Не установлено</SelectItem>
+                  {equipmentUnits.map(e => <SelectItem key={e.id} value={e.id}>{e.unit_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
               <Label>Масло (необязательно)</Label>
               <Select value={form.oil_type_id} onValueChange={v => f('oil_type_id', v)}>
                 <SelectTrigger><SelectValue placeholder="Все масла" /></SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="none">Все масла</SelectItem>
+                    <SelectItem value={null}>Все масла</SelectItem>
                     {oils.map(o => <SelectItem key={o.id} value={o.id}>{o.oil_name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -232,18 +214,18 @@ export default function ThresholdRules() {
             )}
             <div className="col-span-2 grid grid-cols-3 gap-3 bg-green-50 rounded-lg p-3">
               <p className="col-span-3 text-xs font-semibold text-green-700 mb-1">🟢 Зелёный диапазон</p>
-              <NI label="Мин." value={form.green_min} onChange={v => f('green_min', v)} step={step} min={isWaterActivity ? 0 : 0} max={isWaterActivity ? 100 : 1000} hasSlider />
-              <NI label="Макс." value={form.green_max} onChange={v => f('green_max', v)} step={step} min={isWaterActivity ? 0 : 0} max={isWaterActivity ? 100 : 1000} hasSlider />
+              <StepperInput label="Мин." value={form.green_min || 0} onChange={v => f('green_min', v)} min={0} max={isWaterActivity ? 100 : 1000} />
+              <StepperInput label="Макс." value={form.green_max || 0} onChange={v => f('green_max', v)} min={0} max={isWaterActivity ? 100 : 1000} />
             </div>
             <div className="col-span-2 grid grid-cols-3 gap-3 bg-yellow-50 rounded-lg p-3">
               <p className="col-span-3 text-xs font-semibold text-yellow-700 mb-1">🟡 Жёлтый диапазон</p>
-              <NI label="Мин." value={form.yellow_min} onChange={v => f('yellow_min', v)} step={step} min={isWaterActivity ? 0 : 0} max={isWaterActivity ? 100 : 1000} hasSlider />
-              <NI label="Макс." value={form.yellow_max} onChange={v => f('yellow_max', v)} step={step} min={isWaterActivity ? 0 : 0} max={isWaterActivity ? 100 : 1000} hasSlider />
+              <StepperInput label="Мин." value={form.yellow_min || 0} onChange={v => f('yellow_min', v)} min={0} max={isWaterActivity ? 100 : 1000} />
+              <StepperInput label="Макс." value={form.yellow_max || 0} onChange={v => f('yellow_max', v)} min={0} max={isWaterActivity ? 100 : 1000} />
             </div>
             <div className="col-span-2 grid grid-cols-3 gap-3 bg-red-50 rounded-lg p-3">
               <p className="col-span-3 text-xs font-semibold text-red-700 mb-1">🔴 Красный диапазон</p>
-              <NI label="Мин." value={form.red_min} onChange={v => f('red_min', v)} step={step} min={isWaterActivity ? 0 : 0} max={isWaterActivity ? 100 : 1000} hasSlider />
-              <NI label="Макс." value={form.red_max} onChange={v => f('red_max', v)} step={step} min={isWaterActivity ? 0 : 0} max={isWaterActivity ? 100 : 1000} hasSlider />
+              <StepperInput label="Мин." value={form.red_min || 0} onChange={v => f('red_min', v)} min={0} max={isWaterActivity ? 100 : 1000} />
+              <StepperInput label="Макс." value={form.red_max || 0} onChange={v => f('red_max', v)} min={0} max={isWaterActivity ? 100 : 1000} />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Комментарии</Label>
