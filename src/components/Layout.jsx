@@ -76,7 +76,7 @@ export default function Layout() {
           <p className="text-slate-600 text-[10px]">SmartOil v1.0</p>
         </div>
       </aside>
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto overscroll-contain">
         <Outlet />
       </main>
     </div>
