@@ -14,43 +14,43 @@ Deno.serve(async (req) => {
     const donRechFlot = allClients.find(c => c.company_name && c.company_name.includes('ДонРечФлот'));
     
     if (!donRechFlot) {
-      return Response.json({ error: 'ДонРечФлот client not found in database' }, { status: 404 });
+      return Response.json({ error: 'ДонРечФлот client not found' }, { status: 404 });
     }
 
-    // Получить все суда и найти без клиента
-    const allAssets = await base44.asServiceRole.entities.Asset.list();
-    const assetsWithoutClient = allAssets.filter(a => !a.client_id || String(a.client_id).trim() === '');
+    // Получить все суда с пустым client_id
+    const assetsWithoutClient = await base44.asServiceRole.entities.Asset.filter({ client_id: null });
+    const assetsWithEmptyString = await base44.asServiceRole.entities.Asset.filter({ client_id: '' });
+    
+    const combined = [...assetsWithoutClient, ...assetsWithEmptyString];
+    const uniqueAssets = Array.from(new Map(combined.map(a => [a.id, a])).values());
 
-    if (assetsWithoutClient.length === 0) {
+    if (uniqueAssets.length === 0) {
       return Response.json({ 
         success: true, 
         message: 'No assets without client found',
-        updatedCount: 0,
-        clientFound: donRechFlot.id
+        updatedCount: 0
       });
     }
 
     // Обновить все суда
     let updated = 0;
-    let errors = [];
+    const assetsList = [];
     
-    for (const asset of assetsWithoutClient) {
+    for (const asset of uniqueAssets) {
       try {
         await base44.asServiceRole.entities.Asset.update(asset.id, { client_id: donRechFlot.id });
         updated++;
+        assetsList.push({ id: asset.id, name: asset.asset_name });
       } catch (err) {
-        errors.push({ assetId: asset.id, name: asset.asset_name, error: err.message });
+        console.error(`Failed to update ${asset.id}:`, err.message);
       }
     }
 
     return Response.json({
       success: true,
-      message: `Assigned ДонРечФлот to assets without client`,
-      foundWithoutClient: assetsWithoutClient.length,
+      message: `Assigned ДонРечФлот to ${updated} assets`,
       updatedCount: updated,
-      errors: errors.length > 0 ? errors : null,
-      donRechFlotId: donRechFlot.id,
-      assetsList: assetsWithoutClient.map(a => ({ id: a.id, name: a.asset_name }))
+      assetsList: assetsList
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
