@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
 import ThresholdRangeBar from '@/components/ThresholdRangeBar';
 import { EQ_TYPES } from '@/utils/labels';
 
@@ -37,19 +38,41 @@ const PARAM_STEP = { dielectric_constant: '0.01', water_activity: '0.1' };
 
 const DEF = { oil_type_id: '', equipment_type: 'all', parameter_name: '', green_min: '', green_max: '', yellow_min: '', yellow_max: '', red_min: '', red_max: '', unit: '', comments: '' };
 
-function NI({ label, value, onChange, step = 'any', min, max }) {
+function NI({ label, value, onChange, step = 'any', min, max, hasSlider = false }) {
   return (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
-      <Input
-        type="number"
-        step={step}
-        min={min}
-        max={max}
-        className="h-8 text-sm"
-        value={value ?? ''}
-        onChange={e => onChange(e.target.value === '' ? '' : +e.target.value)}
-      />
+      {hasSlider && min !== undefined && max !== undefined ? (
+        <div className="space-y-1.5">
+          <Slider
+            value={[value ?? (min + max) / 2]}
+            onValueChange={v => onChange(v[0])}
+            min={min}
+            max={max}
+            step={step === 'any' ? 0.1 : parseFloat(step)}
+            className="w-full"
+          />
+          <Input
+            type="number"
+            step={step}
+            min={min}
+            max={max}
+            className="h-8 text-sm"
+            value={value ?? ''}
+            onChange={e => onChange(e.target.value === '' ? '' : +e.target.value)}
+          />
+        </div>
+      ) : (
+        <Input
+          type="number"
+          step={step}
+          min={min}
+          max={max}
+          className="h-8 text-sm"
+          value={value ?? ''}
+          onChange={e => onChange(e.target.value === '' ? '' : +e.target.value)}
+        />
+      )}
     </div>
   );
 }
@@ -158,7 +181,7 @@ export default function ThresholdRules() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{form.id ? 'Редактировать правило' : 'Добавить пороговое правило'}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
             <div className="space-y-1">
@@ -209,18 +232,18 @@ export default function ThresholdRules() {
             )}
             <div className="col-span-2 grid grid-cols-3 gap-3 bg-green-50 rounded-lg p-3">
               <p className="col-span-3 text-xs font-semibold text-green-700 mb-1">🟢 Зелёный диапазон</p>
-              <NI label="Мин." value={form.green_min} onChange={v => f('green_min', v)} step={step} min={isWaterActivity ? 0 : undefined} max={isWaterActivity ? 100 : undefined} />
-              <NI label="Макс." value={form.green_max} onChange={v => f('green_max', v)} step={step} min={isWaterActivity ? 0 : undefined} max={isWaterActivity ? 100 : undefined} />
+              <NI label="Мин." value={form.green_min} onChange={v => f('green_min', v)} step={step} min={isWaterActivity ? 0 : 0} max={isWaterActivity ? 100 : 1000} hasSlider />
+              <NI label="Макс." value={form.green_max} onChange={v => f('green_max', v)} step={step} min={isWaterActivity ? 0 : 0} max={isWaterActivity ? 100 : 1000} hasSlider />
             </div>
             <div className="col-span-2 grid grid-cols-3 gap-3 bg-yellow-50 rounded-lg p-3">
               <p className="col-span-3 text-xs font-semibold text-yellow-700 mb-1">🟡 Жёлтый диапазон</p>
-              <NI label="Мин." value={form.yellow_min} onChange={v => f('yellow_min', v)} step={step} min={isWaterActivity ? 0 : undefined} max={isWaterActivity ? 100 : undefined} />
-              <NI label="Макс." value={form.yellow_max} onChange={v => f('yellow_max', v)} step={step} min={isWaterActivity ? 0 : undefined} max={isWaterActivity ? 100 : undefined} />
+              <NI label="Мин." value={form.yellow_min} onChange={v => f('yellow_min', v)} step={step} min={isWaterActivity ? 0 : 0} max={isWaterActivity ? 100 : 1000} hasSlider />
+              <NI label="Макс." value={form.yellow_max} onChange={v => f('yellow_max', v)} step={step} min={isWaterActivity ? 0 : 0} max={isWaterActivity ? 100 : 1000} hasSlider />
             </div>
             <div className="col-span-2 grid grid-cols-3 gap-3 bg-red-50 rounded-lg p-3">
               <p className="col-span-3 text-xs font-semibold text-red-700 mb-1">🔴 Красный диапазон</p>
-              <NI label="Мин." value={form.red_min} onChange={v => f('red_min', v)} step={step} min={isWaterActivity ? 0 : undefined} max={isWaterActivity ? 100 : undefined} />
-              <NI label="Макс." value={form.red_max} onChange={v => f('red_max', v)} step={step} min={isWaterActivity ? 0 : undefined} max={isWaterActivity ? 100 : undefined} />
+              <NI label="Мин." value={form.red_min} onChange={v => f('red_min', v)} step={step} min={isWaterActivity ? 0 : 0} max={isWaterActivity ? 100 : 1000} hasSlider />
+              <NI label="Макс." value={form.red_max} onChange={v => f('red_max', v)} step={step} min={isWaterActivity ? 0 : 0} max={isWaterActivity ? 100 : 1000} hasSlider />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Комментарии</Label>
