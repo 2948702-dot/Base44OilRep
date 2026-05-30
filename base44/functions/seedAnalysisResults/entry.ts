@@ -13,8 +13,16 @@ Deno.serve(async (req) => {
       db.entities.OilSample.filter({ sample_status: 'completed' }),
       db.entities.OilReference.list(),
     ]);
-    // Limit to 60 most recent to avoid rate limits
-    const samples = allSamples.slice(-60);
+
+    // Select the LATEST sample per sampling point so every point gets a result
+    const latestByPoint = {};
+    for (const s of allSamples) {
+      const key = s.sampling_point_id || s.id;
+      if (!latestByPoint[key] || new Date(s.sampling_date) > new Date(latestByPoint[key].sampling_date)) {
+        latestByPoint[key] = s;
+      }
+    }
+    const samples = Object.values(latestByPoint).slice(0, 120);
 
     if (!samples.length) return Response.json({ error: 'No completed samples found' }, { status: 400 });
 
@@ -119,7 +127,7 @@ Deno.serve(async (req) => {
     for (let i = 0; i < results.length; i++) {
       const saved = await db.entities.AnalysisResult.create(results[i]);
       created.push(saved);
-      if (i % 5 === 4) await new Promise(r => setTimeout(r, 800));
+      if (i % 3 === 2) await new Promise(r => setTimeout(r, 1200));
     }
 
     const statusBreakdown = {
