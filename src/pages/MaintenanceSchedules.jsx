@@ -8,33 +8,44 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { PLANNING_METHODS } from '@/utils/labels';
 import StatusBadge from '@/components/StatusBadge';
 
-const DEF = { client_id: '', asset_id: '', equipment_unit_id: '', sampling_point_id: '', maintenance_type: 'Замена масла', planning_method: 'hours', interval_hours: '', target_hours: '', target_date: '', current_hours: '', remaining_hours: '', remaining_days: '', status: 'normal', notification_enabled: false, comments: '' };
+const DEF = {
+  client_id: '', asset_id: '', equipment_unit_id: '', sampling_point_id: '',
+  maintenance_type: '', planning_method: 'hours', interval_hours: '', target_hours: '',
+  target_date: '', current_hours: '', remaining_hours: '', remaining_days: '',
+  status: 'normal', notification_enabled: false, comments: ''
+};
 
 function calcStatus(form) {
-  let status = 'normal';
-  if (form.planning_method === 'hours' || form.planning_method === 'whichever_first') {
-    const rem = +form.remaining_hours;
-    if (!isNaN(rem)) { if (rem < 0) status = 'overdue'; else if (rem < 100) status = 'due_soon'; }
-  }
-  if (form.planning_method === 'date' || form.planning_method === 'whichever_first') {
-    if (form.target_date) {
-      const days = Math.ceil((new Date(form.target_date) - new Date()) / 86400000);
-      const remDays = isNaN(days) ? null : days;
-      if (remDays !== null) {
-        if (form.planning_method === 'whichever_first') {
-          if (remDays < 0 || status === 'overdue') status = 'overdue';
-          else if (remDays < 14 || status === 'due_soon') status = 'due_soon';
-        } else {
-          if (remDays < 0) status = 'overdue'; else if (remDays < 14) status = 'due_soon';
-        }
-      }
+  const updated = { ...form };
+  if (form.planning_method === 'hours' && form.target_hours && form.current_hours) {
+    const rem = +form.target_hours - +form.current_hours;
+    updated.remaining_hours = rem;
+    updated.status = rem < 0 ? 'overdue' : rem < 100 ? 'due_soon' : 'normal';
+  } else if (form.planning_method === 'date' && form.target_date) {
+    const days = Math.round((new Date(form.target_date) - new Date()) / (1000 * 60 * 60 * 24));
+    updated.remaining_days = days;
+    updated.status = days < 0 ? 'overdue' : days < 14 ? 'due_soon' : 'normal';
+  } else if (form.planning_method === 'whichever_first') {
+    let status = 'normal';
+    if (form.target_hours && form.current_hours) {
+      const remH = +form.target_hours - +form.current_hours;
+      updated.remaining_hours = remH;
+      if (remH < 0) status = 'overdue';
+      else if (remH < 100) status = 'due_soon';
     }
+    if (form.target_date) {
+      const days = Math.round((new Date(form.target_date) - new Date()) / (1000 * 60 * 60 * 24));
+      updated.remaining_days = days;
+      if (days < 0) status = 'overdue';
+      else if (days < 14 && status !== 'overdue') status = 'due_soon';
+    }
+    updated.status = status;
   }
-  return status;
+  return updated;
 }
 
 export default function MaintenanceSchedules() {
@@ -50,13 +61,7 @@ export default function MaintenanceSchedules() {
   const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
 
   const save = useMutation({
-    mutationFn: d => {
-      const status = calcStatus(d);
-      const remDays = d.target_date ? Math.ceil((new Date(d.target_date) - new Date()) / 86400000) : null;
-      const remHours = d.target_hours && d.current_hours ? d.target_hours - d.current_hours : (d.remaining_hours || null);
-      const data = { ...d, status, remaining_hours: remHours, remaining_days: remDays };
-      return d.id ? base44.entities.MaintenanceSchedule.update(d.id, data) : base44.entities.MaintenanceSchedule.create(data);
-    },
+    mutationFn: d => d.id ? base44.entities.MaintenanceSchedule.update(d.id, d) : base44.entities.MaintenanceSchedule.create(d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['maintenance-schedules'] }); setOpen(false); setForm(DEF); }
   });
   const del = useMutation({
@@ -71,11 +76,16 @@ export default function MaintenanceSchedules() {
   const getName = (list, id, field) => list.find(x => x.id === id)?.[field] || '—';
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
+  const handleSave = () => {
+    const calculated = calcStatus(form);
+    save.mutate(calculated);
+  };
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-start mb-5">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Планы технического обслуживания</h1>
+          <h1 className="text-xl font-bold text-slate-900">Планы ТО</h1>
           <p className="text-slate-500 text-sm mt-0.5">{schedules.length} планов</p>
         </div>
         <Button size="sm" onClick={() => { setForm(DEF); setOpen(true); }}>
@@ -87,7 +97,7 @@ export default function MaintenanceSchedules() {
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Все статусы" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value={null}>Все</SelectItem>
+            <SelectItem value={null}>Все статусы</SelectItem>
             <SelectItem value="normal">Норма</SelectItem>
             <SelectItem value="due_soon">Скоро</SelectItem>
             <SelectItem value="overdue">Просрочено</SelectItem>
@@ -95,12 +105,12 @@ export default function MaintenanceSchedules() {
         </Select>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden overflow-x-auto">
+        <table className="w-full text-sm min-w-max">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип ТО</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Актив</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Клиент / Актив</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Метод</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Цель (ч)</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Цель (дата)</th>
@@ -111,26 +121,35 @@ export default function MaintenanceSchedules() {
             </tr>
           </thead>
           <tbody>
-            {isLoading ? <tr><td colSpan={9} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
-              : filtered.length === 0 ? <tr><td colSpan={9} className="text-center py-10 text-slate-400">Планы не найдены</td></tr>
-                : filtered.map(s => (
-                  <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="px-4 py-2.5 font-medium text-slate-900">{s.maintenance_type}</td>
-                    <td className="px-4 py-2.5 text-slate-600 text-xs">{getName(assets, s.asset_id, 'asset_name')}</td>
-                    <td className="px-4 py-2.5 text-slate-600 text-xs">{PLANNING_METHODS[s.planning_method] || '—'}</td>
-                    <td className="px-4 py-2.5 text-slate-600">{s.target_hours ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-slate-600">{s.target_date || '—'}</td>
-                    <td className="px-4 py-2.5 text-slate-700 font-medium">{s.remaining_hours ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-slate-700 font-medium">{s.remaining_days ?? '—'}</td>
-                    <td className="px-4 py-2.5"><StatusBadge status={s.status} /></td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(s); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить план?') && del.mutate(s.id)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+            {isLoading ? (
+              <tr><td colSpan={9} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={9} className="text-center py-10 text-slate-400">Планы не найдены</td></tr>
+            ) : filtered.map(s => (
+              <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50">
+                <td className="px-4 py-2.5 font-medium text-slate-900">{s.maintenance_type}</td>
+                <td className="px-4 py-2.5 text-slate-700">
+                  <div className="text-xs font-medium">{getName(clients, s.client_id, 'company_name')}</div>
+                  <div className="text-xs text-slate-400">{getName(assets, s.asset_id, 'asset_name')}</div>
+                </td>
+                <td className="px-4 py-2.5 text-slate-600 text-xs">{PLANNING_METHODS[s.planning_method]}</td>
+                <td className="px-4 py-2.5 text-slate-600">{s.target_hours ?? '—'}</td>
+                <td className="px-4 py-2.5 text-slate-600">{s.target_date ?? '—'}</td>
+                <td className="px-4 py-2.5 text-slate-600">{s.remaining_hours ?? '—'}</td>
+                <td className="px-4 py-2.5 text-slate-600">{s.remaining_days ?? '—'}</td>
+                <td className="px-4 py-2.5"><StatusBadge status={s.status} /></td>
+                <td className="px-4 py-2.5">
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(s); setOpen(true); }}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить план?') && del.mutate(s.id)}>
+                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -138,9 +157,13 @@ export default function MaintenanceSchedules() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle>{form.id ? 'Редактировать план' : 'Добавить план ТО'}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3 py-1 max-h-[70vh] overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 gap-3 py-2 max-h-[72vh] overflow-y-auto pr-1">
+            <div className="col-span-2 space-y-1">
+              <Label>Тип обслуживания *</Label>
+              <Input value={form.maintenance_type} onChange={e => f('maintenance_type', e.target.value)} placeholder="Замена масла, Замена фильтра..." />
+            </div>
             <div className="space-y-1">
-              <Label>Клиент *</Label>
+              <Label>Клиент</Label>
               <Select value={form.client_id} onValueChange={v => f('client_id', v)}>
                 <SelectTrigger><SelectValue placeholder="Клиент" /></SelectTrigger>
                 <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}</SelectContent>
@@ -168,10 +191,6 @@ export default function MaintenanceSchedules() {
               </Select>
             </div>
             <div className="col-span-2 space-y-1">
-              <Label>Тип ТО *</Label>
-              <Input value={form.maintenance_type} onChange={e => f('maintenance_type', e.target.value)} placeholder="Замена масла" />
-            </div>
-            <div className="col-span-2 space-y-1">
               <Label>Метод планирования *</Label>
               <Select value={form.planning_method} onValueChange={v => f('planning_method', v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -181,24 +200,28 @@ export default function MaintenanceSchedules() {
             {(form.planning_method === 'hours' || form.planning_method === 'whichever_first') && (
               <>
                 <div className="space-y-1">
-                  <Label>Целевые М/ч</Label>
+                  <Label>Целевые м/ч</Label>
                   <Input type="number" value={form.target_hours} onChange={e => f('target_hours', +e.target.value)} />
                 </div>
                 <div className="space-y-1">
-                  <Label>Текущие М/ч</Label>
+                  <Label>Текущие м/ч</Label>
                   <Input type="number" value={form.current_hours} onChange={e => f('current_hours', +e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Интервал, м/ч</Label>
+                  <Input type="number" value={form.interval_hours} onChange={e => f('interval_hours', +e.target.value)} />
                 </div>
               </>
             )}
             {(form.planning_method === 'date' || form.planning_method === 'whichever_first') && (
-              <div className={`space-y-1 ${form.planning_method === 'date' ? 'col-span-2' : ''}`}>
+              <div className="space-y-1">
                 <Label>Целевая дата</Label>
                 <Input type="date" value={form.target_date} onChange={e => f('target_date', e.target.value)} />
               </div>
             )}
-            <div className="col-span-2 flex items-center gap-3">
+            <div className="col-span-2 flex items-center justify-between py-1">
+              <Label>Уведомления</Label>
               <Switch checked={form.notification_enabled} onCheckedChange={v => f('notification_enabled', v)} />
-              <Label>Включить уведомления</Label>
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Комментарии</Label>
@@ -207,8 +230,8 @@ export default function MaintenanceSchedules() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
-            <Button onClick={() => save.mutate(form)} disabled={!form.client_id || !form.maintenance_type || save.isPending}>
-              {save.isPending ? 'Сохранение...' : 'Сохранить'}
+            <Button onClick={handleSave} disabled={!form.maintenance_type || save.isPending} className="gap-2">
+              <RefreshCw className="w-3.5 h-3.5" />{save.isPending ? 'Сохранение...' : 'Рассчитать и сохранить'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -7,16 +7,20 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertCircle } from 'lucide-react';
 import { EVENT_TYPES } from '@/utils/labels';
 
-const DEF = { event_type: '', event_date: '', client_id: '', asset_id: '', equipment_unit_id: '', sampling_point_id: '', total_operating_hours: '', old_oil_type_id: '', new_oil_type_id: '', replaced_oil_volume: '', added_oil_volume: '', comment: '' };
+const DEF = {
+  event_type: '', event_date: '', client_id: '', asset_id: '', equipment_unit_id: '',
+  sampling_point_id: '', total_operating_hours: '', old_oil_type_id: '', new_oil_type_id: '',
+  replaced_oil_volume: '', added_oil_volume: '', comment: ''
+};
 
 export default function MaintenanceEvents() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
-  const [filterType, setFilterType] = useState('');
   const [filterClient, setFilterClient] = useState('');
+  const [filterType, setFilterType] = useState('');
   const qc = useQueryClient();
 
   const { data: events = [], isLoading } = useQuery({ queryKey: ['maintenance-events'], queryFn: () => base44.entities.MaintenanceEvent.list() });
@@ -29,23 +33,33 @@ export default function MaintenanceEvents() {
 
   const save = useMutation({
     mutationFn: async (d) => {
-      const isOilChange = d.event_type === 'oil_change';
-      const result = d.id ? await base44.entities.MaintenanceEvent.update(d.id, d) : await base44.entities.MaintenanceEvent.create(d);
-      if (isOilChange && d.sampling_point_id && !d.id) {
-        // Close active lifecycle
-        const active = lifecycles.find(l => l.sampling_point_id === d.sampling_point_id && l.status === 'active');
-        if (active) {
-          await base44.entities.OilLifecycle.update(active.id, { status: 'closed', end_date: d.event_date, end_operating_hours: d.total_operating_hours, end_reason: 'Замена масла' });
+      const result = d.id
+        ? await base44.entities.MaintenanceEvent.update(d.id, d)
+        : await base44.entities.MaintenanceEvent.create(d);
+      // Oil change logic: close active lifecycle, create new one
+      if (d.event_type === 'oil_change' && d.sampling_point_id) {
+        const activeLC = lifecycles.find(l => l.sampling_point_id === d.sampling_point_id && l.status === 'active');
+        if (activeLC) {
+          await base44.entities.OilLifecycle.update(activeLC.id, {
+            status: 'closed', end_date: d.event_date,
+            end_operating_hours: d.total_operating_hours, end_reason: 'Замена масла'
+          });
         }
-        // Create new lifecycle
         if (d.new_oil_type_id) {
-          await base44.entities.OilLifecycle.create({ sampling_point_id: d.sampling_point_id, oil_type_id: d.new_oil_type_id, start_date: d.event_date, start_operating_hours: d.total_operating_hours, status: 'active', start_reason: 'Замена масла' });
+          await base44.entities.OilLifecycle.create({
+            sampling_point_id: d.sampling_point_id, oil_type_id: d.new_oil_type_id,
+            start_date: d.event_date, start_operating_hours: d.total_operating_hours,
+            status: 'active', start_reason: 'Замена масла'
+          });
         }
-        qc.invalidateQueries({ queryKey: ['oil-lifecycles'] });
       }
       return result;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['maintenance-events'] }); setOpen(false); setForm(DEF); }
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['maintenance-events'] });
+      qc.invalidateQueries({ queryKey: ['oil-lifecycles'] });
+      setOpen(false); setForm(DEF);
+    }
   });
   const del = useMutation({
     mutationFn: id => base44.entities.MaintenanceEvent.delete(id),
@@ -55,7 +69,10 @@ export default function MaintenanceEvents() {
   const filtAssets = assets.filter(a => !form.client_id || a.client_id === form.client_id);
   const filtUnits = units.filter(u => !form.asset_id || u.asset_id === form.asset_id);
   const filtPoints = points.filter(p => !form.equipment_unit_id || p.equipment_unit_id === form.equipment_unit_id);
-  const filtered = events.filter(e => (!filterType || e.event_type === filterType) && (!filterClient || e.client_id === filterClient));
+  const filtered = events.filter(e =>
+    (!filterClient || e.client_id === filterClient) &&
+    (!filterType || e.event_type === filterType)
+  );
   const getName = (list, id, field) => list.find(x => x.id === id)?.[field] || '—';
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const isOilChange = form.event_type === 'oil_change';
@@ -64,8 +81,8 @@ export default function MaintenanceEvents() {
     <div className="p-6">
       <div className="flex justify-between items-start mb-5">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">События технического обслуживания</h1>
-          <p className="text-slate-500 text-sm mt-0.5">{events.length} событий</p>
+          <h1 className="text-xl font-bold text-slate-900">События ТО</h1>
+          <p className="text-slate-500 text-sm mt-0.5">{events.length} записей</p>
         </div>
         <Button size="sm" onClick={() => { setForm({ ...DEF, event_date: new Date().toISOString().split('T')[0] }); setOpen(true); }}>
           <Plus className="w-4 h-4 mr-1.5" />Добавить событие
@@ -75,11 +92,17 @@ export default function MaintenanceEvents() {
       <div className="flex gap-2 mb-3">
         <Select value={filterClient} onValueChange={setFilterClient}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Все клиенты" /></SelectTrigger>
-          <SelectContent><SelectItem value={null}>Все клиенты</SelectItem>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}</SelectContent>
+          <SelectContent>
+            <SelectItem value={null}>Все клиенты</SelectItem>
+            {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
+          </SelectContent>
         </Select>
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Все типы" /></SelectTrigger>
-          <SelectContent><SelectItem value={null}>Все типы</SelectItem>{Object.entries(EVENT_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+          <SelectContent>
+            <SelectItem value={null}>Все типы</SelectItem>
+            {Object.entries(EVENT_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+          </SelectContent>
         </Select>
       </div>
 
@@ -87,41 +110,48 @@ export default function MaintenanceEvents() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип события</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Дата</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Клиент / Актив</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Оборудование</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">М/ч</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Объём, л</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Объём замены, л</th>
               <th className="w-20 px-4 py-2.5"></th>
             </tr>
           </thead>
           <tbody>
-            {isLoading ? <tr><td colSpan={7} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
-              : filtered.length === 0 ? <tr><td colSpan={7} className="text-center py-10 text-slate-400">События не найдены</td></tr>
-                : filtered.map(e => (
-                  <tr key={e.id} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="px-4 py-2.5">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${e.event_type === 'oil_change' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
-                        {EVENT_TYPES[e.event_type] || e.event_type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-slate-700">{e.event_date}</td>
-                    <td className="px-4 py-2.5 text-slate-700">
-                      <div className="text-xs font-medium">{getName(clients, e.client_id, 'company_name')}</div>
-                      <div className="text-slate-400 text-xs">{getName(assets, e.asset_id, 'asset_name')}</div>
-                    </td>
-                    <td className="px-4 py-2.5 text-slate-600 text-xs">{getName(units, e.equipment_unit_id, 'unit_name')}</td>
-                    <td className="px-4 py-2.5 text-slate-600">{e.total_operating_hours ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-slate-600">{e.replaced_oil_volume || e.added_oil_volume || '—'}</td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(e); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить событие?') && del.mutate(e.id)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+            {isLoading ? (
+              <tr><td colSpan={7} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={7} className="text-center py-10 text-slate-400">События не найдены</td></tr>
+            ) : filtered.map(e => (
+              <tr key={e.id} className="border-b border-slate-50 hover:bg-slate-50">
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center gap-1.5">
+                    {e.event_type === 'oil_change' && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />}
+                    <span className="text-slate-800">{EVENT_TYPES[e.event_type] || e.event_type}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-2.5 text-slate-600">{e.event_date}</td>
+                <td className="px-4 py-2.5 text-slate-700">
+                  <div className="text-xs font-medium">{getName(clients, e.client_id, 'company_name')}</div>
+                  <div className="text-slate-400 text-xs">{getName(assets, e.asset_id, 'asset_name')}</div>
+                </td>
+                <td className="px-4 py-2.5 text-slate-600 text-xs">{getName(units, e.equipment_unit_id, 'unit_name')}</td>
+                <td className="px-4 py-2.5 text-slate-600">{e.total_operating_hours ?? '—'}</td>
+                <td className="px-4 py-2.5 text-slate-600">{e.replaced_oil_volume ?? '—'}</td>
+                <td className="px-4 py-2.5">
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(e); setOpen(true); }}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить событие?') && del.mutate(e.id)}>
+                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -129,16 +159,11 @@ export default function MaintenanceEvents() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle>{form.id ? 'Редактировать событие' : 'Добавить событие ТО'}</DialogTitle></DialogHeader>
-          {isOilChange && !form.id && (
-            <div className="bg-blue-50 border border-blue-200 rounded-md px-3 py-2 text-xs text-blue-700">
-              ℹ️ При сохранении Замены масла активный цикл будет закрыт и создан новый.
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-3 py-1 max-h-[65vh] overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 gap-3 py-2 max-h-[72vh] overflow-y-auto pr-1">
             <div className="space-y-1">
               <Label>Тип события *</Label>
               <Select value={form.event_type} onValueChange={v => f('event_type', v)}>
-                <SelectTrigger><SelectValue placeholder="Выберите тип" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Тип" /></SelectTrigger>
                 <SelectContent>{Object.entries(EVENT_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
               </Select>
             </div>
@@ -174,35 +199,41 @@ export default function MaintenanceEvents() {
                 <SelectContent>{filtPoints.map(p => <SelectItem key={p.id} value={p.id}>{p.point_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="col-span-2 space-y-1">
-              <Label>М/ч всего</Label>
+            <div className="space-y-1">
+              <Label>М/ч на момент события</Label>
               <Input type="number" value={form.total_operating_hours} onChange={e => f('total_operating_hours', +e.target.value)} />
             </div>
             {isOilChange && (
               <>
+                <div className="col-span-2">
+                  <div className="flex items-center gap-2 bg-blue-50 rounded-md px-3 py-2 text-xs text-blue-700">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    При замене масла активный жизненный цикл будет закрыт и создан новый.
+                  </div>
+                </div>
                 <div className="space-y-1">
                   <Label>Старое масло</Label>
                   <Select value={form.old_oil_type_id} onValueChange={v => f('old_oil_type_id', v)}>
-                    <SelectTrigger><SelectValue placeholder="Марка масла" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Старое масло" /></SelectTrigger>
                     <SelectContent>{oils.map(o => <SelectItem key={o.id} value={o.id}>{o.oil_name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
                   <Label>Новое масло</Label>
                   <Select value={form.new_oil_type_id} onValueChange={v => f('new_oil_type_id', v)}>
-                    <SelectTrigger><SelectValue placeholder="Марка масла" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Новое масло" /></SelectTrigger>
                     <SelectContent>{oils.map(o => <SelectItem key={o.id} value={o.id}>{o.oil_name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Заменено масла, л</Label>
+                  <Label>Объём замены, л</Label>
                   <Input type="number" value={form.replaced_oil_volume} onChange={e => f('replaced_oil_volume', +e.target.value)} />
                 </div>
               </>
             )}
             {form.event_type === 'oil_topup' && (
               <div className="space-y-1">
-                <Label>Долито масла, л</Label>
+                <Label>Объём долива, л</Label>
                 <Input type="number" value={form.added_oil_volume} onChange={e => f('added_oil_volume', +e.target.value)} />
               </div>
             )}
