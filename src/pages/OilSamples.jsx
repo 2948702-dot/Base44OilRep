@@ -192,11 +192,11 @@ export default function OilSamples() {
             </div>
             <div className="space-y-1">
               <Label>М/ч всего</Label>
-              <Input type="number" value={form.total_hours_at_sampling} onChange={e => f('total_hours_at_sampling', +e.target.value)} />
+              <Input type="number" value={form.total_hours_at_sampling} onChange={e => f('total_hours_at_sampling', e.target.value === '' ? '' : +e.target.value)} placeholder="не указано" />
             </div>
             <div className="space-y-1">
               <Label>М/ч масла</Label>
-              <Input type="number" value={form.oil_hours_at_sampling} onChange={e => f('oil_hours_at_sampling', +e.target.value)} />
+              <Input type="number" value={form.oil_hours_at_sampling} onChange={e => f('oil_hours_at_sampling', e.target.value === '' ? '' : +e.target.value)} placeholder="не указано" />
             </div>
             <div className="space-y-1">
               <Label>Статус пробы</Label>
