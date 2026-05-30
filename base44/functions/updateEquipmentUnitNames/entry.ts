@@ -13,16 +13,27 @@ Deno.serve(async (req) => {
 
     const allUnits = await base44.asServiceRole.entities.EquipmentUnit.list();
     
-    let updated = 0;
-    for (let i = 0; i < allUnits.length; i++) {
-      const unit = allUnits[i];
-      const newName = UNIT_NAMES[i % UNIT_NAMES.length];
-      await base44.asServiceRole.entities.EquipmentUnit.update(unit.id, { unit_name: newName });
-      updated++;
+    const updates = [];
+    for (let i = 0; i < Math.min(allUnits.length, 30); i++) {
+      updates.push({
+        id: allUnits[i].id,
+        name: UNIT_NAMES[i % UNIT_NAMES.length]
+      });
     }
 
-    return Response.json({ success: true, updated, total: allUnits.length });
+    let updated = 0;
+    for (const upd of updates) {
+      try {
+        await base44.asServiceRole.entities.EquipmentUnit.update(upd.id, { unit_name: upd.name });
+        updated++;
+      } catch (e) {
+        console.error(`Failed to update ${upd.id}:`, e.message);
+      }
+    }
+
+    return Response.json({ success: true, updated, total: allUnits.length, processed: updates.length });
   } catch (error) {
+    console.error('Update error:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
