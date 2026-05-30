@@ -34,6 +34,7 @@ export default function OilSamples() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
   const [filterClient, setFilterClient] = useState('');
+  const [filterAsset, setFilterAsset] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const qc = useQueryClient();
 
@@ -65,8 +66,11 @@ export default function OilSamples() {
   const filtPoints = points.filter(p => !form.equipment_unit_id || p.equipment_unit_id === form.equipment_unit_id);
   const activeLC = lifecycles.filter(l => l.status === 'active' && (!form.sampling_point_id || l.sampling_point_id === form.sampling_point_id));
 
+  const filteredAssetOptions = assets.filter(a => !filterClient || a.client_id === filterClient);
+
   const filtered = samples.filter(s =>
     (!filterClient || s.client_id === filterClient) &&
+    (!filterAsset || s.asset_id === filterAsset) &&
     (!filterStatus || s.sample_status === filterStatus)
   );
 
@@ -86,11 +90,18 @@ export default function OilSamples() {
       </div>
 
       <div className="flex gap-2 mb-3">
-        <Select value={filterClient} onValueChange={setFilterClient}>
+        <Select value={filterClient} onValueChange={v => { setFilterClient(v); setFilterAsset(''); }}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Все клиенты" /></SelectTrigger>
           <SelectContent>
             <SelectItem value={null}>Все клиенты</SelectItem>
             {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterAsset} onValueChange={setFilterAsset}>
+          <SelectTrigger className="w-44"><SelectValue placeholder="Все суда" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={null}>Все суда</SelectItem>
+            {filteredAssetOptions.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
