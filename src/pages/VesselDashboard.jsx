@@ -32,12 +32,12 @@ const GAUGES = [
     zones: [{from:0,to:0.4,color:'#22c55e'},{from:0.4,to:0.6,color:'#eab308'},{from:0.6,to:1,color:'#ef4444'}]
   },
   {
-    key: 'viscosity_40', label: 'Вязкость 40°C', unit: 'мм²/с', min: 40, max: 220, decimals: 1,
-    zones: [{from:0,to:0.22,color:'#ef4444'},{from:0.22,to:0.78,color:'#22c55e'},{from:0.78,to:1,color:'#ef4444'}]
+    key: 'viscosity_40', label: 'Вязкость 40°C', unit: 'мм²/с', min: 0, max: 150, decimals: 1,
+    zones: [{from:0,to:0.267,color:'#ef4444'},{from:0.267,to:0.467,color:'#eab308'},{from:0.467,to:0.733,color:'#22c55e'},{from:0.733,to:0.933,color:'#eab308'},{from:0.933,to:1,color:'#ef4444'}]
   },
   {
-    key: 'dielectric_constant', label: 'Диэлектр.', unit: '', min: 1.5, max: 5.0, decimals: 2,
-    zones: [{from:0,to:0.37,color:'#22c55e'},{from:0.37,to:0.6,color:'#eab308'},{from:0.6,to:1,color:'#ef4444'}]
+    key: 'dielectric_constant', label: 'Диэлектр.', unit: '', min: 1.5, max: 4.5, decimals: 2,
+    zones: [{from:0,to:0.33,color:'#ef4444'},{from:0.33,to:0.6,color:'#eab308'},{from:0.6,to:1,color:'#22c55e'}]
   },
   {
     key: 'wear_index', label: 'Индекс износа', unit: '', min: 0, max: 100, decimals: 1,
