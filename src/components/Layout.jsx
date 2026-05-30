@@ -1,5 +1,5 @@
 import { Outlet, Link } from 'react-router-dom';
-import { BarChart3, Settings, Users, Package, Zap, TrendingUp, AlertCircle, ShoppingCart, Home } from 'lucide-react';
+import { BarChart3, Settings, Users, Package, Zap, TrendingUp, AlertCircle, ShoppingCart, Home, Wrench } from 'lucide-react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 
 const NAV = {
@@ -20,6 +20,7 @@ const NAV = {
       items: [
         { label: 'Справочник масел', href: '/oil-reference', icon: Settings },
         { label: 'Пороги', href: '/threshold-rules', icon: TrendingUp },
+        { label: 'Администрирование', href: '/admin-panel', icon: Wrench },
       ]
     }
   ],
