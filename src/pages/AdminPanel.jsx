@@ -3,14 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
-const FUNCTIONS = [
-  { name: 'seedDonRechFlot', label: 'Заполнить тест. данные (ДонРечФлот)', desc: '30 судов с пробами и анализами' },
-  { name: 'seedAnalysisResults', label: 'Создать результаты анализов', desc: 'Генерирует анализы для существующих проб' },
-  { name: 'seedMaintenanceEvents', label: 'Создать события ТО', desc: 'Добавляет записи о техническом обслуживании' },
-  { name: 'removeDuplicateClients', label: 'Удалить дубли клиентов', desc: 'Очищает дубликаты по названию' },
-  { name: 'removeDuplicateEquipmentUnits', label: 'Удалить дубли оборудования', desc: 'Очищает дублирующиеся единицы оборудования' },
-  { name: 'removeDuplicateOils', label: 'Удалить дубли масел', desc: 'Очищает дублирующиеся записи о маслах' },
-];
+const FUNCTIONS = [];
 
 export default function AdminPanel() {
   const [loading, setLoading] = useState(null);
@@ -38,29 +31,9 @@ export default function AdminPanel() {
       <p className="text-slate-600 mb-8">Управление тестовыми данными и очистка БД</p>
 
       <div className="grid gap-4">
-        {FUNCTIONS.map(fn => (
-          <div key={fn.name} className="border border-slate-200 rounded-lg p-4 flex items-start justify-between hover:bg-slate-50">
-            <div>
-              <h3 className="font-semibold text-slate-900">{fn.label}</h3>
-              <p className="text-sm text-slate-500 mt-1">{fn.desc}</p>
-            </div>
-            <Button
-              onClick={() => runFunction(fn.name)}
-              disabled={loading !== null}
-              variant={loading === fn.name ? 'outline' : 'default'}
-              className="flex-shrink-0 ml-4"
-            >
-              {loading === fn.name ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Выполняется...
-                </>
-              ) : (
-                'Запустить'
-              )}
-            </Button>
-          </div>
-        ))}
+        <div className="p-4 bg-slate-100 border border-slate-300 rounded-lg text-center text-slate-600">
+          <p>Все временные функции удалены.</p>
+        </div>
       </div>
 
       {result && (
