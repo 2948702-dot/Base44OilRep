@@ -36,6 +36,8 @@ const PARAM_LABELS = {
 
 const PARAM_STEP = { dielectric_constant: '0.01', water_activity: '0.1' };
 
+const UNIT_NAMES = ['ДВС', 'ГД', 'Редуктор', 'Рулевой привод', 'Вспом. двигатель', 'ГД Левый', 'ГД Правый', 'Генератор', 'Пресс', 'Прочее'];
+
 const DEF = { oil_type_id: '', equipment_unit_id: '', equipment_type: 'all', parameter_name: '', green_min: '', green_max: '', yellow_min: '', yellow_max: '', red_min: '', red_max: '', unit: '', comments: '' };
 
 
@@ -48,8 +50,6 @@ export default function ThresholdRules() {
 
   const { data: rules = [], isLoading } = useQuery({ queryKey: ['threshold-rules'], queryFn: () => base44.entities.ThresholdRule.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
-  const { data: allUnits = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
-  const equipmentUnits = Array.from(new Map(allUnits.map(e => [e.unit_name, e])).values()).sort((a, b) => a.unit_name.localeCompare(b.unit_name, 'ru'));
 
   const save = useMutation({
     mutationFn: d => d.id ? base44.entities.ThresholdRule.update(d.id, d) : base44.entities.ThresholdRule.create(d),
@@ -114,7 +114,7 @@ export default function ThresholdRules() {
                 <td className="px-4 py-2.5 text-slate-600">
                   {r.equipment_unit_id ? (
                     <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-medium">
-                      {equipmentUnits.find(e => e.id === r.equipment_unit_id)?.unit_name || 'Узел'}
+                      {r.equipment_unit_id}
                     </span>
                   ) : (
                     <span>{r.equipment_type === 'all' ? 'Все типы' : EQ_TYPES[r.equipment_type] || r.equipment_type}</span>
@@ -188,7 +188,7 @@ export default function ThresholdRules() {
                 <SelectTrigger><SelectValue placeholder="Не установлено" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={null}>Не установлено</SelectItem>
-                  {equipmentUnits.map(e => <SelectItem key={e.id} value={e.id}>{e.unit_name}</SelectItem>)}
+                  {UNIT_NAMES.map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
