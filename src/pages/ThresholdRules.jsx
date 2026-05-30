@@ -191,8 +191,8 @@ export default function ThresholdRules() {
               <Select value={form.oil_type_id} onValueChange={v => f('oil_type_id', v)}>
                 <SelectTrigger><SelectValue placeholder="Все масла" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={null}>Все масла</SelectItem>
-                  {oils.map(o => <SelectItem key={o.id} value={o.id}>{o.oil_name}</SelectItem>)}
+                    <SelectItem value={null}>Все масла</SelectItem>
+                    {oils.map(o => <SelectItem key={o.id} value={o.id}>{o.oil_name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
