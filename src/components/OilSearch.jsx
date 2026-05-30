@@ -27,7 +27,7 @@ export default function OilSearch({ oils = [], value, onChange, onCreateNew }) {
           <p className="text-sm font-medium text-slate-900 truncate">{selected.oil_name}</p>
           <p className="text-xs text-slate-500">{selected.manufacturer} {selected.iso_vg_grade ? `· ISO VG ${selected.iso_vg_grade}` : ''}</p>
         </div>
-        <button onClick={() => onChange(null)} className="text-slate-400 hover:text-slate-600 shrink-0">
+        <button onClick={() => onChange('')} className="text-slate-400 hover:text-slate-600 shrink-0">
           <X className="w-4 h-4" />
         </button>
       </div>
