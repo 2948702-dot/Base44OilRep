@@ -7,6 +7,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft } from 'lucide-react';
+import ParameterGauge from '@/components/ParameterGauge';
 
 const TREND_PARAMS = [
   { key: 'oil_health_index', label: 'OHI', color: '#3b82f6', result: true },
@@ -17,14 +18,32 @@ const TREND_PARAMS = [
   { key: 'dielectric_constant', label: 'Диэлектр.', color: '#10b981', result: true },
 ];
 
-function StatCard({ label, value, unit, colorClass = 'text-slate-800' }) {
-  return (
-    <div className="bg-white rounded-lg border border-slate-200 px-4 py-3">
-      <p className="text-xs text-slate-500 mb-1">{label}</p>
-      <p className={`text-xl font-bold ${colorClass}`}>{value != null ? value : '—'}{value != null && unit ? <span className="text-xs font-normal text-slate-400 ml-1">{unit}</span> : ''}</p>
-    </div>
-  );
-}
+const GAUGES = [
+  {
+    key: 'iron_mg_l', label: 'Железо', unit: 'мг/л', min: 0, max: 200, decimals: 1,
+    zones: [{from:0,to:0.25,color:'#22c55e'},{from:0.25,to:0.5,color:'#eab308'},{from:0.5,to:1,color:'#ef4444'}]
+  },
+  {
+    key: 'water_ppm', label: 'Вода', unit: 'ppm', min: 0, max: 1000, decimals: 0,
+    zones: [{from:0,to:0.2,color:'#22c55e'},{from:0.2,to:0.5,color:'#eab308'},{from:0.5,to:1,color:'#ef4444'}]
+  },
+  {
+    key: 'water_activity', label: 'Акт. воды', unit: '', min: 0, max: 1.0, decimals: 3,
+    zones: [{from:0,to:0.4,color:'#22c55e'},{from:0.4,to:0.6,color:'#eab308'},{from:0.6,to:1,color:'#ef4444'}]
+  },
+  {
+    key: 'viscosity_40', label: 'Вязкость 40°C', unit: 'мм²/с', min: 40, max: 220, decimals: 1,
+    zones: [{from:0,to:0.22,color:'#ef4444'},{from:0.22,to:0.78,color:'#22c55e'},{from:0.78,to:1,color:'#ef4444'}]
+  },
+  {
+    key: 'dielectric_constant', label: 'Диэлектр.', unit: '', min: 1.5, max: 5.0, decimals: 2,
+    zones: [{from:0,to:0.37,color:'#22c55e'},{from:0.37,to:0.6,color:'#eab308'},{from:0.6,to:1,color:'#ef4444'}]
+  },
+  {
+    key: 'wear_index', label: 'Индекс износа', unit: '', min: 0, max: 100, decimals: 1,
+    zones: [{from:0,to:0.4,color:'#22c55e'},{from:0.4,to:0.7,color:'#eab308'},{from:0.7,to:1,color:'#ef4444'}]
+  },
+];
 
 function ohiColor(v) {
   if (v == null) return 'text-slate-400';
@@ -133,13 +152,20 @@ export default function VesselDashboard() {
               {res ? (
                 <div className="px-5 py-4">
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Последние показатели</p>
-                  <div className="grid grid-cols-3 gap-3 sm:grid-cols-6 mb-5">
-                    <StatCard label="Железо" value={res.iron_mg_l != null ? +res.iron_mg_l.toFixed(2) : null} unit="мг/л" colorClass={res.iron_mg_l > 100 ? 'text-red-600' : res.iron_mg_l > 50 ? 'text-yellow-600' : 'text-green-600'} />
-                    <StatCard label="Вода" value={res.water_ppm != null ? +res.water_ppm.toFixed(0) : null} unit="ppm" colorClass={res.water_ppm > 500 ? 'text-red-600' : res.water_ppm > 200 ? 'text-yellow-600' : 'text-green-600'} />
-                    <StatCard label="Акт. воды" value={res.water_activity != null ? +res.water_activity.toFixed(3) : null} colorClass={res.water_activity > 0.6 ? 'text-red-600' : res.water_activity > 0.4 ? 'text-yellow-600' : 'text-green-600'} />
-                    <StatCard label="Вязкость 40°C" value={res.viscosity_40 != null ? +res.viscosity_40.toFixed(1) : null} unit="мм²/с" />
-                    <StatCard label="Диэлектр." value={res.dielectric_constant != null ? +res.dielectric_constant.toFixed(2) : null} />
-                    <StatCard label="Индекс износа" value={res.wear_index != null ? +res.wear_index.toFixed(1) : null} colorClass={res.wear_index > 70 ? 'text-red-600' : res.wear_index > 40 ? 'text-yellow-600' : 'text-green-600'} />
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 mb-5">
+                    {GAUGES.map(g => (
+                      <div key={g.key} className="bg-slate-50 rounded-xl border border-slate-100 px-2 py-2">
+                        <ParameterGauge
+                          label={g.label}
+                          unit={g.unit}
+                          value={res[g.key] != null ? res[g.key] : null}
+                          min={g.min}
+                          max={g.max}
+                          zones={g.zones}
+                          decimals={g.decimals}
+                        />
+                      </div>
+                    ))}
                   </div>
 
                   {/* Trend chart */}
