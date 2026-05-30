@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { SAMPLING_METHODS } from '@/utils/labels';
 import OilSearch from '@/components/OilSearch';
+import OilFormDialog from '@/components/OilFormDialog';
 
 const DEF = { client_id: '', asset_id: '', equipment_unit_id: '', point_name: '', qr_code: '', oil_type_id: '', oil_volume: '', current_total_hours: '', current_oil_hours: '', sampling_method: '', comments: '' };
 
@@ -17,6 +18,7 @@ export default function SamplingPoints() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
   const [oilFormOpen, setOilFormOpen] = useState(false);
+  const [pendingOilCallback, setPendingOilCallback] = useState(null);
   const [filterClient, setFilterClient] = useState('');
   const qc = useQueryClient();
 
@@ -107,37 +109,43 @@ export default function SamplingPoints() {
         </table>
       </div>
 
+      <OilFormDialog
+        open={oilFormOpen}
+        onOpenChange={setOilFormOpen}
+        onCreated={(newOil) => { if (newOil?.id) f('oil_type_id', newOil.id); }}
+      />
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{form.id ? 'Редактировать точку' : 'Добавить точку отбора'}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2 max-h-[75vh] overflow-y-auto pr-1">
             <div className="space-y-1">
-              <Label>Клиент *</Label>
+              <Label>Клиент <span className="text-red-500">*</span></Label>
               <Select value={form.client_id} onValueChange={v => f('client_id', v)}>
                 <SelectTrigger><SelectValue placeholder="Клиент" /></SelectTrigger>
                 <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Актив *</Label>
+              <Label>Актив <span className="text-red-500">*</span></Label>
               <Select value={form.asset_id} onValueChange={v => f('asset_id', v)}>
                 <SelectTrigger><SelectValue placeholder="Актив" /></SelectTrigger>
                 <SelectContent>{filteredAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="col-span-2 space-y-1">
-              <Label>Единица оборудования *</Label>
+              <Label>Единица оборудования <span className="text-red-500">*</span></Label>
               <Select value={form.equipment_unit_id} onValueChange={v => f('equipment_unit_id', v)}>
                 <SelectTrigger><SelectValue placeholder="Оборудование" /></SelectTrigger>
                 <SelectContent>{filteredUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="col-span-2 space-y-1">
-              <Label>Наименование точки *</Label>
+              <Label>Наименование точки <span className="text-red-500">*</span></Label>
               <Input value={form.point_name} onChange={e => f('point_name', e.target.value)} />
             </div>
             <div className="col-span-2 space-y-1">
-              <Label>Метод отбора *</Label>
+              <Label>Метод отбора <span className="text-red-500">*</span></Label>
               <Select value={form.sampling_method} onValueChange={v => f('sampling_method', v)}>
                 <SelectTrigger><SelectValue placeholder="Выберите метод" /></SelectTrigger>
                 <SelectContent>
@@ -147,7 +155,7 @@ export default function SamplingPoints() {
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Тип масла</Label>
-              <OilSearch oils={oils} value={form.oil_type_id} onChange={v => f('oil_type_id', v)} onCreateNew={() => { setOpen(false); setOilFormOpen(true); }} />
+              <OilSearch oils={oils} value={form.oil_type_id} onChange={v => f('oil_type_id', v)} onCreateNew={() => setOilFormOpen(true)} />
             </div>
             <div className="space-y-1">
               <Label>Объём масла, л</Label>

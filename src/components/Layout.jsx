@@ -25,6 +25,7 @@ const NAV = [
       { path: '/maintenance-events', label: 'События ТО', icon: Wrench },
       { path: '/maintenance-schedules', label: 'Планы ТО', icon: CalendarClock },
       { path: '/sampling-schedules', label: 'Графики отбора', icon: Timer },
+      { path: '/oil-lifecycles', label: 'Циклы масла', icon: Droplets },
     ]
   },
   {
