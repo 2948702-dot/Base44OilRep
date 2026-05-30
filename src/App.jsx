@@ -21,6 +21,8 @@ import SamplingSchedules from './pages/SamplingSchedules';
 import OilForecast from './pages/OilForecast';
 import Reports from './pages/Reports';
 import OilLifecycles from './pages/OilLifecycles';
+import FleetDashboard from './pages/FleetDashboard';
+import VesselDashboard from './pages/VesselDashboard';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -60,6 +62,8 @@ const AuthenticatedApp = () => {
         <Route path="/oil-forecast" element={<OilForecast />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/oil-lifecycles" element={<OilLifecycles />} />
+        <Route path="/fleet" element={<FleetDashboard />} />
+        <Route path="/vessel/:assetId" element={<VesselDashboard />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

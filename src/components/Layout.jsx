@@ -1,9 +1,12 @@
 import { Link, useLocation, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Users, Ship, Settings2, Droplets, FlaskConical, BarChart3, Database, Scale, Wrench, CalendarClock, Timer, TrendingUp, FileText } from 'lucide-react';
+import { LayoutDashboard, Users, Ship, Settings2, Droplets, FlaskConical, BarChart3, Database, Scale, Wrench, CalendarClock, Timer, TrendingUp, FileText, Gauge } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const NAV = [
-  { group: 'Обзор', items: [{ path: '/', label: 'Дашборд', icon: LayoutDashboard }] },
+  { group: 'Обзор', items: [
+    { path: '/', label: 'Дашборд', icon: LayoutDashboard },
+    { path: '/fleet', label: 'Флот — OHI', icon: Gauge },
+  ] },
   {
     group: 'Мастер-данные', items: [
       { path: '/clients', label: 'Клиенты', icon: Users },
