@@ -49,7 +49,7 @@ export default function ThresholdRules() {
   const { data: rules = [], isLoading } = useQuery({ queryKey: ['threshold-rules'], queryFn: () => base44.entities.ThresholdRule.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
   const { data: allUnits = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
-  const equipmentUnits = allUnits.filter((e, i, arr) => arr.findIndex(u => u.id === e.id) === i).sort((a, b) => a.unit_name.localeCompare(b.unit_name, 'ru'));
+  const equipmentUnits = Array.from(new Map(allUnits.map(e => [e.unit_name, e])).values()).sort((a, b) => a.unit_name.localeCompare(b.unit_name, 'ru'));
 
   const save = useMutation({
     mutationFn: d => d.id ? base44.entities.ThresholdRule.update(d.id, d) : base44.entities.ThresholdRule.create(d),
