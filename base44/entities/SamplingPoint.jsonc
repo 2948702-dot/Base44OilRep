@@ -1,0 +1,62 @@
+{
+  "name": "SamplingPoint",
+  "type": "object",
+  "properties": {
+    "client_id": {
+      "type": "string",
+      "title": "Client"
+    },
+    "asset_id": {
+      "type": "string",
+      "title": "Asset"
+    },
+    "equipment_unit_id": {
+      "type": "string",
+      "title": "Equipment Unit"
+    },
+    "point_name": {
+      "type": "string",
+      "title": "Point Name"
+    },
+    "qr_code": {
+      "type": "string",
+      "title": "QR Code"
+    },
+    "oil_type_id": {
+      "type": "string",
+      "title": "Oil Type"
+    },
+    "oil_volume": {
+      "type": "number",
+      "title": "Oil Volume (L)"
+    },
+    "current_total_hours": {
+      "type": "number",
+      "title": "Current Total Hours"
+    },
+    "current_oil_hours": {
+      "type": "number",
+      "title": "Current Oil Hours"
+    },
+    "sampling_method": {
+      "type": "string",
+      "title": "Sampling Method",
+      "enum": [
+        "pump",
+        "drain_plug",
+        "minimess_port"
+      ]
+    },
+    "comments": {
+      "type": "string",
+      "title": "Comments"
+    }
+  },
+  "required": [
+    "client_id",
+    "asset_id",
+    "equipment_unit_id",
+    "point_name",
+    "sampling_method"
+  ]
+}

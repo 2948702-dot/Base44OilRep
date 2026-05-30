@@ -1,0 +1,83 @@
+{
+  "name": "MaintenanceSchedule",
+  "type": "object",
+  "properties": {
+    "client_id": {
+      "type": "string",
+      "title": "Client"
+    },
+    "asset_id": {
+      "type": "string",
+      "title": "Asset"
+    },
+    "equipment_unit_id": {
+      "type": "string",
+      "title": "Equipment Unit"
+    },
+    "sampling_point_id": {
+      "type": "string",
+      "title": "Sampling Point"
+    },
+    "maintenance_type": {
+      "type": "string",
+      "title": "Maintenance Type"
+    },
+    "planning_method": {
+      "type": "string",
+      "title": "Planning Method",
+      "enum": [
+        "hours",
+        "date",
+        "whichever_first"
+      ]
+    },
+    "interval_hours": {
+      "type": "number",
+      "title": "Interval (hours)"
+    },
+    "target_hours": {
+      "type": "number",
+      "title": "Target Total Hours"
+    },
+    "target_date": {
+      "type": "string",
+      "title": "Target Date",
+      "format": "date"
+    },
+    "current_hours": {
+      "type": "number",
+      "title": "Current Hours"
+    },
+    "remaining_hours": {
+      "type": "number",
+      "title": "Remaining Hours"
+    },
+    "remaining_days": {
+      "type": "number",
+      "title": "Remaining Days"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "normal",
+        "due_soon",
+        "overdue"
+      ]
+    },
+    "notification_enabled": {
+      "type": "boolean",
+      "title": "Enable Notifications"
+    },
+    "comments": {
+      "type": "string",
+      "title": "Comments"
+    }
+  },
+  "required": [
+    "client_id",
+    "asset_id",
+    "maintenance_type",
+    "planning_method"
+  ]
+}

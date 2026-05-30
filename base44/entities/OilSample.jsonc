@@ -1,0 +1,87 @@
+{
+  "name": "OilSample",
+  "type": "object",
+  "properties": {
+    "sample_number": {
+      "type": "string",
+      "title": "Sample Number"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "Client"
+    },
+    "asset_id": {
+      "type": "string",
+      "title": "Asset"
+    },
+    "equipment_unit_id": {
+      "type": "string",
+      "title": "Equipment Unit"
+    },
+    "sampling_point_id": {
+      "type": "string",
+      "title": "Sampling Point"
+    },
+    "oil_type_id": {
+      "type": "string",
+      "title": "Oil Type"
+    },
+    "lifecycle_id": {
+      "type": "string",
+      "title": "Oil Lifecycle"
+    },
+    "sampling_date": {
+      "type": "string",
+      "title": "Sampling Date",
+      "format": "date"
+    },
+    "total_hours_at_sampling": {
+      "type": "number",
+      "title": "Total Hours at Sampling"
+    },
+    "oil_hours_at_sampling": {
+      "type": "number",
+      "title": "Oil Hours at Sampling"
+    },
+    "engine_state": {
+      "type": "string",
+      "title": "Engine State",
+      "enum": [
+        "warm",
+        "cold"
+      ]
+    },
+    "sample_status": {
+      "type": "string",
+      "title": "Sample Status",
+      "enum": [
+        "pending",
+        "in_analysis",
+        "completed",
+        "cancelled"
+      ]
+    },
+    "operator_user_id": {
+      "type": "string",
+      "title": "Operator"
+    },
+    "comments": {
+      "type": "string",
+      "title": "Comments"
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Attachments"
+    }
+  },
+  "required": [
+    "sample_number",
+    "client_id",
+    "asset_id",
+    "sampling_date",
+    "engine_state"
+  ]
+}

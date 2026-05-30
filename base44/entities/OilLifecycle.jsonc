@@ -1,0 +1,58 @@
+{
+  "name": "OilLifecycle",
+  "type": "object",
+  "properties": {
+    "sampling_point_id": {
+      "type": "string",
+      "title": "Sampling Point"
+    },
+    "oil_type_id": {
+      "type": "string",
+      "title": "Oil Type"
+    },
+    "start_date": {
+      "type": "string",
+      "title": "Start Date",
+      "format": "date"
+    },
+    "start_operating_hours": {
+      "type": "number",
+      "title": "Start Operating Hours"
+    },
+    "end_date": {
+      "type": "string",
+      "title": "End Date",
+      "format": "date"
+    },
+    "end_operating_hours": {
+      "type": "number",
+      "title": "End Operating Hours"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "active",
+        "closed"
+      ]
+    },
+    "start_reason": {
+      "type": "string",
+      "title": "Start Reason"
+    },
+    "end_reason": {
+      "type": "string",
+      "title": "End Reason"
+    },
+    "comments": {
+      "type": "string",
+      "title": "Comments"
+    }
+  },
+  "required": [
+    "sampling_point_id",
+    "oil_type_id",
+    "start_date",
+    "status"
+  ]
+}

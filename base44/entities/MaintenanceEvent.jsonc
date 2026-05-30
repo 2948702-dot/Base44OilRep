@@ -1,0 +1,77 @@
+{
+  "name": "MaintenanceEvent",
+  "type": "object",
+  "properties": {
+    "event_type": {
+      "type": "string",
+      "title": "Event Type",
+      "enum": [
+        "oil_change",
+        "oil_topup",
+        "oil_filter",
+        "air_filter",
+        "repair",
+        "component_replacement",
+        "other"
+      ]
+    },
+    "event_date": {
+      "type": "string",
+      "title": "Event Date",
+      "format": "date"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "Client"
+    },
+    "asset_id": {
+      "type": "string",
+      "title": "Asset"
+    },
+    "equipment_unit_id": {
+      "type": "string",
+      "title": "Equipment Unit"
+    },
+    "sampling_point_id": {
+      "type": "string",
+      "title": "Sampling Point"
+    },
+    "total_operating_hours": {
+      "type": "number",
+      "title": "Total Operating Hours"
+    },
+    "old_oil_type_id": {
+      "type": "string",
+      "title": "Old Oil Type"
+    },
+    "new_oil_type_id": {
+      "type": "string",
+      "title": "New Oil Type"
+    },
+    "replaced_oil_volume": {
+      "type": "number",
+      "title": "Replaced Oil Volume (L)"
+    },
+    "added_oil_volume": {
+      "type": "number",
+      "title": "Added Oil Volume (L)"
+    },
+    "comment": {
+      "type": "string",
+      "title": "Comment"
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Attachments"
+    }
+  },
+  "required": [
+    "event_type",
+    "event_date",
+    "client_id",
+    "asset_id"
+  ]
+}

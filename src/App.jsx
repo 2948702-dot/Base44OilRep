@@ -5,8 +5,21 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import ScrollToTop from './components/ScrollToTop';
-// Add page imports here
+import Layout from './components/Layout';
+import Dashboard from './pages/Dashboard';
+import Clients from './pages/Clients';
+import Assets from './pages/Assets';
+import EquipmentUnits from './pages/EquipmentUnits';
+import SamplingPoints from './pages/SamplingPoints';
+import OilSamples from './pages/OilSamples';
+import AnalysisResults from './pages/AnalysisResults';
+import OilReferenceDB from './pages/OilReferenceDB';
+import ThresholdRules from './pages/ThresholdRules';
+import MaintenanceEvents from './pages/MaintenanceEvents';
+import MaintenanceSchedules from './pages/MaintenanceSchedules';
+import SamplingSchedules from './pages/SamplingSchedules';
+import OilForecast from './pages/OilForecast';
+import Reports from './pages/Reports';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -34,7 +47,22 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <Routes>
-      {/* Add your page Route elements here */}
+      <Route element={<Layout />}>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/clients" element={<Clients />} />
+        <Route path="/assets" element={<Assets />} />
+        <Route path="/equipment-units" element={<EquipmentUnits />} />
+        <Route path="/sampling-points" element={<SamplingPoints />} />
+        <Route path="/oil-samples" element={<OilSamples />} />
+        <Route path="/analysis-results" element={<AnalysisResults />} />
+        <Route path="/oil-reference" element={<OilReferenceDB />} />
+        <Route path="/threshold-rules" element={<ThresholdRules />} />
+        <Route path="/maintenance-events" element={<MaintenanceEvents />} />
+        <Route path="/maintenance-schedules" element={<MaintenanceSchedules />} />
+        <Route path="/sampling-schedules" element={<SamplingSchedules />} />
+        <Route path="/oil-forecast" element={<OilForecast />} />
+        <Route path="/reports" element={<Reports />} />
+      </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
@@ -47,7 +75,7 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
-          <ScrollToTop />
+
           <AuthenticatedApp />
         </Router>
         <Toaster />

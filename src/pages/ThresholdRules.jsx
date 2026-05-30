@@ -1,0 +1,178 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { EQ_TYPES } from '@/utils/labels';
+
+const PARAMS = ['iron_mg_l', 'water_ppm', 'water_activity', 'viscosity_40', 'viscosity_100', 'density', 'dielectric_constant'];
+const PARAM_LABELS = { iron_mg_l: 'Железо (мг/л)', water_ppm: 'Вода (ppm)', water_activity: 'Активность воды (aw)', viscosity_40: 'Вязкость 40°C', viscosity_100: 'Вязкость 100°C', density: 'Плотность', dielectric_constant: 'Диэлектрическая постоянная' };
+
+const DEF = { oil_type_id: '', equipment_type: 'all', parameter_name: '', green_min: '', green_max: '', yellow_min: '', yellow_max: '', red_min: '', red_max: '', unit: '', comments: '' };
+
+function NI({ label, value, onChange }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input type="number" step="any" className="h-8 text-sm" value={value ?? ''} onChange={e => onChange(e.target.value === '' ? '' : +e.target.value)} />
+    </div>
+  );
+}
+
+export default function ThresholdRules() {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(DEF);
+  const [filterEq, setFilterEq] = useState('');
+  const qc = useQueryClient();
+
+  const { data: rules = [], isLoading } = useQuery({ queryKey: ['threshold-rules'], queryFn: () => base44.entities.ThresholdRule.list() });
+  const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
+
+  const save = useMutation({
+    mutationFn: d => d.id ? base44.entities.ThresholdRule.update(d.id, d) : base44.entities.ThresholdRule.create(d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['threshold-rules'] }); setOpen(false); setForm(DEF); }
+  });
+  const del = useMutation({
+    mutationFn: id => base44.entities.ThresholdRule.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['threshold-rules'] })
+  });
+
+  const filtered = rules.filter(r => !filterEq || r.equipment_type === filterEq);
+  const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  return (
+    <div className="p-6">
+      <div className="flex justify-between items-start mb-5">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Пороговые правила</h1>
+          <p className="text-slate-500 text-sm mt-0.5">{rules.length} правил · зелёный / жёлтый / красный диапазоны</p>
+        </div>
+        <Button size="sm" onClick={() => { setForm(DEF); setOpen(true); }}>
+          <Plus className="w-4 h-4 mr-1.5" />Добавить правило
+        </Button>
+      </div>
+
+      <div className="mb-3">
+        <Select value={filterEq} onValueChange={setFilterEq}>
+          <SelectTrigger className="w-52"><SelectValue placeholder="Все типы оборудования" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={null}>Все</SelectItem>
+            <SelectItem value="all">Универсальный</SelectItem>
+            {Object.entries(EQ_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden overflow-x-auto">
+        <table className="w-full text-sm min-w-max">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Параметр</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Оборудование</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Ед.</th>
+              <th className="text-left px-4 py-2.5 font-medium text-green-700 text-xs">Зелёный (мин–макс)</th>
+              <th className="text-left px-4 py-2.5 font-medium text-yellow-700 text-xs">Жёлтый (мин–макс)</th>
+              <th className="text-left px-4 py-2.5 font-medium text-red-700 text-xs">Красный (мин–макс)</th>
+              <th className="w-20 px-4 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr><td colSpan={7} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={7} className="text-center py-10 text-slate-400">Правила не найдены</td></tr>
+            ) : filtered.map(r => (
+              <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50">
+                <td className="px-4 py-2.5 font-medium text-slate-900">{PARAM_LABELS[r.parameter_name] || r.parameter_name}</td>
+                <td className="px-4 py-2.5 text-slate-600">{r.equipment_type === 'all' ? 'Все' : EQ_TYPES[r.equipment_type] || r.equipment_type}</td>
+                <td className="px-4 py-2.5 text-slate-500 text-xs">{r.unit || '—'}</td>
+                <td className="px-4 py-2.5 text-green-700">{r.green_min ?? '—'} – {r.green_max ?? '—'}</td>
+                <td className="px-4 py-2.5 text-yellow-700">{r.yellow_min ?? '—'} – {r.yellow_max ?? '—'}</td>
+                <td className="px-4 py-2.5 text-red-700">{r.red_min ?? '—'} – {r.red_max ?? '—'}</td>
+                <td className="px-4 py-2.5">
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(r); setOpen(true); }}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить правило?') && del.mutate(r.id)}>
+                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader><DialogTitle>{form.id ? 'Редактировать правило' : 'Добавить пороговое правило'}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="space-y-1">
+              <Label>Параметр *</Label>
+              <Select value={form.parameter_name} onValueChange={v => f('parameter_name', v)}>
+                <SelectTrigger><SelectValue placeholder="Параметр" /></SelectTrigger>
+                <SelectContent>{PARAMS.map(p => <SelectItem key={p} value={p}>{PARAM_LABELS[p]}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Тип оборудования</Label>
+              <Select value={form.equipment_type} onValueChange={v => f('equipment_type', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все / Универсальный</SelectItem>
+                  {Object.entries(EQ_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Единица измерения</Label>
+              <Input value={form.unit} onChange={e => f('unit', e.target.value)} placeholder="мг/л, ppm, ..." />
+            </div>
+            <div className="space-y-1">
+              <Label>Масло (необязательно)</Label>
+              <Select value={form.oil_type_id} onValueChange={v => f('oil_type_id', v)}>
+                <SelectTrigger><SelectValue placeholder="Все масла" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={null}>Все масла</SelectItem>
+                  {oils.map(o => <SelectItem key={o.id} value={o.id}>{o.oil_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 grid grid-cols-3 gap-3 bg-green-50 rounded-lg p-3">
+              <p className="col-span-3 text-xs font-semibold text-green-700 mb-1">🟢 Зелёный диапазон</p>
+              <NI label="Мин." value={form.green_min} onChange={v => f('green_min', v)} />
+              <NI label="Макс." value={form.green_max} onChange={v => f('green_max', v)} />
+            </div>
+            <div className="col-span-2 grid grid-cols-3 gap-3 bg-yellow-50 rounded-lg p-3">
+              <p className="col-span-3 text-xs font-semibold text-yellow-700 mb-1">🟡 Жёлтый диапазон</p>
+              <NI label="Мин." value={form.yellow_min} onChange={v => f('yellow_min', v)} />
+              <NI label="Макс." value={form.yellow_max} onChange={v => f('yellow_max', v)} />
+            </div>
+            <div className="col-span-2 grid grid-cols-3 gap-3 bg-red-50 rounded-lg p-3">
+              <p className="col-span-3 text-xs font-semibold text-red-700 mb-1">🔴 Красный диапазон</p>
+              <NI label="Мин." value={form.red_min} onChange={v => f('red_min', v)} />
+              <NI label="Макс." value={form.red_max} onChange={v => f('red_max', v)} />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Комментарии</Label>
+              <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
+            <Button onClick={() => save.mutate(form)} disabled={!form.parameter_name || save.isPending}>
+              {save.isPending ? 'Сохранение...' : 'Сохранить'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

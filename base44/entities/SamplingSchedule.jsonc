@@ -1,0 +1,81 @@
+{
+  "name": "SamplingSchedule",
+  "type": "object",
+  "properties": {
+    "sampling_point_id": {
+      "type": "string",
+      "title": "Sampling Point"
+    },
+    "schedule_name": {
+      "type": "string",
+      "title": "Schedule Name"
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Is Active"
+    },
+    "stages": {
+      "type": "array",
+      "title": "Schedule Stages",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stage_number": {
+            "type": "number"
+          },
+          "trigger_type": {
+            "type": "string",
+            "enum": [
+              "always",
+              "after_n_samples"
+            ]
+          },
+          "trigger_value": {
+            "type": "number"
+          },
+          "frequency_type": {
+            "type": "string",
+            "enum": [
+              "days",
+              "weeks",
+              "months",
+              "hours",
+              "hours_or_days_first"
+            ]
+          },
+          "frequency_value": {
+            "type": "number"
+          },
+          "frequency_value_hours": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "next_sample_due_date": {
+      "type": "string",
+      "title": "Next Sample Due Date",
+      "format": "date"
+    },
+    "next_sample_due_hours": {
+      "type": "number",
+      "title": "Next Sample Due Hours"
+    },
+    "current_stage": {
+      "type": "number",
+      "title": "Current Stage"
+    },
+    "samples_in_current_stage": {
+      "type": "number",
+      "title": "Samples in Current Stage"
+    },
+    "comments": {
+      "type": "string",
+      "title": "Comments"
+    }
+  },
+  "required": [
+    "sampling_point_id",
+    "schedule_name"
+  ]
+}

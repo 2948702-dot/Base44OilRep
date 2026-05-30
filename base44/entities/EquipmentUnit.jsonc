@@ -1,0 +1,58 @@
+{
+  "name": "EquipmentUnit",
+  "type": "object",
+  "properties": {
+    "client_id": {
+      "type": "string",
+      "title": "Client"
+    },
+    "asset_id": {
+      "type": "string",
+      "title": "Asset"
+    },
+    "unit_name": {
+      "type": "string",
+      "title": "Unit Name"
+    },
+    "equipment_type": {
+      "type": "string",
+      "title": "Equipment Type",
+      "enum": [
+        "main_engine",
+        "aux_engine",
+        "generator",
+        "gearbox",
+        "hydraulic",
+        "compressor",
+        "pump",
+        "other"
+      ]
+    },
+    "manufacturer": {
+      "type": "string",
+      "title": "Manufacturer"
+    },
+    "model": {
+      "type": "string",
+      "title": "Model"
+    },
+    "serial_number": {
+      "type": "string",
+      "title": "Serial Number"
+    },
+    "total_operating_hours": {
+      "type": "number",
+      "title": "Total Operating Hours"
+    },
+    "comments": {
+      "type": "string",
+      "title": "Comments"
+    }
+  },
+  "required": [
+    "client_id",
+    "asset_id",
+    "unit_name",
+    "equipment_type"
+  ]
+}

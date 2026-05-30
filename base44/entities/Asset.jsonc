@@ -1,0 +1,41 @@
+{
+  "name": "Asset",
+  "type": "object",
+  "properties": {
+    "client_id": {
+      "type": "string",
+      "title": "Client"
+    },
+    "asset_name": {
+      "type": "string",
+      "title": "Asset Name"
+    },
+    "asset_type": {
+      "type": "string",
+      "title": "Asset Type",
+      "enum": [
+        "vessel",
+        "vehicle",
+        "machine",
+        "industrial"
+      ]
+    },
+    "registration_number": {
+      "type": "string",
+      "title": "Registration Number"
+    },
+    "location": {
+      "type": "string",
+      "title": "Location"
+    },
+    "comments": {
+      "type": "string",
+      "title": "Comments"
+    }
+  },
+  "required": [
+    "client_id",
+    "asset_name",
+    "asset_type"
+  ]
+}

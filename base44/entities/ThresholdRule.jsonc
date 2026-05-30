@@ -1,0 +1,65 @@
+{
+  "name": "ThresholdRule",
+  "type": "object",
+  "properties": {
+    "oil_type_id": {
+      "type": "string",
+      "title": "Oil Type (optional)"
+    },
+    "equipment_type": {
+      "type": "string",
+      "title": "Equipment Type",
+      "enum": [
+        "main_engine",
+        "aux_engine",
+        "generator",
+        "gearbox",
+        "hydraulic",
+        "compressor",
+        "pump",
+        "other",
+        "all"
+      ]
+    },
+    "parameter_name": {
+      "type": "string",
+      "title": "Parameter Name"
+    },
+    "green_min": {
+      "type": "number",
+      "title": "Green Min"
+    },
+    "green_max": {
+      "type": "number",
+      "title": "Green Max"
+    },
+    "yellow_min": {
+      "type": "number",
+      "title": "Yellow Min"
+    },
+    "yellow_max": {
+      "type": "number",
+      "title": "Yellow Max"
+    },
+    "red_min": {
+      "type": "number",
+      "title": "Red Min"
+    },
+    "red_max": {
+      "type": "number",
+      "title": "Red Max"
+    },
+    "unit": {
+      "type": "string",
+      "title": "Unit"
+    },
+    "comments": {
+      "type": "string",
+      "title": "Comments"
+    }
+  },
+  "required": [
+    "equipment_type",
+    "parameter_name"
+  ]
+}
