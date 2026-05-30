@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Pencil, Trash2, Calculator } from 'lucide-react';
+import { Pencil, Trash2, Calculator, FileDown, Download } from 'lucide-react';
+import { exportSamplePDF, exportEquipmentReportPDF } from '@/utils/pdfExport';
 import StatusBadge from '@/components/StatusBadge';
 
 function calcIndexes(r, oilRef) {
@@ -49,6 +50,9 @@ export default function AnalysisResults() {
   const { data: samples = [] } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
   const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
+  const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
+  const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
+  const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
 
   const save = useMutation({
     mutationFn: d => d.id ? base44.entities.AnalysisResult.update(d.id, d) : base44.entities.AnalysisResult.create(d),
@@ -76,6 +80,20 @@ export default function AnalysisResults() {
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const num = (k, v) => f(k, v === '' ? '' : +v);
 
+  const handleExportSample = (r) => {
+    const s = getSample(r.sample_id);
+    const pt = points.find(p => p.id === s?.sampling_point_id);
+    const oilRef = getOilForSample(r.sample_id);
+    const client = clients.find(c => c.id === s?.client_id);
+    const asset = assets.find(a => a.id === s?.asset_id);
+    const unit = units.find(u => u.id === s?.equipment_unit_id);
+    exportSamplePDF({ result: r, sample: s, oilRef, client, asset, unit, point: pt });
+  };
+
+  const handleExportAll = () => {
+    exportEquipmentReportPDF({ results: filtered, samples, oilRefs: oils, clients, assets, units, points });
+  };
+
   const ohiColor = (ohi) => {
     if (!ohi) return 'text-slate-400';
     if (ohi >= 70) return 'text-green-700 font-bold';
@@ -90,7 +108,12 @@ export default function AnalysisResults() {
           <h1 className="text-xl font-bold text-slate-900">Результаты анализа</h1>
           <p className="text-slate-500 text-sm mt-0.5">{results.length} записей</p>
         </div>
-        <Button size="sm" onClick={() => { setForm(DEF); setOpen(true); }}>Ввести результат</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={handleExportAll} disabled={filtered.length === 0} className="gap-1.5">
+            <Download className="w-4 h-4" />Полный отчёт PDF
+          </Button>
+          <Button size="sm" onClick={() => { setForm(DEF); setOpen(true); }}>Ввести результат</Button>
+        </div>
       </div>
 
       <div className="mb-3">
@@ -116,7 +139,7 @@ export default function AnalysisResults() {
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Диэл.</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">OHI</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Статус</th>
-              <th className="w-20 px-4 py-2.5"></th>
+              <th className="w-24 px-4 py-2.5"></th>
             </tr>
           </thead>
           <tbody>
@@ -139,9 +162,12 @@ export default function AnalysisResults() {
                   <td className="px-4 py-2.5"><StatusBadge status={r.overall_status} /></td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(r); setOpen(true); }}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Экспорт PDF" onClick={() => handleExportSample(r)}>
+                          <FileDown className="w-3.5 h-3.5 text-blue-500" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(r); setOpen(true); }}>
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить результат?') && del.mutate(r.id)}>
                         <Trash2 className="w-3.5 h-3.5 text-red-500" />
                       </Button>
