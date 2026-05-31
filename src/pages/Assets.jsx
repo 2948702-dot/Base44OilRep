@@ -232,22 +232,30 @@ export default function Assets() {
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
   const { data: oilRefs = [] } = useQuery({ queryKey: ['oil-refs'], queryFn: () => base44.entities.OilReference.list() });
 
+  const sanitizeUnit = (u) => {
+    const out = { ...u };
+    ['oil_volume', 'oil_change_interval'].forEach(k => {
+      if (out[k] === '' || out[k] === null || out[k] === undefined) delete out[k];
+      else out[k] = Number(out[k]);
+    });
+    return out;
+  };
+
   const save = useMutation({
     mutationFn: async (d) => {
       let asset;
       if (d.id) {
         asset = await base44.entities.Asset.update(d.id, d);
-        // create new units (no id = newly added in edit mode)
         for (const u of units) {
           if (!u.id && u.unit_name && u.equipment_type) {
-            await base44.entities.EquipmentUnit.create({ ...u, client_id: d.client_id, asset_id: d.id });
+            await base44.entities.EquipmentUnit.create({ ...sanitizeUnit(u), client_id: d.client_id, asset_id: d.id });
           }
         }
       } else {
         asset = await base44.entities.Asset.create(d);
         for (const u of units) {
           if (u.unit_name && u.equipment_type) {
-            await base44.entities.EquipmentUnit.create({ ...u, client_id: d.client_id, asset_id: asset.id });
+            await base44.entities.EquipmentUnit.create({ ...sanitizeUnit(u), client_id: d.client_id, asset_id: asset.id });
           }
         }
       }
