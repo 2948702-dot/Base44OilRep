@@ -216,8 +216,8 @@ export default function ThresholdRules() {
                   <div className="space-y-1 min-w-[180px]">
                     {r.custom_ranges_mode && r.ranges?.length > 0 ? (
                       <>
-                        <ThresholdRangeBar compact ranges={r.ranges} />
-                        <div className="flex flex-wrap gap-2">
+                        <ThresholdRangeBar compact showLabels ranges={r.ranges} />
+                        <div className="hidden">
                           {r.ranges.map((seg, i) => (
                             <span key={i} className="flex items-center gap-1 text-xs font-medium" style={{ color: seg.color }}>
                               <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: seg.color }} />
@@ -228,12 +228,12 @@ export default function ThresholdRules() {
                       </>
                     ) : (
                       <>
-                        <ThresholdRangeBar compact
+                        <ThresholdRangeBar compact showLabels
                           greenMin={r.green_min} greenMax={r.green_max}
                           yellowMin={r.yellow_min} yellowMax={r.yellow_max}
                           redMin={r.red_min} redMax={r.red_max}
                         />
-                        <div className="flex gap-3 text-xs">
+                        <div className="hidden">
                           <span className="text-green-700 font-medium">{r.green_min ?? '—'}–{r.green_max ?? '—'}</span>
                           <span className="text-yellow-700 font-medium">{r.yellow_min ?? '—'}–{r.yellow_max ?? '—'}</span>
                           <span className="text-red-700 font-medium">{r.red_min ?? '—'}–{r.red_max ?? '—'}</span>
