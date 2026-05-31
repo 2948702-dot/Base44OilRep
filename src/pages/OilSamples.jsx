@@ -53,6 +53,7 @@ export default function OilSamples() {
   const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
   const { data: lifecycles = [] } = useQuery({ queryKey: ['oil-lifecycles'], queryFn: () => base44.entities.OilLifecycle.list() });
+  const { data: results = [] } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
 
   const cleanForm = (d) => {
     const c = { ...d };
@@ -132,56 +133,70 @@ export default function OilSamples() {
         </Select>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden overflow-x-auto">
+        <table className="w-full text-xs min-w-max">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">№ пробы</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Дата</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Клиент / Актив</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Точка отбора</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Состояние</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">М/ч масла</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Статус</th>
-              <th className="w-20 px-4 py-2.5"></th>
+              <th className="text-left px-3 py-2.5 font-medium text-slate-600 w-28">№ пробы</th>
+              <th className="text-left px-3 py-2.5 font-medium text-slate-600 w-32">Клиент / Актив</th>
+              <th className="text-center px-2 py-2.5 font-medium text-slate-600 w-20">Вязк.<br/>40°C</th>
+              <th className="text-center px-2 py-2.5 font-medium text-slate-600 w-20">Плотн.<br/>кг/м³</th>
+              <th className="text-center px-2 py-2.5 font-medium text-slate-600 w-20">Диэлектр.</th>
+              <th className="text-center px-2 py-2.5 font-medium text-slate-600 w-20">Акт.<br/>вода %</th>
+              <th className="text-center px-2 py-2.5 font-medium text-slate-600 w-20">Вода<br/>ppm</th>
+              <th className="text-center px-2 py-2.5 font-medium text-slate-600 w-20">Железо<br/>мг/л</th>
+              <th className="text-center px-2 py-2.5 font-medium text-slate-600 w-20">Износ</th>
+              <th className="text-center px-2 py-2.5 font-medium text-slate-600 w-20">OHI</th>
+              <th className="text-left px-3 py-2.5 font-medium text-slate-600 w-24">Статус</th>
+              <th className="w-20 px-3 py-2.5"></th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={9} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
+              <tr><td colSpan={12} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={9} className="text-center py-10 text-slate-400">Пробы не найдены</td></tr>
-            ) : filtered.slice(0, 100).map(s => (
-              <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50">
-                <td className="px-4 py-2.5 font-mono text-slate-900 text-xs font-medium">{s.sample_number}</td>
-                <td className="px-4 py-2.5 text-slate-600">{s.sampling_date}</td>
-                <td className="px-4 py-2.5 text-slate-600 text-xs">{s.sample_type === 'fresh_oil' ? 'Свежее' : 'Из узла'}</td>
-                <td className="px-4 py-2.5 text-slate-700">
-                  <div className="text-xs font-medium">{getName(clients, s.client_id, 'company_name')}</div>
-                  <div className="text-slate-400 text-xs">{getName(assets, s.asset_id, 'asset_name')}</div>
-                </td>
-                <td className="px-4 py-2.5 text-slate-600 text-xs">{getName(points, s.sampling_point_id, 'point_name')}</td>
-                <td className="px-4 py-2.5 text-slate-600 text-xs">{s.sample_type === 'in_service' ? ENGINE_STATES[s.engine_state] || '—' : '—'}</td>
-                <td className="px-4 py-2.5 text-slate-600">{s.oil_hours_at_sampling ?? '—'}</td>
-                <td className="px-4 py-2.5"><StatusBadge status={s.sample_status} /></td>
-                <td className="px-4 py-2.5">
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Добавить результат анализа" onClick={() => navigate(`/analysis-results?sample=${s.id}`)}>
-                      <FlaskConical className="w-3.5 h-3.5 text-blue-500" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(s); setOpen(true); }}>
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить пробу?') && del.mutate(s.id)}>
-                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+              <tr><td colSpan={12} className="text-center py-10 text-slate-400">Пробы не найдены</td></tr>
+            ) : filtered.slice(0, 100).map(s => {
+              const res = results.find(r => r.sample_id === s.id);
+              const cell = (val, dec = 1) => val != null ? <span className="font-medium text-slate-800">{typeof val === 'number' ? val.toFixed(dec) : val}</span> : <span className="text-slate-300">—</span>;
+              const ohiColor = (v) => v == null ? '' : v >= 70 ? 'text-green-600' : v >= 40 ? 'text-yellow-600' : 'text-red-600';
+              return (
+                <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50">
+                  <td className="px-3 py-2 font-mono text-slate-900 font-medium">{s.sample_number}</td>
+                  <td className="px-3 py-2">
+                    <div className="font-medium text-slate-700 truncate max-w-[120px]">{getName(clients, s.client_id, 'company_name')}</div>
+                    <div className="text-slate-400 truncate max-w-[120px]">{getName(assets, s.asset_id, 'asset_name')}</div>
+                  </td>
+                  <td className="px-2 py-2 text-center">{cell(res?.viscosity_40)}</td>
+                  <td className="px-2 py-2 text-center">{cell(res?.density, 0)}</td>
+                  <td className="px-2 py-2 text-center">{cell(res?.dielectric_constant, 2)}</td>
+                  <td className="px-2 py-2 text-center">{cell(res?.water_activity)}</td>
+                  <td className="px-2 py-2 text-center">{cell(res?.water_ppm, 0)}</td>
+                  <td className="px-2 py-2 text-center">{cell(res?.iron_mg_l)}</td>
+                  <td className="px-2 py-2 text-center">{cell(res?.wear_index, 1)}</td>
+                  <td className="px-2 py-2 text-center">
+                    {res?.oil_health_index != null
+                      ? <span className={`font-bold ${ohiColor(res.oil_health_index)}`}>{Math.round(res.oil_health_index)}</span>
+                      : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2"><StatusBadge status={s.sample_status} /></td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Добавить результат анализа" onClick={() => navigate(`/analysis-results?sample=${s.id}`)}>                        <FlaskConical className="w-3.5 h-3.5 text-blue-500" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(s); setOpen(true); }}>
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить пробу?') && del.mutate(s.id)}>
+                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
             {!isLoading && filtered.length > 100 && (
-              <tr><td colSpan={9} className="text-center py-3 text-slate-400 text-xs">Показано 100 из {filtered.length}. Используйте поиск или фильтры для уточнения.</td></tr>
+              <tr><td colSpan={12} className="text-center py-3 text-slate-400">Показано 100 из {filtered.length}. Используйте поиск или фильтры для уточнения.</td></tr>
             )}
           </tbody>
         </table>
