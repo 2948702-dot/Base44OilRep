@@ -16,6 +16,7 @@ const NAV = {
         { label: 'Флот (все суда)', href: '/fleet', icon: ShoppingCart },
         { label: 'Критические', href: '/critical', icon: AlertCircle },
         { label: 'Пользователи', href: '/users', icon: Users },
+        { label: 'Пробы масла', href: '/oil-samples', icon: Droplets },
       ]
     },
     {
