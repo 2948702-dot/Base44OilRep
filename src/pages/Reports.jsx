@@ -32,7 +32,7 @@ export default function Reports() {
   const asset = assets.find(a => a.id === sample?.asset_id);
   const unit = units.find(u => u.id === sample?.equipment_unit_id);
   const point = points.find(p => p.id === sample?.sampling_point_id);
-  const oil = oils.find(o => o.id === (sample?.oil_type_id || point?.oil_type_id));
+  const oil = oils.find(o => o.id === (sample?.oil_type_id || unit?.current_oil_type_id || unit?.oil_type_id));
   const lifecycle = lifecycles.find(l => l.id === sample?.lifecycle_id);
 
   const getName = (list, id, field) => list.find(x => x.id === id)?.[field] || '—';

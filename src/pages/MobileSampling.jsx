@@ -53,17 +53,21 @@ export default function MobileSampling() {
   // lifecycles query removed — handled server-side in saveMobileMaintenanceEvent function
 
   const saveSample = useMutation({
-    mutationFn: () => base44.entities.OilSample.create({
-      ...sampleForm,
-      can_qr_code: canQR,
-      sampling_point_id: samplingPoint.id,
-      equipment_unit_id: samplingPoint.equipment_unit_id,
-      asset_id: samplingPoint.asset_id,
-      client_id: samplingPoint.client_id,
-      sample_status: 'pending',
-      total_hours_at_sampling: sampleForm.total_hours_at_sampling ? Number(sampleForm.total_hours_at_sampling) : undefined,
-      oil_hours_at_sampling: sampleForm.oil_hours_at_sampling ? Number(sampleForm.oil_hours_at_sampling) : undefined,
-    }),
+    mutationFn: () => {
+      const unit = equipmentUnits.find(u => u.id === samplingPoint.equipment_unit_id);
+      return base44.entities.OilSample.create({
+        ...sampleForm,
+        can_qr_code: canQR,
+        sampling_point_id: samplingPoint.id,
+        equipment_unit_id: samplingPoint.equipment_unit_id,
+        asset_id: samplingPoint.asset_id,
+        client_id: samplingPoint.client_id,
+        sample_status: 'pending',
+        oil_type_id: unit?.current_oil_type_id || unit?.oil_type_id || undefined,
+        total_hours_at_sampling: sampleForm.total_hours_at_sampling ? Number(sampleForm.total_hours_at_sampling) : undefined,
+        oil_hours_at_sampling: sampleForm.oil_hours_at_sampling ? Number(sampleForm.oil_hours_at_sampling) : undefined,
+      });
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['oil-samples'] }); setStep(3); }
   });
 

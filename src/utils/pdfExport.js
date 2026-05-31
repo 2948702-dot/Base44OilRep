@@ -241,7 +241,7 @@ export function exportEquipmentReportPDF({ results, samples, oilRefs, clients, a
     const s = samples.find(s => s.id === r.sample_id);
     const unit = units.find(u => u.id === s?.equipment_unit_id);
     const pt = points.find(p => p.id === s?.sampling_point_id);
-    const oil = oilRefs.find(o => o.id === (s?.oil_type_id || pt?.oil_type_id));
+    const oil = oilRefs.find(o => o.id === (s?.oil_type_id || unit?.current_oil_type_id || unit?.oil_type_id));
     const rgb = STATUS_RGB[r.overall_status] || [100, 116, 139];
 
     if (idx % 2 === 0) { doc.setFillColor(248, 250, 252); doc.rect(10, y - 1, 190, 7, 'F'); }
@@ -284,7 +284,7 @@ export function exportEquipmentReportPDF({ results, samples, oilRefs, clients, a
     const asset = assets.find(a => a.id === s.asset_id);
     const unit = units.find(u => u.id === s.equipment_unit_id);
     const pt = points.find(p => p.id === s.sampling_point_id);
-    const oilRef = oilRefs.find(o => o.id === (s.oil_type_id || pt?.oil_type_id));
+    const oilRef = oilRefs.find(o => o.id === (s.oil_type_id || unit?.current_oil_type_id || unit?.oil_type_id));
 
     let py = drawHeader(doc, `Проба ${s.sample_number}`, `${asset?.asset_name || ''} · ${unit?.unit_name || ''} · ${s.sampling_date || ''}`);
 

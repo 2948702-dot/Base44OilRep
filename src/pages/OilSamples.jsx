@@ -275,7 +275,7 @@ export default function OilSamples() {
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Оборудование</Label>
-                      <Select value={form.equipment_unit_id} onValueChange={v => setForm(p => ({ ...p, equipment_unit_id: v, sampling_point_id: '', lifecycle_id: '' }))} disabled={!form.asset_id}>
+                      <Select value={form.equipment_unit_id} onValueChange={v => { const unit = units.find(u => u.id === v); setForm(p => ({ ...p, equipment_unit_id: v, sampling_point_id: '', lifecycle_id: '', oil_type_id: unit?.current_oil_type_id || unit?.oil_type_id || p.oil_type_id })); }} disabled={!form.asset_id}>
                         <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.asset_id ? 'Оборудование' : '← сначала актив'} /></SelectTrigger>
                         <SelectContent>{filtUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}</SelectContent>
                       </Select>

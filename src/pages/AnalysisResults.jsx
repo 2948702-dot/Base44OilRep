@@ -130,8 +130,8 @@ export default function AnalysisResults() {
   const getOilForSample = (sampleId) => {
     const s = getSample(sampleId);
     if (!s) return null;
-    const pt = points.find(p => p.id === s.sampling_point_id);
-    return oils.find(o => o.id === (s.oil_type_id || pt?.oil_type_id));
+    const unit = units.find(u => u.id === s.equipment_unit_id);
+    return oils.find(o => o.id === (s.oil_type_id || unit?.current_oil_type_id || unit?.oil_type_id));
   };
 
   useEffect(() => {

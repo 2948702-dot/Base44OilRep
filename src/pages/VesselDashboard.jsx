@@ -171,7 +171,7 @@ export default function VesselDashboard() {
         };
       });
 
-    const oil = oils.find(o => o.id === (eq?.oil_type_id || point.oil_type_id));
+    const oil = oils.find(o => o.id === (eq?.current_oil_type_id || eq?.oil_type_id));
     const oilName = eq?.oil_brand || oil?.oil_name || null;
 
     const lastOilChangeEvent = assetMaintenanceEvents

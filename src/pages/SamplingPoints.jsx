@@ -9,16 +9,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { SAMPLING_METHODS } from '@/utils/labels';
-import OilSearch from '@/components/OilSearch';
-import OilFormDialog from '@/components/OilFormDialog';
 
-const DEF = { client_id: '', asset_id: '', equipment_unit_id: '', point_name: '', qr_code: '', oil_type_id: '', oil_volume: '', sampling_method: '', comments: '' };
+
+const DEF = { client_id: '', asset_id: '', equipment_unit_id: '', point_name: '', qr_code: '', sampling_method: '', comments: '' };
 
 export default function SamplingPoints() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
-  const [oilFormOpen, setOilFormOpen] = useState(false);
-  const [pendingOilCallback, setPendingOilCallback] = useState(null);
   const [filterClient, setFilterClient] = useState('');
   const qc = useQueryClient();
 
@@ -90,8 +87,8 @@ export default function SamplingPoints() {
                 <td className="px-4 py-2.5 font-medium text-slate-900">{p.point_name}</td>
                 <td className="px-4 py-2.5 text-slate-600">{getName(units, p.equipment_unit_id, 'unit_name')}</td>
                 <td className="px-4 py-2.5 text-slate-600">{SAMPLING_METHODS[p.sampling_method] || '—'}</td>
-                <td className="px-4 py-2.5 text-slate-600">{getName(oils, p.oil_type_id, 'oil_name')}</td>
-                <td className="px-4 py-2.5 text-slate-600">{p.oil_volume ?? '—'}</td>
+                <td className="px-4 py-2.5 text-slate-500 text-xs">{getName(oils, units.find(u => u.id === p.equipment_unit_id)?.current_oil_type_id || units.find(u => u.id === p.equipment_unit_id)?.oil_type_id, 'oil_name')}</td>
+                <td className="px-4 py-2.5 text-slate-500 text-xs">{units.find(u => u.id === p.equipment_unit_id)?.oil_volume ?? '—'}</td>
                 <td className="px-4 py-2.5 text-slate-600">{units.find(u => u.id === p.equipment_unit_id)?.current_oil_hours ?? '—'}</td>
                 <td className="px-4 py-2.5">
                   <div className="flex gap-1">
@@ -109,11 +106,7 @@ export default function SamplingPoints() {
         </table>
       </div>
 
-      <OilFormDialog
-        open={oilFormOpen}
-        onOpenChange={setOilFormOpen}
-        onCreated={(newOil) => { if (newOil?.id) f('oil_type_id', newOil.id); }}
-      />
+
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
@@ -153,14 +146,7 @@ export default function SamplingPoints() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="col-span-2 space-y-1">
-              <Label>Тип масла</Label>
-              <OilSearch oils={oils} value={form.oil_type_id} onChange={v => f('oil_type_id', v)} onCreateNew={() => setOilFormOpen(true)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Объём масла, л</Label>
-              <Input type="number" value={form.oil_volume ?? ''} onChange={e => f('oil_volume', e.target.value === '' ? '' : +e.target.value)} />
-            </div>
+
             <div className="col-span-2">
               <p className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-md px-3 py-2">Моточасы агрегата управляются автоматически через события ТО. Для редактирования перейдите в карточку агрегата.</p>
             </div>

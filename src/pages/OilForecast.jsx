@@ -28,6 +28,7 @@ export default function OilForecast() {
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
   const { data: schedules = [] } = useQuery({ queryKey: ['maintenance-schedules'], queryFn: () => base44.entities.MaintenanceSchedule.list() });
   const { data: events = [] } = useQuery({ queryKey: ['maintenance-events'], queryFn: () => base44.entities.MaintenanceEvent.list() });
+  const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
 
   const toggleAsset = (id) => {
     setSelectedAssets(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -48,21 +49,22 @@ export default function OilForecast() {
     // From maintenance schedules (planned oil changes)
     schedules.forEach(s => {
       if (!assetIds.includes(s.asset_id)) return;
-      // include all oil-related maintenance schedules
-      const pt = points.find(p => p.id === s.sampling_point_id);
-      if (!pt?.oil_type_id || !pt.oil_volume) return;
-      const k = key(s.asset_id, pt.oil_type_id);
-      if (!rows[k]) rows[k] = { asset_id: s.asset_id, oil_id: pt.oil_type_id, changes: 0, volume: 0 };
+      const unit = units.find(u => u.id === s.equipment_unit_id);
+      const oilId = unit?.current_oil_type_id || unit?.oil_type_id;
+      const volume = unit?.oil_volume;
+      if (!oilId || !volume) return;
+      const k = key(s.asset_id, oilId);
+      if (!rows[k]) rows[k] = { asset_id: s.asset_id, oil_id: oilId, changes: 0, volume: 0 };
       rows[k].changes += 1;
-      rows[k].volume += pt.oil_volume;
+      rows[k].volume += volume;
     });
 
     // Estimate topups from historical events (average per month × period)
     const topups = {};
     events.forEach(e => {
       if (e.event_type !== 'oil_topup' || !assetIds.includes(e.asset_id)) return;
-      const pt2 = points.find(p => p.id === e.sampling_point_id);
-      const oilId = e.new_oil_type_id || e.old_oil_type_id || pt2?.oil_type_id;
+      const unit2 = units.find(u => u.id === e.equipment_unit_id);
+      const oilId = e.new_oil_type_id || e.old_oil_type_id || unit2?.current_oil_type_id || unit2?.oil_type_id;
       if (!oilId) return;
       const k = key(e.asset_id, oilId);
       if (!topups[k]) topups[k] = { asset_id: e.asset_id, oil_id: oilId, total: 0, count: 0 };
@@ -84,7 +86,7 @@ export default function OilForecast() {
       oil_name: oils.find(o => o.id === r.oil_id)?.oil_name || '—',
       oil_manufacturer: oils.find(o => o.id === r.oil_id)?.manufacturer || '—',
     })).sort((a, b) => b.volume - a.volume);
-  }, [showForecast, period, selectedAssets, assets, points, oils, schedules, events]);
+  }, [showForecast, period, selectedAssets, assets, units, points, oils, schedules, events]);
 
   const totalByOil = useMemo(() => {
     const map = {};
