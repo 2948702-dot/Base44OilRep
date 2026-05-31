@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,39 @@ function calcIndexes(r, oilRef) {
 
 const DEF = { sample_id: '', iron_mg_l: '', water_ppm: '', water_activity: '', viscosity_40: '', viscosity_100: '', density: '', dielectric_constant: '', recommendation_text: '' };
 
+const NUMBER_FIELDS = [
+  'iron_mg_l', 'water_ppm', 'water_activity', 'viscosity_40', 'viscosity_100',
+  'density', 'dielectric_constant', 'wear_index', 'oil_health_index',
+];
+const OPTIONAL_STRING_FIELDS = ['client_id', 'asset_id', 'recommendation_text', 'overall_status'];
+
+function toOptionalNumber(value) {
+  if (value === '' || value === null || value === undefined) return undefined;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : undefined;
+}
+
+function cleanAnalysisResultPayload(raw) {
+  const data = { ...raw };
+
+  OPTIONAL_STRING_FIELDS.forEach((field) => {
+    if (data[field] === '' || data[field] === null || data[field] === undefined) {
+      delete data[field];
+    }
+  });
+
+  NUMBER_FIELDS.forEach((field) => {
+    const value = toOptionalNumber(data[field]);
+    if (value === undefined) {
+      delete data[field];
+    } else {
+      data[field] = value;
+    }
+  });
+
+  return data;
+}
+
 export default function AnalysisResults() {
   const urlSampleId = new URLSearchParams(window.location.search).get('sample') || '';
   const [open, setOpen] = useState(!!urlSampleId);
@@ -56,11 +89,24 @@ export default function AnalysisResults() {
   const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
 
   const save = useMutation({
-    mutationFn: d => {
-      const { id, ...payload } = d;
-      return id ? base44.entities.AnalysisResult.update(id, payload) : base44.entities.AnalysisResult.create(payload);
+    mutationFn: async d => {
+      const { id, ...payload } = cleanAnalysisResultPayload(d);
+      const result = id
+        ? await base44.entities.AnalysisResult.update(id, payload)
+        : await base44.entities.AnalysisResult.create(payload);
+
+      if (payload.sample_id) {
+        await base44.entities.OilSample.update(payload.sample_id, { sample_status: 'completed' });
+      }
+
+      return result;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['analysis-results'] }); setOpen(false); setForm(DEF); }
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['analysis-results'] });
+      qc.invalidateQueries({ queryKey: ['oil-samples'] });
+      setOpen(false);
+      setForm(DEF);
+    }
   });
   const del = useMutation({
     mutationFn: id => base44.entities.AnalysisResult.delete(id),
@@ -74,6 +120,30 @@ export default function AnalysisResults() {
     const pt = points.find(p => p.id === s.sampling_point_id);
     return oils.find(o => o.id === (s.oil_type_id || pt?.oil_type_id));
   };
+
+  useEffect(() => {
+    if (!urlSampleId || samples.length === 0) return;
+
+    const sample = samples.find(s => s.id === urlSampleId);
+    const existingResult = results.find(r => r.sample_id === urlSampleId);
+    if (existingResult) {
+      setForm({
+        ...existingResult,
+        client_id: existingResult.client_id || sample?.client_id || '',
+        asset_id: existingResult.asset_id || sample?.asset_id || '',
+      });
+      return;
+    }
+
+    if (sample) {
+      setForm(p => ({
+        ...p,
+        sample_id: urlSampleId,
+        client_id: sample.client_id || '',
+        asset_id: sample.asset_id || '',
+      }));
+    }
+  }, [urlSampleId, results, samples]);
 
   const handleCalc = () => {
     const oilRef = getOilForSample(form.sample_id);
@@ -189,14 +259,22 @@ export default function AnalysisResults() {
           <DialogHeader><DialogTitle>{form.id ? 'Редактировать результат' : 'Ввести результат анализа'}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-3 gap-3 py-2 max-h-[70vh] overflow-y-auto pr-1">
             <div className="col-span-3 space-y-1">
-              <Label>Проба масла *</Label>
-              <Select value={form.sample_id} onValueChange={v => {
-                const s = samples.find(x => x.id === v);
-                setForm(p => ({ ...p, sample_id: v, client_id: s?.client_id || '', asset_id: s?.asset_id || '' }));
-              }}>
-                <SelectTrigger><SelectValue placeholder="Выберите пробу" /></SelectTrigger>
-                <SelectContent>{samples.map(s => <SelectItem key={s.id} value={s.id}>{s.sample_number} · {s.sampling_date}</SelectItem>)}</SelectContent>
-              </Select>
+             <Label>Проба масла *</Label>
+             <Select value={form.sample_id} onValueChange={v => {
+               const s = samples.find(x => x.id === v);
+               const existingResult = results.find(r => r.sample_id === v);
+               setForm(p => ({
+                 ...DEF,
+                 ...p,
+                 ...(existingResult || {}),
+                 sample_id: v,
+                 client_id: existingResult?.client_id || s?.client_id || '',
+                 asset_id: existingResult?.asset_id || s?.asset_id || '',
+               }));
+             }}>
+               <SelectTrigger><SelectValue placeholder="Выберите пробу" /></SelectTrigger>
+               <SelectContent>{samples.map(s => <SelectItem key={s.id} value={s.id}>{s.sample_number} · {s.sampling_date}</SelectItem>)}</SelectContent>
+             </Select>
             </div>
             <div className="col-span-3 border-t pt-3">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Измеренные параметры</p>
@@ -227,11 +305,16 @@ export default function AnalysisResults() {
               <Textarea value={form.recommendation_text} onChange={e => f('recommendation_text', e.target.value)} rows={2} />
             </div>
           </div>
+          {save.isError && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-2">
+              Ошибка сохранения: {save.error?.message || 'неизвестная ошибка'}
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
-            <Button onClick={() => save.mutate(form)} disabled={!form.sample_id || save.isPending}>
-              {save.isPending ? 'Сохранение...' : 'Сохранить'}
-            </Button>
+           <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
+           <Button onClick={() => save.mutate(form)} disabled={!form.sample_id || save.isPending}>
+             {save.isPending ? 'Сохранение...' : 'Сохранить'}
+           </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
