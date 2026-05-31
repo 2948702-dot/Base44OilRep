@@ -182,10 +182,10 @@ export default function ThresholdRules() {
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Параметр</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип оборудования</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Единица оборудования</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип<br/>обор.</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Ед.<br/>обор.</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Масло</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Ед. изм.</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Ед.<br/>изм.</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Диапазоны</th>
               <th className="w-20 px-4 py-2.5"></th>
             </tr>
@@ -206,7 +206,7 @@ export default function ThresholdRules() {
                   {r.equipment_type === 'all' ? <span className="text-slate-400">Все типы</span> : <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">{EQ_TYPES[r.equipment_type] || r.equipment_type}</span>}
                 </td>
                 <td className="px-4 py-2.5 text-slate-600 text-xs">
-                  {r.equipment_unit_id ? <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-medium">{r.equipment_unit_id}</span> : <span className="text-slate-400">—</span>}
+                  {r.equipment_unit_id ? <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-medium max-w-[90px] truncate block" title={r.equipment_unit_id}>{r.equipment_unit_id}</span> : <span className="text-slate-400">—</span>}
                 </td>
                 <td className="px-4 py-2.5 text-slate-600 text-xs">
                   {r.oil_type_id ? <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-medium">{oils.find(o => o.id === r.oil_type_id)?.oil_name || '—'}</span> : <span className="text-slate-400">Все масла</span>}
