@@ -393,8 +393,8 @@ export default function ThresholdRules() {
                 {(form.ranges || []).some(r => r.min !== '' && r.max !== '') && (
                   <div className="space-y-1">
                     <Label className="text-xs text-slate-500">Предпросмотр</Label>
-                    <ThresholdRangeBar ranges={form.ranges} />
-                    <div className="flex flex-wrap gap-2 mt-1">
+                    <ThresholdRangeBar ranges={form.ranges} showLabels />
+                    <div className="hidden">
                       {(form.ranges || []).filter(r => r.min !== '' && r.max !== '').map((r, i) => (
                         <span key={i} className="flex items-center gap-1 text-xs font-medium" style={{ color: r.color }}>
                           <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: r.color }} />
@@ -431,8 +431,9 @@ export default function ThresholdRules() {
                       greenMin={devZones.green_min} greenMax={devZones.green_max}
                       yellowMin={devZones.yellow_min} yellowMax={devZones.yellow_max}
                       redMin={devZones.red_min} redMax={devZones.red_max}
+                      showLabels
                     />
-                    <div className="flex flex-wrap gap-3 text-xs mt-1">
+                    <div className="hidden">
                       <span className="text-green-700 font-medium">🟢 {devZones.green_min} – {devZones.green_max}</span>
                       <span className="text-yellow-700 font-medium">🟡 {devZones.yellow_min} – {devZones.yellow_max}</span>
                       <span className="text-red-700 font-medium">🔴 {devZones.red_min} – {devZones.red_max}</span>
@@ -473,6 +474,7 @@ export default function ThresholdRules() {
                       greenMin={form.green_min} greenMax={form.green_max}
                       yellowMin={form.yellow_min} yellowMax={form.yellow_max}
                       redMin={form.red_min} redMax={form.red_max}
+                      showLabels
                     />
                   </div>
                 )}
