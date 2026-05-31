@@ -16,13 +16,45 @@ export default function ThresholdRangeBar({
   showLabels = false,
 }) {
   const h = compact ? 8 : 14;
-  const labelClass = compact ? 'text-[11px]' : 'text-xs';
+  const labelClass = compact ? 'text-[10px]' : 'text-xs';
 
   const fmt = (v) => {
     const n = Number(v);
     if (!Number.isFinite(n)) return v;
     return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(4)));
   };
+
+  const buildBoundaryLabels = (values, min, span) => {
+    const unique = [...new Set(values.map(v => Number(v)).filter(Number.isFinite))]
+      .sort((a, b) => a - b);
+
+    return unique.map((value, index) => {
+      const percent = span === 0 ? 0 : ((value - min) / span) * 100;
+      const prev = unique[index - 1];
+      const closeToPrev = prev !== undefined && percent - ((prev - min) / span) * 100 < 9;
+
+      return {
+        value,
+        left: `${percent.toFixed(1)}%`,
+        row: closeToPrev ? 1 : 0,
+      };
+    });
+  };
+
+  const renderBoundaryLabels = (labels) => (
+    <div className="relative h-8 mt-1">
+      {labels.map(label => (
+        <span
+          key={label.value}
+          className={`absolute -translate-x-1/2 whitespace-nowrap font-medium leading-3 text-slate-600 ${labelClass}`}
+          style={{ left: label.left, top: label.row ? 15 : 2 }}
+        >
+          <span className="block mx-auto mb-0.5 h-1.5 w-px bg-slate-400" />
+          {fmt(label.value)}
+        </span>
+      ))}
+    </div>
+  );
 
   if (ranges && ranges.length > 0) {
     const valid = ranges.filter(r => r.min !== '' && r.max !== '' && !isNaN(r.min) && !isNaN(r.max));
@@ -50,6 +82,11 @@ export default function ThresholdRangeBar({
         };
       })
       .sort((a, b) => a.start - b.start);
+    const boundaryLabels = buildBoundaryLabels(
+      segments.flatMap(s => [s.min, s.max]),
+      totalMin,
+      span,
+    );
 
     return (
       <div className="min-w-0">
@@ -62,20 +99,7 @@ export default function ThresholdRangeBar({
             />
           ))}
         </div>
-        {showLabels && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
-            {segments.map(s => (
-              <span
-                key={`${s.key}-label`}
-                className={`inline-flex items-center gap-1 whitespace-nowrap font-medium leading-4 ${labelClass}`}
-                style={{ color: s.color }}
-              >
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                {fmt(s.min)}-{fmt(s.max)}{s.label ? ` (${s.label})` : ''}
-              </span>
-            ))}
-          </div>
-        )}
+        {showLabels && renderBoundaryLabels(boundaryLabels)}
       </div>
     );
   }
@@ -106,8 +130,9 @@ export default function ThresholdRangeBar({
         leftPct: pct(start),
         widthPct: width(z.left, z.right),
       };
-    })
-    .sort((a, b) => a.start - b.start);
+      })
+      .sort((a, b) => a.start - b.start);
+  const boundaryLabels = buildBoundaryLabels(vals, min, span);
 
   return (
     <div className="min-w-0">
@@ -124,20 +149,7 @@ export default function ThresholdRangeBar({
           />
         ))}
       </div>
-      {showLabels && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-          {zones.map((z, i) => (
-            <span
-              key={`${i}-label`}
-              className={`inline-flex items-center gap-1 whitespace-nowrap font-medium leading-4 ${labelClass}`}
-              style={{ color: z.labelColor }}
-            >
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: z.labelColor }} />
-              {fmt(z.left)}-{fmt(z.right)}
-            </span>
-          ))}
-        </div>
-      )}
+      {showLabels && renderBoundaryLabels(boundaryLabels)}
     </div>
   );
 }
