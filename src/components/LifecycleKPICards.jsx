@@ -35,7 +35,7 @@ export default function LifecycleKPICards({ lifecycles, maintenanceEvents, point
       const pt = pointMap[lc.sampling_point_id];
       const unit = pt ? unitMap[pt.equipment_unit_id] : null;
       const typInterval = unit ? (INTERVALS_H[unit.equipment_type] || 1000) : 1000;
-      const currentH = pt?.current_total_hours || lc.start_operating_hours || 0;
+      const currentH = unit?.current_total_hours ?? unit?.total_operating_hours ?? lc.start_operating_hours ?? 0;
       const usedH = currentH - (lc.start_operating_hours || 0);
       const remainH = typInterval - usedH;
       if (remainH < typInterval * 0.2) urgentCount++;

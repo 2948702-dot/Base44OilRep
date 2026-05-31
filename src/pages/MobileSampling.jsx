@@ -50,7 +50,7 @@ export default function MobileSampling() {
   const { data: samplingPoints = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
   const { data: equipmentUnits = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
-  const { data: lifecycles = [] } = useQuery({ queryKey: ['oil-lifecycles'], queryFn: () => base44.entities.OilLifecycle.list(undefined, 500) });
+  // lifecycles query removed — handled server-side in saveMobileMaintenanceEvent function
 
   const saveSample = useMutation({
     mutationFn: () => base44.entities.OilSample.create({
@@ -69,58 +69,22 @@ export default function MobileSampling() {
 
   const saveEvent = useMutation({
     mutationFn: async () => {
-      const unitId = samplingPoint.equipment_unit_id;
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const base = {
-        event_date: today,
-        client_id: samplingPoint.client_id,
-        asset_id: samplingPoint.asset_id,
-        equipment_unit_id: unitId,
+      const res = await base44.functions.invoke('saveMobileMaintenanceEvent', {
+        mode,
+        base: {
+          event_date: format(new Date(), 'yyyy-MM-dd'),
+          client_id: samplingPoint.client_id,
+          asset_id: samplingPoint.asset_id,
+          equipment_unit_id: samplingPoint.equipment_unit_id,
+          total_operating_hours: eventForm.total_operating_hours ? Number(eventForm.total_operating_hours) : undefined,
+          comment: eventForm.comments || undefined,
+        },
+        oil_type_id: eventForm.oil_type_id || null,
+        volume: eventForm.volume || null,
+        filter_changed: eventForm.filter_changed || false,
         sampling_point_id: samplingPoint.id,
-        total_operating_hours: eventForm.total_operating_hours ? Number(eventForm.total_operating_hours) : undefined,
-        comment: eventForm.comments || undefined,
-      };
-      if (mode === 'topup') {
-        await base44.entities.MaintenanceEvent.create({
-          ...base,
-          event_type: 'oil_topup',
-          new_oil_type_id: eventForm.oil_type_id || undefined,
-          added_oil_volume: eventForm.volume ? Number(eventForm.volume) : undefined
-        });
-      } else if (mode === 'change') {
-        const currentUnit = equipmentUnits.find(u => u.id === unitId);
-        await base44.entities.MaintenanceEvent.create({
-          ...base,
-          event_type: 'oil_change',
-          old_oil_type_id: currentUnit?.current_oil_type_id || currentUnit?.oil_type_id || undefined,
-          new_oil_type_id: eventForm.oil_type_id || undefined,
-          replaced_oil_volume: eventForm.volume ? Number(eventForm.volume) : undefined
-        });
-        // Close active lifecycle for this sampling point
-        const activeLC = lifecycles.find(l => l.sampling_point_id === samplingPoint.id && l.status === 'active');
-        if (activeLC) {
-          await base44.entities.OilLifecycle.update(activeLC.id, {
-            status: 'closed', end_date: today,
-            end_operating_hours: base.total_operating_hours, end_reason: 'Замена масла'
-          });
-        }
-        if (eventForm.oil_type_id) {
-          await base44.entities.OilLifecycle.create({
-            sampling_point_id: samplingPoint.id,
-            oil_type_id: eventForm.oil_type_id,
-            start_date: today,
-            start_operating_hours: base.total_operating_hours,
-            status: 'active', start_reason: 'Замена масла'
-          });
-        }
-        if (eventForm.filter_changed) {
-          await base44.entities.MaintenanceEvent.create({ ...base, event_type: 'oil_filter' });
-        }
-      }
-      // Recalculate equipment unit state from full event history
-      if (unitId) {
-        await base44.functions.invoke('recalculateEquipmentUnitState', { equipment_unit_id: unitId });
-      }
+      });
+      if (!res.data?.success) throw new Error(res.data?.error || 'Server error');
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['maintenance-events'] });

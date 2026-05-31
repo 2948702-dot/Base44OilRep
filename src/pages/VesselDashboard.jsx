@@ -51,7 +51,7 @@ function computeOilChangeInfo(eq, lastChangeEvent) {
   if (!eq?.oil_change_interval) return null;
   if (eq.oil_change_type === 'engine_hours') {
     const lastHours = lastChangeEvent?.total_operating_hours || 0;
-    const currentHours = eq.total_operating_hours || 0;
+    const currentHours = eq.current_total_hours ?? eq.total_operating_hours ?? 0;
     const usedHours = currentHours - lastHours;
     const remaining = Math.round(eq.oil_change_interval - usedHours);
     return { remaining, unit: 'м/ч' };

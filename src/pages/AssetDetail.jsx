@@ -123,7 +123,7 @@ export default function AssetDetail() {
                   <td className="px-4 py-2.5 text-slate-600">
                     {u.manufacturer || '—'}{u.model && <span className="text-slate-400"> / {u.model}</span>}
                   </td>
-                  <td className="px-4 py-2.5 text-slate-600">{u.total_operating_hours ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-slate-600">{u.current_total_hours ?? u.total_operating_hours ?? '—'}</td>
                   <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(u)}>

@@ -54,7 +54,7 @@ export default function OilLifecycles() {
       const unit = pt ? unitMap[pt.equipment_unit_id] : null;
       const asset = pt ? assetMap[pt.asset_id] : null;
       const typInterval = unit ? (INTERVALS_H[unit.equipment_type] || 1000) : 1000;
-      const currentH = pt?.current_total_hours || l.start_operating_hours || 0;
+      const currentH = unit?.current_total_hours ?? unit?.total_operating_hours ?? l.start_operating_hours ?? 0;
       const usedH = l.start_operating_hours != null ? currentH - l.start_operating_hours : null;
       const durationH = l.end_operating_hours && l.start_operating_hours ? l.end_operating_hours - l.start_operating_hours : usedH;
       const remainH = l.status === 'active' && usedH != null ? typInterval - usedH : null;
