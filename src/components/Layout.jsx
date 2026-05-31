@@ -1,5 +1,5 @@
-import { Outlet, Link } from 'react-router-dom';
-import { QrCode, Droplets, FlaskConical, Settings, Users, Package, TrendingUp, AlertCircle, ShoppingCart, Home, Wrench } from 'lucide-react';
+import { Outlet, Link, useLocation } from 'react-router-dom';
+import { QrCode, Droplets, FlaskConical, Settings, Users, Package, TrendingUp, AlertCircle, ShoppingCart, Home, Wrench, Cog } from 'lucide-react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 
 const NAV = {
@@ -10,6 +10,7 @@ const NAV = {
         { label: 'Дашборд', href: '/', icon: Home },
         { label: 'Клиенты', href: '/clients', icon: Users },
         { label: 'Активы', href: '/assets', icon: Package },
+        { label: 'Агрегаты', href: '/equipment-units', icon: Cog },
         { label: 'Флот (все суда)', href: '/fleet', icon: ShoppingCart },
         { label: 'Критические', href: '/critical', icon: AlertCircle },
         { label: 'Пользователи', href: '/users', icon: Users },
@@ -63,6 +64,7 @@ const NAV = {
       items: [
         { label: 'Дашборд', href: '/', icon: Home },
         { label: 'Состояние', href: '/fleet', icon: ShoppingCart },
+        { label: 'Агрегаты', href: '/equipment-units', icon: Cog },
       ]
     },
     {
@@ -76,6 +78,7 @@ const NAV = {
 
 export default function Layout() {
   const { user, isAdmin, isSuperintendent, isCaptain } = useRoleAccess();
+  const location = useLocation();
 
   let roleNav = [];
   if (isAdmin) roleNav = NAV.admin;
@@ -96,17 +99,21 @@ export default function Layout() {
         </div>
 
         <nav className="mt-8">
+          {/* nav items */}
           {roleNav.map(group => (
             <div key={group.title} className="mb-6">
               <p className="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">{group.title}</p>
               <ul className="mt-2 space-y-1">
                 {group.items.map(item => {
                   const Icon = item.icon;
+                  const isActive = location.pathname === item.href;
                   return (
                     <li key={item.href}>
                       <Link
                         to={item.href}
-                        className="flex items-center gap-3 px-4 py-2 text-sm text-slate-600 rounded-lg hover:bg-slate-50"
+                        className={`flex items-center gap-3 px-4 py-2 text-sm rounded-lg ${
+                          isActive ? 'bg-slate-100 text-slate-900 font-medium' : 'text-slate-600 hover:bg-slate-50'
+                        }`}
                       >
                         <Icon className="w-4 h-4" />
                         {item.label}
