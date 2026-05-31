@@ -66,8 +66,22 @@ export default function OilSamples() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['oil-samples'] }); }
   });
   const saveAnalysis = useMutation({
-    mutationFn: d => d.id ? base44.entities.AnalysisResult.update(d.id, d) : base44.entities.AnalysisResult.create(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['analysis-results'] }); setOpen(false); setForm(DEF); }
+    mutationFn: async d => {
+      const result = d.id
+        ? await base44.entities.AnalysisResult.update(d.id, d)
+        : await base44.entities.AnalysisResult.create(d);
+      // Mark sample as completed when analysis data is saved
+      if (d.sample_id) {
+        await base44.entities.OilSample.update(d.sample_id, { sample_status: 'completed' });
+      }
+      return result;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['analysis-results'] });
+      qc.invalidateQueries({ queryKey: ['oil-samples'] });
+      setOpen(false);
+      setForm(DEF);
+    }
   });
   const del = useMutation({
     mutationFn: id => base44.entities.OilSample.delete(id),

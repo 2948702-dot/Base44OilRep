@@ -117,11 +117,10 @@ export default function Reports() {
 
     if (result) {
       const params = [
-        ['Железо', result.iron_mg_l, oil?.passport_dielectric, 'мг/л'],
-        ['Вода растворённая', result.water_ppm, oil?.lab_water_ppm, 'ppm'],
-        ['Активность воды (aw)', result.water_activity, oil?.lab_water_activity, ''],
+        ['Железо', result.iron_mg_l, null, 'мг/л'],
+        ['Вода растворённая', result.water_ppm, null, 'ppm'],
+        ['Активность воды (aw)', result.water_activity, null, ''],
         ['Вязкость при 40°C', result.viscosity_40, oil?.passport_viscosity_40, 'мм²/с'],
-        ['Вязкость при 100°C', result.viscosity_100, oil?.passport_viscosity_100, 'мм²/с'],
         ['Плотность', result.density, oil?.passport_density_15, 'кг/м³'],
         ['Диэлектрическая пост.', result.dielectric_constant, oil?.passport_dielectric, ''],
       ];

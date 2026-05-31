@@ -13,7 +13,6 @@ const PARAMETERS = [
   { key: 'water_ppm', label: 'Вода (ppm)', unit: 'ppm' },
   { key: 'water_activity', label: 'Акт. воды', unit: '' },
   { key: 'viscosity_40', label: 'Вязкость 40°C', unit: 'мм²/с' },
-  { key: 'viscosity_100', label: 'Вязкость 100°C', unit: 'мм²/с' },
   { key: 'dielectric_constant', label: 'Диэлектр.', unit: '' },
   { key: 'density', label: 'Плотность', unit: 'кг/м3' },
   { key: 'oil_health_index', label: 'OHI', unit: '%' },

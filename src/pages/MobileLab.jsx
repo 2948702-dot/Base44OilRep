@@ -89,14 +89,17 @@ export default function MobileLab() {
         if (rule.red_min !== undefined && v >= rule.red_min && v <= rule.red_max) overall = 'red';
         else if (overall !== 'red' && rule.yellow_min !== undefined && v >= rule.yellow_min && v <= rule.yellow_max) overall = 'yellow';
       });
-      await base44.entities.AnalysisResult.create({
-        sample_id: sample.id,
-        ...numericResults,
-        recommendation_text: recommendation,
-        overall_status: overall,
-      });
+      // Upsert: update existing result if any, create otherwise
+      const existing = await base44.entities.AnalysisResult.filter({ sample_id: sample.id });
+      const resultData = { sample_id: sample.id, ...numericResults, recommendation_text: recommendation, overall_status: overall };
+      if (existing.length > 0) {
+        await base44.entities.AnalysisResult.update(existing[0].id, resultData);
+      } else {
+        await base44.entities.AnalysisResult.create(resultData);
+      }
       await base44.entities.OilSample.update(sample.id, { sample_status: 'completed' });
       qc.invalidateQueries({ queryKey: ['oil-samples'] });
+      qc.invalidateQueries({ queryKey: ['analysis-results'] });
     },
     onSuccess: () => setStep(2),
   });

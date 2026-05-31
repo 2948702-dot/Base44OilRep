@@ -2,7 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 /**
  * Unified backend function for desktop MaintenanceEvents CRUD.
- * Handles create / update / delete with proper OilLifecycle management and RBAC.
+ * Handles create / update / delete with proper OilLifecycle rebuild and RBAC.
  *
  * Payload: { action: 'create'|'update'|'delete', event_data?: {...}, event_id?: string }
  */
@@ -24,15 +24,16 @@ Deno.serve(async (req) => {
       const existing = await base44.asServiceRole.entities.MaintenanceEvent.get(event_id);
       if (!existing) return Response.json({ error: 'Event not found' }, { status: 404 });
 
-      // RBAC
       const rbacError = checkAccess(user, existing);
       if (rbacError) return rbacError;
 
       await base44.asServiceRole.entities.MaintenanceEvent.delete(event_id);
 
-      // Recalculate unit state
+      if (existing.sampling_point_id) {
+        await rebuildLifecycles(base44, existing.sampling_point_id);
+      }
       if (existing.equipment_unit_id) {
-        await recalcUnit(base44, existing.equipment_unit_id, user);
+        await recalcUnit(base44, existing.equipment_unit_id);
       }
 
       return Response.json({ success: true });
@@ -41,20 +42,31 @@ Deno.serve(async (req) => {
     // ── CREATE / UPDATE ──────────────────────────────────────────────────────
     if (!event_data) return Response.json({ error: 'event_data is required' }, { status: 400 });
 
-    // RBAC
-    const rbacError = checkAccess(user, event_data);
-    if (rbacError) return rbacError;
+    // For UPDATE: fetch existing record first and RBAC-check it before modifying
+    if (action === 'update') {
+      if (!event_id) return Response.json({ error: 'event_id is required for update' }, { status: 400 });
+      const existing = await base44.asServiceRole.entities.MaintenanceEvent.get(event_id);
+      if (!existing) return Response.json({ error: 'Event not found' }, { status: 404 });
+
+      // Check access on existing record
+      const rbacOnExisting = checkAccess(user, existing);
+      if (rbacOnExisting) return rbacOnExisting;
+
+      // Prevent moving event to a different client/asset that user can't access
+      const rbacOnNew = checkAccess(user, event_data);
+      if (rbacOnNew) return rbacOnNew;
+    } else {
+      // CREATE: RBAC on new data
+      const rbacError = checkAccess(user, event_data);
+      if (rbacError) return rbacError;
+    }
 
     // Sanitise numbers
     const payload = { ...event_data };
-    if (payload.total_operating_hours === '' || payload.total_operating_hours === undefined) delete payload.total_operating_hours;
-    else if (payload.total_operating_hours !== undefined) payload.total_operating_hours = Number(payload.total_operating_hours);
-    if (payload.oil_hours === '' || payload.oil_hours === undefined) delete payload.oil_hours;
-    else if (payload.oil_hours !== undefined) payload.oil_hours = Number(payload.oil_hours);
-    if (payload.replaced_oil_volume === '' || payload.replaced_oil_volume === undefined) delete payload.replaced_oil_volume;
-    else if (payload.replaced_oil_volume !== undefined) payload.replaced_oil_volume = Number(payload.replaced_oil_volume);
-    if (payload.added_oil_volume === '' || payload.added_oil_volume === undefined) delete payload.added_oil_volume;
-    else if (payload.added_oil_volume !== undefined) payload.added_oil_volume = Number(payload.added_oil_volume);
+    for (const field of ['total_operating_hours', 'oil_hours', 'replaced_oil_volume', 'added_oil_volume']) {
+      if (payload[field] === '' || payload[field] === undefined) delete payload[field];
+      else if (payload[field] !== undefined) payload[field] = Number(payload[field]);
+    }
 
     let savedEvent;
     if (action === 'update' && event_id) {
@@ -63,43 +75,15 @@ Deno.serve(async (req) => {
       savedEvent = await base44.asServiceRole.entities.MaintenanceEvent.create(payload);
     }
 
-    // OilLifecycle management for oil_change
-    if (event_data.event_type === 'oil_change' && event_data.sampling_point_id) {
-      // Close ALL active lifecycles for this sampling point
-      const allLC = await base44.asServiceRole.entities.OilLifecycle.filter({ sampling_point_id: event_data.sampling_point_id });
-      const activeLC = allLC.filter(l => l.status === 'active');
-      for (const lc of activeLC) {
-        await base44.asServiceRole.entities.OilLifecycle.update(lc.id, {
-          status: 'closed',
-          end_date: event_data.event_date,
-          end_operating_hours: event_data.total_operating_hours,
-          end_reason: 'Замена масла',
-        });
-      }
-
-      // Create new lifecycle only if none exists with same start_date + oil_type
-      if (event_data.new_oil_type_id) {
-        const duplicate = allLC.find(l =>
-          l.start_date === event_data.event_date &&
-          l.oil_type_id === event_data.new_oil_type_id &&
-          l.status === 'active'
-        );
-        if (!duplicate) {
-          await base44.asServiceRole.entities.OilLifecycle.create({
-            sampling_point_id: event_data.sampling_point_id,
-            oil_type_id: event_data.new_oil_type_id,
-            start_date: event_data.event_date,
-            start_operating_hours: event_data.total_operating_hours,
-            status: 'active',
-            start_reason: 'Замена масла',
-          });
-        }
-      }
+    // Rebuild OilLifecycle from full oil_change history for affected point
+    const affectedPointId = event_data.sampling_point_id;
+    if (affectedPointId) {
+      await rebuildLifecycles(base44, affectedPointId);
     }
 
     // Recalculate equipment unit state
     if (event_data.equipment_unit_id) {
-      await recalcUnit(base44, event_data.equipment_unit_id, user);
+      await recalcUnit(base44, event_data.equipment_unit_id);
     }
 
     return Response.json({ success: true, event: savedEvent });
@@ -108,6 +92,7 @@ Deno.serve(async (req) => {
   }
 });
 
+// ── RBAC ─────────────────────────────────────────────────────────────────────
 function checkAccess(user, event) {
   if (user.role === 'captain') {
     if (!event.asset_id || event.asset_id !== user.asset_id) {
@@ -123,15 +108,63 @@ function checkAccess(user, event) {
   return null;
 }
 
-async function recalcUnit(base44, equipment_unit_id, user) {
+// ── REBUILD LIFECYCLES ────────────────────────────────────────────────────────
+/**
+ * Rebuilds OilLifecycle records for a sampling point by replaying all oil_change
+ * MaintenanceEvents in chronological order. This is the canonical approach:
+ * OilLifecycle is a derived projection of the oil_change event log.
+ */
+async function rebuildLifecycles(base44, sampling_point_id) {
+  if (!sampling_point_id) return;
+
+  // Fetch all oil_change events for this point, sorted chronologically
+  const allEvents = await base44.asServiceRole.entities.MaintenanceEvent.filter({ sampling_point_id });
+  const oilChanges = allEvents
+    .filter(e => e.event_type === 'oil_change')
+    .sort((a, b) => {
+      const d = (a.event_date || '').localeCompare(b.event_date || '');
+      return d !== 0 ? d : (a.created_date || '').localeCompare(b.created_date || '');
+    });
+
+  // Delete all existing lifecycles for this point
+  const existing = await base44.asServiceRole.entities.OilLifecycle.filter({ sampling_point_id });
+  for (const lc of existing) {
+    await base44.asServiceRole.entities.OilLifecycle.delete(lc.id);
+  }
+
+  // Recreate from oil_change events
+  for (let i = 0; i < oilChanges.length; i++) {
+    const ev = oilChanges[i];
+    if (!ev.new_oil_type_id) continue;
+
+    const nextEv = oilChanges[i + 1];
+    const isLast = !nextEv;
+
+    await base44.asServiceRole.entities.OilLifecycle.create({
+      sampling_point_id,
+      oil_type_id: ev.new_oil_type_id,
+      start_date: ev.event_date,
+      start_operating_hours: ev.total_operating_hours,
+      start_reason: 'Замена масла',
+      status: isLast ? 'active' : 'closed',
+      ...(isLast ? {} : {
+        end_date: nextEv.event_date,
+        end_operating_hours: nextEv.total_operating_hours,
+        end_reason: 'Замена масла',
+      }),
+    });
+  }
+}
+
+// ── RECALC UNIT ───────────────────────────────────────────────────────────────
+async function recalcUnit(base44, equipment_unit_id) {
   const unit = await base44.asServiceRole.entities.EquipmentUnit.get(equipment_unit_id);
   if (!unit) return;
 
   const events = await base44.asServiceRole.entities.MaintenanceEvent.filter({ equipment_unit_id });
   events.sort((a, b) => {
     const d = (a.event_date || '').localeCompare(b.event_date || '');
-    if (d !== 0) return d;
-    return (a.created_date || '').localeCompare(b.created_date || '');
+    return d !== 0 ? d : (a.created_date || '').localeCompare(b.created_date || '');
   });
 
   const initialTotal = unit.total_operating_hours ?? 0;

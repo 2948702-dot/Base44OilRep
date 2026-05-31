@@ -72,7 +72,6 @@ Deno.serve(async (req) => {
             waterLevel = Math.max(50, waterLevel);
 
             const viscosity40 = (oil.passport_viscosity_40 || 46) + (Math.random() * 4 - 2);
-            const viscosity100 = (oil.passport_viscosity_100 || 6.8) + (Math.random() * 0.8 - 0.4);
             const oilHealthIndex = Math.max(20, 100 - (ironLevel - 10) * 2 - (waterLevel - 50) * 0.1);
 
             await base44.asServiceRole.entities.AnalysisResult.create({
@@ -81,7 +80,6 @@ Deno.serve(async (req) => {
               water_ppm: waterLevel,
               water_activity: waterLevel / 1000,
               viscosity_40: viscosity40,
-              viscosity_100: viscosity100,
               density: (oil.passport_density_15 || 880) + (Math.random() * 5 - 2.5),
               dielectric_constant: (oil.passport_dielectric || 2.5) + (Math.random() * 0.3 - 0.15),
               water_index: Math.max(0, 100 - waterLevel),
