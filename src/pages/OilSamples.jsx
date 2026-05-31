@@ -164,11 +164,11 @@ export default function OilSamples() {
                 <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50">
                   <td className="px-3 py-2">
                     <div className="font-mono text-slate-900 font-medium">{s.sample_number}</div>
-                    <div className="text-slate-400 text-xs">{s.sampling_date || '—'}</div>
+                    <div className="text-slate-400 text-xs">{s.sampling_date ? s.sampling_date.split('-').reverse().join('.') : '—'}</div>
                   </td>
                   <td className="px-3 py-2">
-                    <div className="font-medium text-slate-700 truncate max-w-[120px]">{getName(clients, s.client_id, 'company_name')}</div>
-                    <div className="text-slate-400 truncate max-w-[120px]">{getName(assets, s.asset_id, 'asset_name')}</div>
+                    <div className="font-medium text-slate-700 truncate max-w-[130px]">{getName(assets, s.asset_id, 'asset_name')}</div>
+                    <div className="text-slate-400 truncate max-w-[130px]">{getName(units, s.equipment_unit_id, 'unit_name')}</div>
                   </td>
                   <td className="px-2 py-2 text-center">{cell(res?.viscosity_40)}</td>
                   <td className="px-2 py-2 text-center">{cell(res?.density, 0)}</td>
