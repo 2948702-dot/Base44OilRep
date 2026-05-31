@@ -105,9 +105,10 @@ export default function VesselDashboard() {
         };
       });
 
-    const oil = oils.find(o => o.id === point.oil_type_id);
+    const oil = oils.find(o => o.id === (eq?.oil_type_id || point.oil_type_id));
+    const oilName = eq?.oil_brand || oil?.oil_name || null;
 
-    return { point, eq, latestResult, latestSample, trendData, sampleCount: ptSamples.length, oil };
+    return { point, eq, latestResult, latestSample, trendData, sampleCount: ptSamples.length, oil, oilName };
   });
 
   return (
@@ -137,14 +138,14 @@ export default function VesselDashboard() {
         <div className="text-center py-20 text-slate-400">Нет точек отбора для этого судна</div>
       ) : (
         <div className="space-y-6">
-          {pointData.map(({ point, eq, latestResult: res, latestSample, trendData, sampleCount, oil }) => (
+          {pointData.map(({ point, eq, latestResult: res, latestSample, trendData, sampleCount, oil, oilName }) => (
             <div key={point.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               {/* Point header */}
               <div className="flex items-center gap-4 px-5 py-3 border-b border-slate-100 bg-slate-50">
                 <OHIGauge value={res?.oil_health_index} size={80} />
                 <div className="flex-1">
                   <p className="font-semibold text-slate-900 text-base">{point.point_name}</p>
-                  <p className="text-xs text-slate-500">{eq?.unit_name} · {eq?.equipment_type} · {oil?.oil_name || 'Масло не задано'}</p>
+                  <p className="text-xs text-slate-500">{eq?.unit_name} · {eq?.equipment_type} · {oilName || 'Масло не задано'}</p>
                   <p className="text-xs text-slate-400 mt-0.5">Всего проб: {sampleCount} · Последняя: {latestSample ? new Date(latestSample.sampling_date).toLocaleDateString('ru-RU') : '—'}</p>
                 </div>
                 {eq && (
