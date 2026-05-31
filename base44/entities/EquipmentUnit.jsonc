@@ -54,5 +54,139 @@
     "asset_id",
     "unit_name",
     "equipment_type"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "superintendent"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "captain"
+              }
+            },
+            {
+              "data.asset_id": "{{user.asset_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "superintendent"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "captain"
+              }
+            },
+            {
+              "data.asset_id": "{{user.asset_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "superintendent"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "captain"
+              }
+            },
+            {
+              "data.asset_id": "{{user.asset_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "superintendent"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "captain"
+              }
+            },
+            {
+              "data.asset_id": "{{user.asset_id}}"
+            }
+          ]
+        }
+      ]
+    }
+  }
 }
