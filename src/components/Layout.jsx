@@ -1,5 +1,5 @@
 import { Outlet, Link } from 'react-router-dom';
-import { BarChart3, Settings, Users, Package, Zap, TrendingUp, AlertCircle, ShoppingCart, Home, Wrench } from 'lucide-react';
+import { QrCode, Droplets, FlaskConical, Settings, Users, Package, TrendingUp, AlertCircle, ShoppingCart, Home, Wrench } from 'lucide-react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 
 const NAV = {
@@ -21,6 +21,14 @@ const NAV = {
         { label: 'Справочник масел', href: '/oil-reference', icon: Settings },
         { label: 'Пороги', href: '/threshold-rules', icon: TrendingUp },
         { label: 'Администрирование', href: '/admin-panel', icon: Wrench },
+        { label: 'QR-коды', href: '/qr-manager', icon: QrCode },
+      ]
+    },
+    {
+      title: 'Мобильное',
+      items: [
+        { label: 'Отбор пробы', href: '/mobile-sampling', icon: Droplets },
+        { label: 'Ввод анализа', href: '/mobile-lab', icon: FlaskConical },
       ]
     }
   ],
@@ -38,6 +46,14 @@ const NAV = {
       items: [
         { label: 'Пробы масла', href: '/oil-samples', icon: Package },
         { label: 'Результаты', href: '/analysis-results', icon: TrendingUp },
+        { label: 'QR-коды', href: '/qr-manager', icon: QrCode },
+      ]
+    },
+    {
+      title: 'Мобильное',
+      items: [
+        { label: 'Отбор пробы', href: '/mobile-sampling', icon: Droplets },
+        { label: 'Ввод анализа', href: '/mobile-lab', icon: FlaskConical },
       ]
     }
   ],
@@ -47,6 +63,12 @@ const NAV = {
       items: [
         { label: 'Дашборд', href: '/', icon: Home },
         { label: 'Состояние', href: '/fleet', icon: ShoppingCart },
+      ]
+    },
+    {
+      title: 'Мобильное',
+      items: [
+        { label: 'Отбор пробы', href: '/mobile-sampling', icon: Droplets },
       ]
     }
   ]

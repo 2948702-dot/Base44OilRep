@@ -27,6 +27,9 @@ import CriticalVessels from './pages/CriticalVessels';
 import UserManagement from './pages/UserManagement';
 import EquipmentDetailPage from './pages/EquipmentDetailPage';
 import AdminPanel from './pages/AdminPanel';
+import MobileSampling from './pages/MobileSampling';
+import MobileLab from './pages/MobileLab';
+import QRManager from './pages/QRManager';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -72,6 +75,9 @@ const AuthenticatedApp = () => {
         <Route path="/users" element={<UserManagement />} />
         <Route path="/equipment/:equipmentId" element={<EquipmentDetailPage />} />
         <Route path="/admin-panel" element={<AdminPanel />} />
+        <Route path="/mobile-sampling" element={<MobileSampling />} />
+        <Route path="/mobile-lab" element={<MobileLab />} />
+        <Route path="/qr-manager" element={<QRManager />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

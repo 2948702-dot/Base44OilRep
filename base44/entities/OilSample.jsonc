@@ -14,6 +14,10 @@
       "type": "string",
       "title": "Sample Number"
     },
+    "can_qr_code": {
+      "type": "string",
+      "title": "Can QR Code"
+    },
     "client_id": {
       "type": "string",
       "title": "Client"
