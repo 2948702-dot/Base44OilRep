@@ -110,7 +110,7 @@ export default function OilSamples() {
             className="pl-8 pr-3 h-9 w-44 rounded-md border border-input bg-transparent text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
         </div>
-        <Select value={filterClient} onValueChange={v => { setFilterClient(v); setFilterAsset(''); }}>
+        <Select value={filterClient} onValueChange={v => { setFilterClient(v); setFilterAsset('none'); }}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Все клиенты" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">Все клиенты</SelectItem>
