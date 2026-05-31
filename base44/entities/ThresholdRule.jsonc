@@ -101,6 +101,31 @@
       "type": "number",
       "title": "Red Right %"
     },
+    "custom_ranges_mode": {
+      "type": "boolean",
+      "title": "Custom Ranges Mode"
+    },
+    "ranges": {
+      "type": "array",
+      "title": "Custom Ranges",
+      "items": {
+        "type": "object",
+        "properties": {
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "color": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "comments": {
       "type": "string",
       "title": "Comments"
