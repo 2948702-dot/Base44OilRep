@@ -187,7 +187,10 @@ export default function AnalysisResults() {
           <div className="grid grid-cols-3 gap-3 py-2 max-h-[70vh] overflow-y-auto pr-1">
             <div className="col-span-3 space-y-1">
               <Label>Проба масла *</Label>
-              <Select value={form.sample_id} onValueChange={v => f('sample_id', v)}>
+              <Select value={form.sample_id} onValueChange={v => {
+                const s = samples.find(x => x.id === v);
+                setForm(p => ({ ...p, sample_id: v, client_id: s?.client_id || '', asset_id: s?.asset_id || '' }));
+              }}>
                 <SelectTrigger><SelectValue placeholder="Выберите пробу" /></SelectTrigger>
                 <SelectContent>{samples.map(s => <SelectItem key={s.id} value={s.id}>{s.sample_number} · {s.sampling_date}</SelectItem>)}</SelectContent>
               </Select>

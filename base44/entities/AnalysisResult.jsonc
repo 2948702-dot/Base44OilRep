@@ -6,6 +6,14 @@
       "type": "string",
       "title": "Oil Sample"
     },
+    "client_id": {
+      "type": "string",
+      "title": "Client"
+    },
+    "asset_id": {
+      "type": "string",
+      "title": "Asset"
+    },
     "iron_mg_l": {
       "type": "number",
       "title": "Iron (mg/L)"
