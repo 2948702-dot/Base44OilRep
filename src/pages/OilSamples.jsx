@@ -62,25 +62,12 @@ export default function OilSamples() {
   };
 
   const save = useMutation({
-    mutationFn: async d => {
-      const c = cleanForm(d);
-      const sampleSaved = c.id ? await base44.entities.OilSample.update(c.id, c) : await base44.entities.OilSample.create(c);
-      const sampleId = sampleSaved.id || c.id;
-      return { sampleId, analysis: d.analysis };
-    },
-    onSuccess: async (data) => {
-      if (data.analysis && Object.keys(data.analysis).length > 0) {
-        const analysisData = { ...data.analysis, sample_id: data.sampleId };
-        if (currentAnalysis?.id) analysisData.id = currentAnalysis.id;
-        analysisData.id
-          ? await base44.entities.AnalysisResult.update(analysisData.id, analysisData)
-          : await base44.entities.AnalysisResult.create(analysisData);
-      }
-      qc.invalidateQueries({ queryKey: ['oil-samples'] });
-      qc.invalidateQueries({ queryKey: ['analysis-results'] });
-      setOpen(false);
-      setForm(DEF);
-    }
+    mutationFn: d => { const c = cleanForm(d); return c.id ? base44.entities.OilSample.update(c.id, c) : base44.entities.OilSample.create(c); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['oil-samples'] }); }
+  });
+  const saveAnalysis = useMutation({
+    mutationFn: d => d.id ? base44.entities.AnalysisResult.update(d.id, d) : base44.entities.AnalysisResult.create(d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['analysis-results'] }); setOpen(false); setForm(DEF); }
   });
   const del = useMutation({
     mutationFn: id => base44.entities.OilSample.delete(id),
@@ -372,16 +359,28 @@ export default function OilSamples() {
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
             <Button onClick={() => {
               const { iron_mg_l, water_ppm, water_activity, viscosity_40, density, dielectric_constant, ...sampleData } = form;
-              const analysisParams = {};
-              if (iron_mg_l !== undefined && iron_mg_l !== '') analysisParams.iron_mg_l = iron_mg_l;
-              if (water_ppm !== undefined && water_ppm !== '') analysisParams.water_ppm = water_ppm;
-              if (water_activity !== undefined && water_activity !== '') analysisParams.water_activity = water_activity;
-              if (viscosity_40 !== undefined && viscosity_40 !== '') analysisParams.viscosity_40 = viscosity_40;
-              if (density !== undefined && density !== '') analysisParams.density = density;
-              if (dielectric_constant !== undefined && dielectric_constant !== '') analysisParams.dielectric_constant = dielectric_constant;
-              save.mutate({ ...sampleData, analysis: Object.keys(analysisParams).length > 0 ? { ...analysisParams, sample_id: form.id, client_id: form.client_id, asset_id: form.asset_id } : null });
-            }} disabled={!form.sample_number || !form.sampling_date || (form.sample_type === 'in_service' && !form.client_id) || (form.sample_type === 'in_service' && !form.engine_state) || save.isPending}>
-              {save.isPending ? 'Сохранение...' : 'Сохранить'}
+              const hasAnalysisData = iron_mg_l !== undefined && iron_mg_l !== '' || water_ppm !== undefined && water_ppm !== '' || water_activity !== undefined && water_activity !== '' || viscosity_40 !== undefined && viscosity_40 !== '' || density !== undefined && density !== '' || dielectric_constant !== undefined && dielectric_constant !== '';
+              
+              save.mutate(sampleData, {
+                onSuccess: () => {
+                  if (hasAnalysisData) {
+                    const analysisData = { sample_id: form.id, client_id: form.client_id, asset_id: form.asset_id };
+                    if (iron_mg_l !== undefined && iron_mg_l !== '') analysisData.iron_mg_l = iron_mg_l;
+                    if (water_ppm !== undefined && water_ppm !== '') analysisData.water_ppm = water_ppm;
+                    if (water_activity !== undefined && water_activity !== '') analysisData.water_activity = water_activity;
+                    if (viscosity_40 !== undefined && viscosity_40 !== '') analysisData.viscosity_40 = viscosity_40;
+                    if (density !== undefined && density !== '') analysisData.density = density;
+                    if (dielectric_constant !== undefined && dielectric_constant !== '') analysisData.dielectric_constant = dielectric_constant;
+                    if (currentAnalysis?.id) analysisData.id = currentAnalysis.id;
+                    saveAnalysis.mutate(analysisData);
+                  } else {
+                    setOpen(false);
+                    setForm(DEF);
+                  }
+                }
+              });
+            }} disabled={!form.sample_number || !form.sampling_date || (form.sample_type === 'in_service' && !form.client_id) || (form.sample_type === 'in_service' && !form.engine_state) || save.isPending || saveAnalysis.isPending}>
+              {save.isPending || saveAnalysis.isPending ? 'Сохранение...' : 'Сохранить'}
             </Button>
           </DialogFooter>
         </DialogContent>
