@@ -45,7 +45,7 @@ const DEF = { oil_type_id: '', equipment_unit_id: '', equipment_type: 'all', par
 export default function ThresholdRules() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
-  const [filterEq, setFilterEq] = useState('');
+  const [filterEq, setFilterEq] = useState('none');
   const qc = useQueryClient();
 
   const { data: rules = [], isLoading } = useQuery({ queryKey: ['threshold-rules'], queryFn: () => base44.entities.ThresholdRule.list() });
@@ -60,7 +60,7 @@ export default function ThresholdRules() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['threshold-rules'] })
   });
 
-  const filtered = rules.filter(r => filterEq === 'none' || r.equipment_type === filterEq);
+  const filtered = filterEq === 'none' ? rules : rules.filter(r => r.equipment_type === filterEq);
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const setParam = v => setForm(p => ({ ...p, parameter_name: v, unit: PARAM_UNITS[v] ?? '' }));
 
