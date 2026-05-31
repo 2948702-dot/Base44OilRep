@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { QrCode, Droplets, FlaskConical, Settings, Users, Package, TrendingUp, AlertCircle, ShoppingCart, Home, Wrench, Cog, Menu } from 'lucide-react';
+import { QrCode, Droplets, FlaskConical, Settings, Users, Package, TrendingUp, AlertCircle, ShoppingCart, Home, Wrench, Cog, Menu, Plus } from 'lucide-react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
@@ -32,6 +32,8 @@ const NAV = {
       title: 'Мобильное',
       items: [
         { label: 'Отбор пробы', href: '/mobile-sampling', icon: Droplets },
+        { label: 'Долив масла', href: '/mobile-sampling?mode=topup', icon: Plus },
+        { label: 'Замена масла', href: '/mobile-sampling?mode=change', icon: Wrench },
         { label: 'Ввод анализа', href: '/mobile-lab', icon: FlaskConical },
       ]
     }
@@ -57,6 +59,8 @@ const NAV = {
       title: 'Мобильное',
       items: [
         { label: 'Отбор пробы', href: '/mobile-sampling', icon: Droplets },
+        { label: 'Долив масла', href: '/mobile-sampling?mode=topup', icon: Plus },
+        { label: 'Замена масла', href: '/mobile-sampling?mode=change', icon: Wrench },
         { label: 'Ввод анализа', href: '/mobile-lab', icon: FlaskConical },
       ]
     }
@@ -74,6 +78,8 @@ const NAV = {
       title: 'Мобильное',
       items: [
         { label: 'Отбор пробы', href: '/mobile-sampling', icon: Droplets },
+        { label: 'Долив масла', href: '/mobile-sampling?mode=topup', icon: Plus },
+        { label: 'Замена масла', href: '/mobile-sampling?mode=change', icon: Wrench },
       ]
     }
   ]

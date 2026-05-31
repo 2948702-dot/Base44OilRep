@@ -24,7 +24,8 @@ const MODE_CONFIG = {
 export default function MobileSampling() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const [mode, setMode] = useState(null);
+  const urlMode = new URLSearchParams(window.location.search).get('mode');
+  const [mode, setMode] = useState(() => ['topup', 'change'].includes(urlMode) ? urlMode : null);
   const [step, setStep] = useState(0);
   const [scanner, setScanner] = useState(null);
   const [samplingPoint, setSamplingPoint] = useState(null);
