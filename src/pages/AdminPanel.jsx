@@ -17,7 +17,6 @@ export default function AdminPanel() {
     setLoading(funcName);
     setError(null);
     setResult(null);
-    
     try {
       const res = await base44.functions.invoke(funcName, {});
       setResult({ func: funcName, data: res.data });
@@ -34,48 +33,54 @@ export default function AdminPanel() {
       <p className="text-slate-600 mb-8">Управление тестовыми данными и очистка БД</p>
 
       <div className="grid gap-4">
-        {FUNCTIONS.length > 0 ? (
-          FUNCTIONS.map(func => (
-            <div key={func.name} className="p-4 bg-white border border-slate-200 rounded-lg">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-semibold text-slate-900">{func.label}</h3>
-                  <p className="text-sm text-slate-600 mt-1">{func.desc}</p>
-                </div>
-                <Button
-                  onClick={() => runFunction(func.name)}
-                  disabled={loading === func.name}
-                  variant="destructive"
-                  size="sm"
-                >
-                  {loading === func.name ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Выполнение...</>
-                  ) : (
-                    'Запустить'
-                  )}
-                </Button>
+        {FUNCTIONS.map(func => (
+          <div key={func.name} className="p-4 bg-white border border-slate-200 rounded-lg">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-semibold text-slate-900">{func.label}</h3>
+                <p className="text-sm text-slate-600 mt-1">{func.desc}</p>
               </div>
+              <Button
+                onClick={() => runFunction(func.name)}
+                disabled={!!loading}
+                variant="destructive"
+                size="sm"
+              >
+                {loading === func.name ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Выполнение...</>
+                ) : (
+                  'Запустить'
+                )}
+              </Button>
             </div>
-          ))
-        ) : (
-          <div className="p-4 bg-slate-100 border border-slate-300 rounded-lg text-center text-slate-600">
-            <p>Функции для администрирования отсутствуют.</p>
           </div>
-        )}
+        ))}
       </div>
 
       {result && (
-        <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <p className="text-sm font-semibold text-green-900 mb-2">✓ Операция выполнена успешно</p>
+        <div className={`mt-8 p-4 border rounded-lg ${result.data.doneCompletely ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+          <p className={`text-sm font-semibold mb-2 ${result.data.doneCompletely ? 'text-green-900' : 'text-yellow-900'}`}>
+            {result.data.message || '✓ Операция выполнена успешно'}
+          </p>
           {result.data.deleted && (
-            <div className="text-sm text-green-800 space-y-1">
-              <p>Активы: {result.data.deleted.assets}</p>
-              <p>Узлы оборудования: {result.data.deleted.equipmentUnits}</p>
-              <p>Точки отбора: {result.data.deleted.samplingPoints}</p>
-              <p>Пробы масла: {result.data.deleted.oilSamples}</p>
+            <div className="text-sm text-slate-700 space-y-1">
+              {Object.entries(result.data.deleted).map(([k, v]) => (
+                <p key={k}>
+                  {k}: удалено {v}
+                  {result.data.stillRemaining?.[k] && result.data.stillRemaining[k] !== '0' ? ' (ещё есть)' : ''}
+                </p>
+              ))}
             </div>
           )}
-          {result.data.message && <p className="text-sm text-green-800 mt-2">{result.data.message}</p>}
+          {!result.data.doneCompletely && (
+            <button
+              onClick={() => runFunction('deleteTestData')}
+              disabled={!!loading}
+              className="mt-3 px-4 py-2 bg-yellow-600 text-white rounded text-sm font-medium hover:bg-yellow-700 disabled:opacity-50"
+            >
+              {loading === 'deleteTestData' ? 'Удаление...' : 'Запустить ещё раз'}
+            </button>
+          )}
         </div>
       )}
 

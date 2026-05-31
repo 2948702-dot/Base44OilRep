@@ -2,15 +2,19 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function deleteInBatches(entity, ids, batchSize = 5, delayMs = 300) {
-  let count = 0;
-  for (let i = 0; i < ids.length; i += batchSize) {
-    const batch = ids.slice(i, i + batchSize);
-    await Promise.allSettled(batch.map(id => entity.delete(id)));
-    count += batch.length;
-    if (i + batchSize < ids.length) await delay(delayMs);
+async function deleteChunk(entity, limit = 50) {
+  const items = await entity.list('id', limit);
+  let deleted = 0;
+  for (const item of items) {
+    try {
+      await entity.delete(item.id);
+      deleted++;
+    } catch (e) {
+      // rate limit — skip, will delete on next run
+    }
+    await delay(300);
   }
-  return count;
+  return { deleted, remaining: items.length - deleted };
 }
 
 Deno.serve(async (req) => {
@@ -22,75 +26,60 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
-    const deleted = {
-      analysisResults: 0,
-      maintenanceEvents: 0,
-      oilLifecycles: 0,
-      oilSamples: 0,
-      samplingPoints: 0,
-      equipmentUnits: 0,
-      assets: 0
-    };
+    const e = base44.asServiceRole.entities;
 
-    // Удалить AnalysisResults (зависят от OilSamples, удаляем первыми)
-    const analysisResults = await base44.asServiceRole.entities.AnalysisResult.list('id', 2000);
-    deleted.analysisResults = await deleteInBatches(
-      base44.asServiceRole.entities.AnalysisResult,
-      analysisResults.map(r => r.id)
-    );
-    await delay(500);
+    // Удаляем по 50 записей каждого типа за один запуск
+    const analysisResults  = await deleteChunk(e.AnalysisResult, 50);
+    const maintenanceEvents = await deleteChunk(e.MaintenanceEvent, 50);
+    const oilLifecycles     = await deleteChunk(e.OilLifecycle, 50);
+    const oilSamples        = await deleteChunk(e.OilSample, 50);
+    const samplingPoints    = await deleteChunk(e.SamplingPoint, 50);
+    const equipmentUnits    = await deleteChunk(e.EquipmentUnit, 50);
+    const assets            = await deleteChunk(e.Asset, 50);
 
-    // Удалить MaintenanceEvents
-    const maintenanceEvents = await base44.asServiceRole.entities.MaintenanceEvent.list('id', 2000);
-    deleted.maintenanceEvents = await deleteInBatches(
-      base44.asServiceRole.entities.MaintenanceEvent,
-      maintenanceEvents.map(e => e.id)
-    );
-    await delay(500);
+    const totalRemaining =
+      analysisResults.remaining + maintenanceEvents.remaining + oilLifecycles.remaining +
+      oilSamples.remaining + samplingPoints.remaining + equipmentUnits.remaining + assets.remaining;
 
-    // Удалить OilLifecycles
-    const oilLifecycles = await base44.asServiceRole.entities.OilLifecycle.list('id', 2000);
-    deleted.oilLifecycles = await deleteInBatches(
-      base44.asServiceRole.entities.OilLifecycle,
-      oilLifecycles.map(l => l.id)
-    );
-    await delay(500);
+    // Проверяем полный остаток в базе
+    const [arLeft, meLeft, olLeft, osLeft, spLeft, euLeft, asLeft] = await Promise.all([
+      e.AnalysisResult.list('id', 1),
+      e.MaintenanceEvent.list('id', 1),
+      e.OilLifecycle.list('id', 1),
+      e.OilSample.list('id', 1),
+      e.SamplingPoint.list('id', 1),
+      e.EquipmentUnit.list('id', 1),
+      e.Asset.list('id', 1),
+    ]);
 
-    // Удалить OilSamples (загружать страницами — их может быть много)
-    let oilSamples = await base44.asServiceRole.entities.OilSample.list('id', 2000);
-    deleted.oilSamples = await deleteInBatches(
-      base44.asServiceRole.entities.OilSample,
-      oilSamples.map(s => s.id)
-    );
-    await delay(500);
-
-    // Удалить SamplingPoints
-    const samplingPoints = await base44.asServiceRole.entities.SamplingPoint.list('id', 2000);
-    deleted.samplingPoints = await deleteInBatches(
-      base44.asServiceRole.entities.SamplingPoint,
-      samplingPoints.map(p => p.id)
-    );
-    await delay(500);
-
-    // Удалить EquipmentUnits
-    const equipmentUnits = await base44.asServiceRole.entities.EquipmentUnit.list('id', 2000);
-    deleted.equipmentUnits = await deleteInBatches(
-      base44.asServiceRole.entities.EquipmentUnit,
-      equipmentUnits.map(u => u.id)
-    );
-    await delay(500);
-
-    // Удалить Assets
-    const assets = await base44.asServiceRole.entities.Asset.list('id', 2000);
-    deleted.assets = await deleteInBatches(
-      base44.asServiceRole.entities.Asset,
-      assets.map(a => a.id)
-    );
+    const doneCompletely =
+      !arLeft.length && !meLeft.length && !olLeft.length &&
+      !osLeft.length && !spLeft.length && !euLeft.length && !asLeft.length;
 
     return Response.json({
       success: true,
-      message: 'Test data deleted successfully',
-      deleted
+      message: doneCompletely
+        ? '✅ Все данные удалены!'
+        : '⚠️ Запустите функцию ещё раз — остались записи',
+      deleted: {
+        analysisResults: analysisResults.deleted,
+        maintenanceEvents: maintenanceEvents.deleted,
+        oilLifecycles: oilLifecycles.deleted,
+        oilSamples: oilSamples.deleted,
+        samplingPoints: samplingPoints.deleted,
+        equipmentUnits: equipmentUnits.deleted,
+        assets: assets.deleted,
+      },
+      stillRemaining: {
+        analysisResults: arLeft.length ? 'есть' : '0',
+        maintenanceEvents: meLeft.length ? 'есть' : '0',
+        oilLifecycles: olLeft.length ? 'есть' : '0',
+        oilSamples: osLeft.length ? 'есть' : '0',
+        samplingPoints: spLeft.length ? 'есть' : '0',
+        equipmentUnits: euLeft.length ? 'есть' : '0',
+        assets: asLeft.length ? 'есть' : '0',
+      },
+      doneCompletely,
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
