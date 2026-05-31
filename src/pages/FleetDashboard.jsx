@@ -22,6 +22,7 @@ function statusLabel(ohi) {
 export default function FleetDashboard() {
   const navigate = useNavigate();
   const [selectedClientId, setSelectedClientId] = useState(null);
+  const [selectedAssetId, setSelectedAssetId] = useState(null);
 
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
@@ -62,8 +63,11 @@ export default function FleetDashboard() {
     return { ...asset, ohi: latestOHI, latestDate, sampleCount, clientName: client?.company_name, overdueCount: assetSchedules.length };
   });
 
-  // Filter by selected client
-  const filtered = (selectedClientId && selectedClientId !== 'none') ? assetOHI.filter(a => a.client_id === selectedClientId) : assetOHI;
+  // Filter by selected client and asset
+  const clientFiltered = (selectedClientId && selectedClientId !== 'none') ? assetOHI.filter(a => a.client_id === selectedClientId) : assetOHI;
+  const filtered = (selectedAssetId && selectedAssetId !== 'none') ? clientFiltered.filter(a => a.id === selectedAssetId) : clientFiltered;
+  // Assets available in current client filter (for asset dropdown)
+  const availableAssets = (selectedClientId && selectedClientId !== 'none') ? assets.filter(a => a.client_id === selectedClientId) : assets;
   
   const total = filtered.length;
   const withData = filtered.filter(a => a.ohi != null).length;
@@ -79,11 +83,19 @@ export default function FleetDashboard() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-slate-500">Фильтр по клиенту:</span>
-          <Select value={selectedClientId || 'none'} onValueChange={(v) => setSelectedClientId(v === 'none' ? null : v)}>
+          <Select value={selectedClientId || 'none'} onValueChange={(v) => { setSelectedClientId(v === 'none' ? null : v); setSelectedAssetId(null); }}>
             <SelectTrigger className="w-48"><SelectValue placeholder="Все клиенты" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Все клиенты</SelectItem>
               {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <span className="text-sm text-slate-500">Судно:</span>
+          <Select value={selectedAssetId || 'none'} onValueChange={(v) => setSelectedAssetId(v === 'none' ? null : v)}>
+            <SelectTrigger className="w-48"><SelectValue placeholder="Все суда" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Все суда</SelectItem>
+              {availableAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
