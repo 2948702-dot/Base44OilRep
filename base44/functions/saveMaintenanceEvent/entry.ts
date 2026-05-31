@@ -176,23 +176,41 @@ async function rebuildLifecycles(base44, sampling_point_id) {
     });
   }
 
-  // 4. Re-link OilSample.lifecycle_id for all samples of this point
-  // A sample belongs to the lifecycle whose [start_date, end_date) contains sampling_date
-  if (newLifecycles.length === 0) return;
-
+  // 4. Re-link OilSample.lifecycle_id for all samples of this point.
+  // Always fetch samples — even if no lifecycles exist, stale refs must be cleared.
   const samples = await base44.asServiceRole.entities.OilSample.filter({ sampling_point_id });
   for (const sample of samples) {
-    if (!sample.sampling_date) continue;
+    if (newLifecycles.length === 0) {
+      // No lifecycles at all — clear any stale reference
+      if (sample.lifecycle_id) {
+        await base44.asServiceRole.entities.OilSample.update(sample.id, { lifecycle_id: null });
+      }
+      continue;
+    }
 
-    // Find the lifecycle whose window contains this sample's date
+    if (!sample.sampling_date) {
+      if (sample.lifecycle_id) {
+        await base44.asServiceRole.entities.OilSample.update(sample.id, { lifecycle_id: null });
+      }
+      continue;
+    }
+
+    // Find the lifecycle whose window [start_date, end_date) contains this sample's date
     const matched = newLifecycles.find(lc => {
       const afterStart = sample.sampling_date >= lc.start_date;
       const beforeEnd = !lc.end_date || sample.sampling_date < lc.end_date;
       return afterStart && beforeEnd;
     });
 
-    if (matched && sample.lifecycle_id !== matched.id) {
-      await base44.asServiceRole.entities.OilSample.update(sample.id, { lifecycle_id: matched.id });
+    if (matched) {
+      if (sample.lifecycle_id !== matched.id) {
+        await base44.asServiceRole.entities.OilSample.update(sample.id, { lifecycle_id: matched.id });
+      }
+    } else {
+      // Sample date doesn't fall into any lifecycle window — clear stale ref
+      if (sample.lifecycle_id) {
+        await base44.asServiceRole.entities.OilSample.update(sample.id, { lifecycle_id: null });
+      }
     }
   }
 }
