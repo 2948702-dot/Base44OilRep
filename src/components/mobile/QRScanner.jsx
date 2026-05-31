@@ -19,14 +19,14 @@ export default function QRScanner({ onScan, onClose, label = 'Наведите �
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
       });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        try { await videoRef.current.play(); } catch { /* autoplay policy - tick waits */ }
         setScanning(true);
-        tick();
+        rafRef.current = requestAnimationFrame(tick);
       }
     } catch {
       setError('Нет доступа к камере. Разрешите доступ в настройках браузера.');
@@ -41,7 +41,7 @@ export default function QRScanner({ onScan, onClose, label = 'Наведите �
   const tick = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) {
+    if (!video || !canvas || video.readyState < video.HAVE_ENOUGH_DATA) {
       rafRef.current = requestAnimationFrame(tick);
       return;
     }
