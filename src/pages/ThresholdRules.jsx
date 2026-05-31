@@ -95,7 +95,18 @@ export default function ThresholdRules() {
   const updateRange = (i, key, val) => setForm(p => ({ ...p, ranges: p.ranges.map((r, idx) => idx === i ? { ...r, [key]: val } : r) }));
 
   const handleSave = () => {
-    const data = form.deviation_mode ? { ...form, ...devZones } : form;
+    let data = form.deviation_mode ? { ...form, ...devZones } : { ...form };
+    if (!data.custom_ranges_mode) {
+      // strip ranges with empty min/max to avoid validation errors
+      data.ranges = [];
+    } else {
+      // parse numbers in ranges
+      data.ranges = (data.ranges || []).map(r => ({
+        ...r,
+        min: r.min !== '' ? parseFloat(r.min) : undefined,
+        max: r.max !== '' ? parseFloat(r.max) : undefined,
+      })).filter(r => r.min !== undefined && r.max !== undefined);
+    }
     save.mutate(data);
   };
 
