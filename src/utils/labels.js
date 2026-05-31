@@ -37,6 +37,7 @@ export const SAMPLE_STATUSES = {
 export const EVENT_TYPES = {
   oil_change: 'Замена масла',
   oil_topup: 'Долив масла',
+  hour_reading: 'Фиксация моточасов',
   oil_filter: 'Фильтр масляный',
   air_filter: 'Фильтр воздушный',
   repair: 'Ремонт',

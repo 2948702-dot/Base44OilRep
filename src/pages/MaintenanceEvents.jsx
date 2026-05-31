@@ -13,7 +13,7 @@ import { EVENT_TYPES } from '@/utils/labels';
 
 const DEF = {
   event_type: '', event_date: '', client_id: '', asset_id: '', equipment_unit_id: '',
-  sampling_point_id: '', total_operating_hours: '', old_oil_type_id: '', new_oil_type_id: '',
+  sampling_point_id: '', total_operating_hours: '', oil_hours: '', old_oil_type_id: '', new_oil_type_id: '',
   replaced_oil_volume: '', added_oil_volume: '', comment: '', attachments: []
 };
 
@@ -35,10 +35,19 @@ export default function MaintenanceEvents() {
 
   const save = useMutation({
     mutationFn: async (d) => {
-      const result = d.id
-        ? await base44.entities.MaintenanceEvent.update(d.id, d)
-        : await base44.entities.MaintenanceEvent.create(d);
-      // Oil change logic: close active lifecycle, create new one
+      const payload = { ...d };
+      if (payload.total_operating_hours === '') delete payload.total_operating_hours;
+      else if (payload.total_operating_hours !== undefined) payload.total_operating_hours = Number(payload.total_operating_hours);
+      if (payload.oil_hours === '') delete payload.oil_hours;
+      else if (payload.oil_hours !== undefined) payload.oil_hours = Number(payload.oil_hours);
+      if (payload.replaced_oil_volume === '') delete payload.replaced_oil_volume;
+      if (payload.added_oil_volume === '') delete payload.added_oil_volume;
+
+      const result = payload.id
+        ? await base44.entities.MaintenanceEvent.update(payload.id, payload)
+        : await base44.entities.MaintenanceEvent.create(payload);
+
+      // Oil change: close active lifecycle, create new one
       if (d.event_type === 'oil_change' && d.sampling_point_id) {
         const activeLC = lifecycles.find(l => l.sampling_point_id === d.sampling_point_id && l.status === 'active');
         if (activeLC) {
@@ -55,17 +64,32 @@ export default function MaintenanceEvents() {
           });
         }
       }
+
+      // Recalculate equipment unit state if unit is specified
+      if (d.equipment_unit_id) {
+        await base44.functions.invoke('recalculateEquipmentUnitState', { equipment_unit_id: d.equipment_unit_id });
+      }
+
       return result;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['maintenance-events'] });
       qc.invalidateQueries({ queryKey: ['oil-lifecycles'] });
+      qc.invalidateQueries({ queryKey: ['equipment-units'] });
       setOpen(false); setForm(DEF);
     }
   });
   const del = useMutation({
-    mutationFn: id => base44.entities.MaintenanceEvent.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['maintenance-events'] })
+    mutationFn: async ({ id, equipment_unit_id }) => {
+      await base44.entities.MaintenanceEvent.delete(id);
+      if (equipment_unit_id) {
+        await base44.functions.invoke('recalculateEquipmentUnitState', { equipment_unit_id });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['maintenance-events'] });
+      qc.invalidateQueries({ queryKey: ['equipment-units'] });
+    }
   });
 
   const filtAssets = assets.filter(a => !form.client_id || a.client_id === form.client_id);
@@ -93,6 +117,8 @@ export default function MaintenanceEvents() {
   };
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const isOilChange = form.event_type === 'oil_change';
+  const isHourReading = form.event_type === 'hour_reading';
+  const isOilTopup = form.event_type === 'oil_topup';
 
   return (
     <div className="p-6">
@@ -131,8 +157,9 @@ export default function MaintenanceEvents() {
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Дата</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Клиент / Актив</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Оборудование</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">М/ч</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Объём замены, л</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">М/ч агрегата</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">М/ч масла</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Объём, л</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Фото</th>
               <th className="w-20 px-4 py-2.5"></th>
             </tr>
@@ -157,7 +184,8 @@ export default function MaintenanceEvents() {
                 </td>
                 <td className="px-4 py-2.5 text-slate-600 text-xs">{getName(units, e.equipment_unit_id, 'unit_name')}</td>
                 <td className="px-4 py-2.5 text-slate-600">{e.total_operating_hours ?? '—'}</td>
-                <td className="px-4 py-2.5 text-slate-600">{e.replaced_oil_volume ?? '—'}</td>
+                <td className="px-4 py-2.5 text-slate-600">{e.oil_hours ?? '—'}</td>
+                <td className="px-4 py-2.5 text-slate-600">{e.replaced_oil_volume ?? e.added_oil_volume ?? '—'}</td>
                 <td className="px-4 py-2.5">
                   {e.attachments?.length > 0 ? (
                     <div className="flex items-center gap-1 text-slate-500">
@@ -171,7 +199,7 @@ export default function MaintenanceEvents() {
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(e); setOpen(true); }}>
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить событие?') && del.mutate(e.id)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить событие?') && del.mutate({ id: e.id, equipment_unit_id: e.equipment_unit_id })}>
                       <Trash2 className="w-3.5 h-3.5 text-red-500" />
                     </Button>
                   </div>
@@ -237,9 +265,16 @@ export default function MaintenanceEvents() {
               />
             </div>
             <div className="space-y-1">
-              <Label>М/ч на момент события</Label>
-              <Input type="number" value={form.total_operating_hours} onChange={e => f('total_operating_hours', +e.target.value)} />
+              <Label>М/ч агрегата на момент события</Label>
+              <Input type="number" value={form.total_operating_hours} onChange={e => f('total_operating_hours', e.target.value)} placeholder="напр. 1250" />
             </div>
+            {(isHourReading || isOilChange) && (
+              <div className="space-y-1">
+                <Label>М/ч масла на момент события{isHourReading ? '' : ' (0 = сброс)'}</Label>
+                <Input type="number" value={form.oil_hours} onChange={e => f('oil_hours', e.target.value)} placeholder={isOilChange ? '0' : 'необязательно'} />
+                {isHourReading && <p className="text-xs text-slate-400">Если не указано, м/ч масла будут пересчитаны автоматически</p>}
+              </div>
+            )}
             {isOilChange && (
               <>
                 <div className="col-span-2">
@@ -268,7 +303,7 @@ export default function MaintenanceEvents() {
                 </div>
               </>
             )}
-            {form.event_type === 'oil_topup' && (
+            {isOilTopup && (
               <div className="space-y-1">
                 <Label>Объём долива, л</Label>
                 <Input type="number" value={form.added_oil_volume} onChange={e => f('added_oil_volume', +e.target.value)} />

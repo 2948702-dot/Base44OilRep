@@ -14,7 +14,8 @@ import SamplingPointsPanel from '@/components/SamplingPointsPanel';
 
 const DEF = {
   client_id: '', asset_id: '', unit_name: '', equipment_type: '',
-  manufacturer: '', model: '', serial_number: '', total_operating_hours: '', comments: ''
+  manufacturer: '', model: '', serial_number: '',
+  total_operating_hours: '', initial_oil_hours: '', comments: ''
 };
 
 export default function EquipmentUnits() {
@@ -43,13 +44,18 @@ export default function EquipmentUnits() {
   });
 
   const save = useMutation({
-    mutationFn: d => {
+    mutationFn: async d => {
       const clean = { ...d };
       if (clean.total_operating_hours === '' || clean.total_operating_hours === undefined) delete clean.total_operating_hours;
       else clean.total_operating_hours = Number(clean.total_operating_hours);
-      return clean.id
-        ? base44.entities.EquipmentUnit.update(clean.id, clean)
-        : base44.entities.EquipmentUnit.create(clean);
+      if (clean.initial_oil_hours === '' || clean.initial_oil_hours === undefined) delete clean.initial_oil_hours;
+      else clean.initial_oil_hours = Number(clean.initial_oil_hours);
+      const result = clean.id
+        ? await base44.entities.EquipmentUnit.update(clean.id, clean)
+        : await base44.entities.EquipmentUnit.create(clean);
+      // Recalculate current hours from initial values + event history
+      await base44.functions.invoke('recalculateEquipmentUnitState', { equipment_unit_id: result.id });
+      return result;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['equipment-units'] });
@@ -124,18 +130,17 @@ export default function EquipmentUnits() {
             <tr>
               <th className="w-8 px-2 py-2.5"></th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Наименование</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Актив</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Производитель / Модель</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">М/ч всего</th>
+              <th className="text-left px-3 py-2.5 font-medium text-slate-600 text-xs whitespace-nowrap">М/ч агрегата</th>
+              <th className="text-left px-3 py-2.5 font-medium text-slate-600 text-xs whitespace-nowrap">М/ч масла</th>
+              <th className="text-left px-3 py-2.5 font-medium text-slate-600 text-xs">Тип масла</th>
               <th className="w-20 px-4 py-2.5"></th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={7} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
+              <tr><td colSpan={6} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
             ) : filteredUnits.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-10 text-slate-400">Агрегаты не найдены</td></tr>
+              <tr><td colSpan={6} className="text-center py-10 text-slate-400">Агрегаты не найдены</td></tr>
             ) : filteredUnits.map(u => (
               <>
                 <tr
@@ -149,22 +154,31 @@ export default function EquipmentUnits() {
                       : <ChevronRight className="w-4 h-4" />
                     }
                   </td>
-                  <td className="px-4 py-2.5 font-medium text-slate-900">{u.unit_name}</td>
-                  <td className="px-4 py-2.5 text-slate-600">{EQ_TYPES[u.equipment_type] || u.equipment_type}</td>
-                  <td className="px-4 py-2.5 text-slate-600">
+                  <td className="px-4 py-2.5">
+                    <div className="font-medium text-slate-900 truncate max-w-[180px]" title={u.unit_name}>{u.unit_name}</div>
                     <button
-                      className="flex items-center gap-1 hover:text-blue-600 hover:underline"
+                      className="text-xs text-slate-400 hover:text-blue-500 hover:underline flex items-center gap-0.5 mt-0.5"
                       onClick={e => { e.stopPropagation(); navigate(`/asset/${u.asset_id}`); }}
                     >
                       {getName(assets, u.asset_id, 'asset_name')}
-                      <ExternalLink className="w-3 h-3 opacity-50" />
+                      <ExternalLink className="w-2.5 h-2.5" />
                     </button>
                   </td>
-                  <td className="px-4 py-2.5 text-slate-600">
-                    {u.manufacturer || '—'}
-                    {u.model && <span className="text-slate-400"> / {u.model}</span>}
+                  <td className="px-3 py-2.5 text-slate-700 font-mono text-sm">
+                    {u.current_total_hours != null ? u.current_total_hours : (u.total_operating_hours ?? '—')}
                   </td>
-                  <td className="px-4 py-2.5 text-slate-600">{u.total_operating_hours ?? '—'}</td>
+                  <td className="px-3 py-2.5 text-slate-700 font-mono text-sm">
+                    {u.current_oil_hours != null ? u.current_oil_hours : '—'}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {(() => {
+                      const oilId = u.current_oil_type_id || u.oil_type_id;
+                      const oil = oils.find(o => o.id === oilId);
+                      return oil ? (
+                        <span className="text-xs text-slate-600 truncate max-w-[120px] block" title={oil.oil_name}>{oil.oil_name}</span>
+                      ) : <span className="text-slate-300">—</span>;
+                    })()}
+                  </td>
                   <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(u)}>
@@ -178,7 +192,7 @@ export default function EquipmentUnits() {
                 </tr>
                 {expandedId === u.id && (
                   <tr key={`${u.id}-expanded`}>
-                    <td colSpan={7} className="p-0">
+                    <td colSpan={6} className="p-0">
                       <SamplingPointsPanel unit={u} oils={oils} />
                     </td>
                   </tr>
@@ -227,10 +241,27 @@ export default function EquipmentUnits() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <Label>М/ч всего</Label>
-              <Input type="number" value={form.total_operating_hours} onChange={e => f('total_operating_hours', e.target.value)} />
+            <div className="col-span-2">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Стартовые значения (при заведении в систему)</p>
             </div>
+            <div className="space-y-1">
+              <Label>Стартовые м/ч агрегата</Label>
+              <Input type="number" value={form.total_operating_hours} onChange={e => f('total_operating_hours', e.target.value)} placeholder="напр. 1000" />
+            </div>
+            <div className="space-y-1">
+              <Label>Стартовые м/ч масла</Label>
+              <Input type="number" value={form.initial_oil_hours} onChange={e => f('initial_oil_hours', e.target.value)} placeholder="напр. 100" />
+            </div>
+            {form.id && (form.current_total_hours != null || form.current_oil_hours != null) && (
+              <div className="col-span-2 bg-slate-50 rounded-md px-3 py-2.5 text-xs text-slate-600 space-y-1">
+                <p className="font-semibold text-slate-500 uppercase tracking-wide text-[10px] mb-1">Текущее состояние (рассчитывается автоматически)</p>
+                <div className="flex gap-4">
+                  <span>М/ч агрегата: <strong>{form.current_total_hours ?? '—'}</strong></span>
+                  <span>М/ч масла: <strong>{form.current_oil_hours ?? '—'}</strong></span>
+                </div>
+                {form.last_hours_update_date && <p className="text-slate-400">Обновлено: {form.last_hours_update_date}</p>}
+              </div>
+            )}
             <div className="space-y-1">
               <Label>Производитель</Label>
               <Input value={form.manufacturer} onChange={e => f('manufacturer', e.target.value)} />

@@ -42,7 +42,28 @@
     },
     "total_operating_hours": {
       "type": "number",
-      "title": "Total Operating Hours"
+      "title": "\u0421\u0442\u0430\u0440\u0442\u043e\u0432\u044b\u0435 \u043c/\u0447 \u0430\u0433\u0440\u0435\u0433\u0430\u0442\u0430"
+    },
+    "initial_oil_hours": {
+      "type": "number",
+      "title": "\u0421\u0442\u0430\u0440\u0442\u043e\u0432\u044b\u0435 \u043c/\u0447 \u043c\u0430\u0441\u043b\u0430"
+    },
+    "current_total_hours": {
+      "type": "number",
+      "title": "\u0422\u0435\u043a\u0443\u0449\u0438\u0435 \u043c/\u0447 \u0430\u0433\u0440\u0435\u0433\u0430\u0442\u0430"
+    },
+    "current_oil_hours": {
+      "type": "number",
+      "title": "\u0422\u0435\u043a\u0443\u0449\u0438\u0435 \u043c/\u0447 \u043c\u0430\u0441\u043b\u0430"
+    },
+    "current_oil_type_id": {
+      "type": "string",
+      "title": "\u0422\u0435\u043a\u0443\u0449\u0435\u0435 \u043c\u0430\u0441\u043b\u043e"
+    },
+    "last_hours_update_date": {
+      "type": "string",
+      "title": "\u0414\u0430\u0442\u0430 \u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0435\u0433\u043e \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f \u043c/\u0447",
+      "format": "date"
     },
     "oil_type_id": {
       "type": "string",
