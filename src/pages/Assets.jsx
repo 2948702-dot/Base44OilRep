@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -7,21 +7,104 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Settings2, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Settings2, X, Search, ExternalLink } from 'lucide-react';
 import { ASSET_TYPES, EQ_TYPES } from '@/utils/labels';
+import { Link } from 'react-router-dom';
+
+const OIL_CHANGE_TYPES = {
+  engine_hours: 'По моточасам',
+  mileage: 'По пробегу',
+  calendar: 'По календарю',
+  condition: 'По состоянию',
+};
 
 const DEF_ASSET = { client_id: '', asset_name: '', asset_type: '', registration_number: '', location: '', comments: '' };
-const DEF_UNIT = { unit_name: '', equipment_type: '', manufacturer: '', model: '', oil_type_id: '', oil_volume: '', oil_brand: '' };
+const DEF_UNIT = {
+  unit_name: '', equipment_type: '', manufacturer: '', model: '',
+  oil_type_id: '', oil_brand: '', oil_volume: '', oil_change_type: '',
+  oil_filter_type: '', oil_filter_brand: '', oil_filter_article: '',
+};
+
+// Oil search dropdown for a single unit row
+function OilSearch({ value, oilName, oilRefs, onChange }) {
+  const [query, setQuery] = useState(oilName || '');
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => { setQuery(oilName || ''); }, [oilName]);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filtered = oilRefs.filter(o =>
+    (o.oil_name + ' ' + (o.manufacturer || '')).toLowerCase().includes(query.toLowerCase())
+  ).slice(0, 8);
+
+  const selectOil = (oil) => {
+    onChange(oil.id, oil.oil_name + (oil.manufacturer ? ` (${oil.manufacturer})` : ''));
+    setQuery(oil.oil_name + (oil.manufacturer ? ` (${oil.manufacturer})` : ''));
+    setOpen(false);
+  };
+
+  const clear = () => { onChange('', ''); setQuery(''); };
+
+  return (
+    <div className="relative" ref={ref}>
+      <div className="relative">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
+        <Input
+          className="h-8 text-sm pl-6 pr-6"
+          placeholder="Поиск масла..."
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); if (!e.target.value) clear(); }}
+          onFocus={() => setOpen(true)}
+        />
+        {value && <button type="button" onClick={clear} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="w-3 h-3" /></button>}
+      </div>
+      {open && query.length > 0 && (
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {filtered.length > 0 ? filtered.map(oil => (
+            <button
+              key={oil.id}
+              type="button"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+              onMouseDown={() => selectOil(oil)}
+            >
+              <span className="font-medium text-slate-800">{oil.oil_name}</span>
+              {oil.manufacturer && <span className="text-slate-400 ml-1 text-xs">— {oil.manufacturer}</span>}
+            </button>
+          )) : (
+            <div className="px-3 py-3 text-sm text-slate-500">
+              <p className="mb-2">Масло «{query}» не найдено</p>
+              <Link
+                to="/oil-reference"
+                className="inline-flex items-center gap-1 text-blue-600 hover:underline text-xs font-medium"
+                onClick={() => setOpen(false)}
+              >
+                <ExternalLink className="w-3 h-3" />
+                Добавить в справочник масел
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Assets() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF_ASSET);
-  const [units, setUnits] = useState([]); // draft equipment units for new asset
+  const [units, setUnits] = useState([]);
   const [filterClient, setFilterClient] = useState('none');
   const qc = useQueryClient();
 
   const { data: assets = [], isLoading } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
+  const { data: oilRefs = [] } = useQuery({ queryKey: ['oil-refs'], queryFn: () => base44.entities.OilReference.list() });
 
   const save = useMutation({
     mutationFn: async (d) => {
@@ -30,14 +113,9 @@ export default function Assets() {
         asset = await base44.entities.Asset.update(d.id, d);
       } else {
         asset = await base44.entities.Asset.create(d);
-        // Create all draft equipment units linked to the new asset
         for (const u of units) {
           if (u.unit_name && u.equipment_type) {
-            await base44.entities.EquipmentUnit.create({
-              ...u,
-              client_id: d.client_id,
-              asset_id: asset.id,
-            });
+            await base44.entities.EquipmentUnit.create({ ...u, client_id: d.client_id, asset_id: asset.id });
           }
         }
       }
@@ -138,7 +216,6 @@ export default function Assets() {
             <DialogTitle>{form.id ? 'Редактировать актив' : 'Паспортизация актива'}</DialogTitle>
           </DialogHeader>
 
-          {/* ── Section 1: Asset fields ── */}
           <div className="space-y-1 mb-1">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Основные данные</p>
           </div>
@@ -199,50 +276,82 @@ export default function Assets() {
                   <p className="text-sm text-slate-400">Нажмите «Добавить агрегат» для паспортизации двигателей, редукторов, генераторов и т.д.</p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {units.map((u, i) => (
-                    <div key={i} className="grid grid-cols-12 gap-2 items-start bg-slate-50 rounded-lg p-3 border border-slate-200">
-                      <div className="col-span-4 space-y-1">
-                        <Label className="text-xs">Наименование *</Label>
-                        <Input
-                          className="h-8 text-sm"
-                          placeholder="ГД Caterpillar"
-                          value={u.unit_name}
-                          onChange={e => setUnit(i, 'unit_name', e.target.value)}
-                        />
+                    <div key={i} className="bg-slate-50 rounded-lg p-3 border border-slate-200 space-y-3">
+                      {/* Row 1: name, type, manufacturer, model, delete */}
+                      <div className="grid grid-cols-12 gap-2 items-start">
+                        <div className="col-span-4 space-y-1">
+                          <Label className="text-xs">Наименование *</Label>
+                          <Input className="h-8 text-sm" placeholder="ГД Caterpillar" value={u.unit_name} onChange={e => setUnit(i, 'unit_name', e.target.value)} />
+                        </div>
+                        <div className="col-span-3 space-y-1">
+                          <Label className="text-xs">Тип *</Label>
+                          <Select value={u.equipment_type} onValueChange={v => setUnit(i, 'equipment_type', v)}>
+                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Тип" /></SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(EQ_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                          <Label className="text-xs">Производитель</Label>
+                          <Input className="h-8 text-sm" placeholder="Caterpillar" value={u.manufacturer} onChange={e => setUnit(i, 'manufacturer', e.target.value)} />
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                          <Label className="text-xs">Модель</Label>
+                          <Input className="h-8 text-sm" placeholder="C18" value={u.model} onChange={e => setUnit(i, 'model', e.target.value)} />
+                        </div>
+                        <div className="col-span-1 flex items-end">
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeUnit(i)}>
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="col-span-3 space-y-1">
-                        <Label className="text-xs">Тип *</Label>
-                        <Select value={u.equipment_type} onValueChange={v => setUnit(i, 'equipment_type', v)}>
-                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Тип" /></SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(EQ_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-2 space-y-1">
-                        <Label className="text-xs">Производитель</Label>
-                        <Input className="h-8 text-sm" placeholder="Caterpillar" value={u.manufacturer} onChange={e => setUnit(i, 'manufacturer', e.target.value)} />
-                      </div>
-                      <div className="col-span-2 space-y-1">
-                        <Label className="text-xs">Модель</Label>
-                        <Input className="h-8 text-sm" placeholder="C18" value={u.model} onChange={e => setUnit(i, 'model', e.target.value)} />
-                      </div>
-                      <div className="col-span-12 grid grid-cols-3 gap-2 pt-2 border-t border-slate-200 mt-1">
+
+                      {/* Row 2: oil info */}
+                      <div className="border-t border-slate-200 pt-2 grid grid-cols-3 gap-2">
                         <div className="space-y-1">
-                          <Label className="text-xs">Марка масла</Label>
-                          <Input className="h-8 text-sm" placeholder="Shell Rimula R4" value={u.oil_brand} onChange={e => setUnit(i, 'oil_brand', e.target.value)} />
+                          <Label className="text-xs">Масло (из справочника)</Label>
+                          <OilSearch
+                            value={u.oil_type_id}
+                            oilName={u.oil_brand}
+                            oilRefs={oilRefs}
+                            onChange={(id, name) => {
+                              setUnit(i, 'oil_type_id', id);
+                              setUnit(i, 'oil_brand', name);
+                            }}
+                          />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs">Объём масла (л)</Label>
                           <Input className="h-8 text-sm" type="number" placeholder="20" value={u.oil_volume} onChange={e => setUnit(i, 'oil_volume', e.target.value)} />
                         </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Тип замены</Label>
+                          <Select value={u.oil_change_type} onValueChange={v => setUnit(i, 'oil_change_type', v)}>
+                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Выбрать..." /></SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(OIL_CHANGE_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
-                      <div className="col-span-1 flex items-end pb-1">
 
-                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeUnit(i)}>
-                          <X className="w-3.5 h-3.5" />
-                        </Button>
+                      {/* Row 3: oil filter */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Тип масляного фильтра</Label>
+                          <Input className="h-8 text-sm" placeholder="Полнопоточный" value={u.oil_filter_type} onChange={e => setUnit(i, 'oil_filter_type', e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Марка фильтра</Label>
+                          <Input className="h-8 text-sm" placeholder="Mann-Filter" value={u.oil_filter_brand} onChange={e => setUnit(i, 'oil_filter_brand', e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Артикул фильтра</Label>
+                          <Input className="h-8 text-sm" placeholder="W 940/25" value={u.oil_filter_article} onChange={e => setUnit(i, 'oil_filter_article', e.target.value)} />
+                        </div>
                       </div>
                     </div>
                   ))}

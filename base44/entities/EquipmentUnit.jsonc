@@ -46,15 +46,37 @@
     },
     "oil_type_id": {
       "type": "string",
-      "title": "Oil Type"
+      "title": "Oil Type (ref)"
+    },
+    "oil_brand": {
+      "type": "string",
+      "title": "Oil Brand / Name"
     },
     "oil_volume": {
       "type": "number",
       "title": "Oil Volume (L)"
     },
-    "oil_brand": {
+    "oil_change_type": {
       "type": "string",
-      "title": "Oil Brand / Name"
+      "title": "Oil Change Method",
+      "enum": [
+        "engine_hours",
+        "mileage",
+        "calendar",
+        "condition"
+      ]
+    },
+    "oil_filter_type": {
+      "type": "string",
+      "title": "Oil Filter Type"
+    },
+    "oil_filter_brand": {
+      "type": "string",
+      "title": "Oil Filter Brand"
+    },
+    "oil_filter_article": {
+      "type": "string",
+      "title": "Oil Filter Article"
     },
     "comments": {
       "type": "string",
