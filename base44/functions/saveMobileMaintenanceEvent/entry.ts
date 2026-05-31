@@ -47,6 +47,20 @@ Deno.serve(async (req) => {
 
     if (!mode || !baseData) return Response.json({ error: 'Missing required fields' }, { status: 400 });
 
+    // Role-based authorization: verify user has access to the submitted asset/client.
+    // This prevents privilege escalation via asServiceRole by accepting arbitrary IDs from the frontend.
+    if (user.role === 'captain') {
+      if (!baseData.asset_id || baseData.asset_id !== user.asset_id) {
+        return Response.json({ error: 'Forbidden: asset mismatch' }, { status: 403 });
+      }
+    } else if (user.role === 'superintendent') {
+      if (!baseData.client_id || baseData.client_id !== user.client_id) {
+        return Response.json({ error: 'Forbidden: client mismatch' }, { status: 403 });
+      }
+    } else if (user.role !== 'admin') {
+      return Response.json({ error: 'Forbidden: insufficient role' }, { status: 403 });
+    }
+
     const today = baseData.event_date;
     const unitId = baseData.equipment_unit_id;
 

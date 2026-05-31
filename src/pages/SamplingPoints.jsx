@@ -92,7 +92,7 @@ export default function SamplingPoints() {
                 <td className="px-4 py-2.5 text-slate-600">{SAMPLING_METHODS[p.sampling_method] || '—'}</td>
                 <td className="px-4 py-2.5 text-slate-600">{getName(oils, p.oil_type_id, 'oil_name')}</td>
                 <td className="px-4 py-2.5 text-slate-600">{p.oil_volume ?? '—'}</td>
-                <td className="px-4 py-2.5 text-slate-600">{p.current_oil_hours ?? '—'}</td>
+                <td className="px-4 py-2.5 text-slate-600">{units.find(u => u.id === p.equipment_unit_id)?.current_oil_hours ?? '—'}</td>
                 <td className="px-4 py-2.5">
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(p); setOpen(true); }}>
