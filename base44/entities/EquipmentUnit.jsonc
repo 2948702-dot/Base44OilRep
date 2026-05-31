@@ -44,6 +44,18 @@
       "type": "number",
       "title": "Total Operating Hours"
     },
+    "oil_type_id": {
+      "type": "string",
+      "title": "Oil Type"
+    },
+    "oil_volume": {
+      "type": "number",
+      "title": "Oil Volume (L)"
+    },
+    "oil_brand": {
+      "type": "string",
+      "title": "Oil Brand / Name"
+    },
     "comments": {
       "type": "string",
       "title": "Comments"

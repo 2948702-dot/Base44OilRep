@@ -22,14 +22,6 @@
       "type": "string",
       "title": "QR Code"
     },
-    "oil_type_id": {
-      "type": "string",
-      "title": "Oil Type"
-    },
-    "oil_volume": {
-      "type": "number",
-      "title": "Oil Volume (L)"
-    },
     "current_total_hours": {
       "type": "number",
       "title": "Current Total Hours"

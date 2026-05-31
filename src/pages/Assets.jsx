@@ -11,7 +11,7 @@ import { Plus, Pencil, Trash2, Settings2, X } from 'lucide-react';
 import { ASSET_TYPES, EQ_TYPES } from '@/utils/labels';
 
 const DEF_ASSET = { client_id: '', asset_name: '', asset_type: '', registration_number: '', location: '', comments: '' };
-const DEF_UNIT = { unit_name: '', equipment_type: '', manufacturer: '', model: '' };
+const DEF_UNIT = { unit_name: '', equipment_type: '', manufacturer: '', model: '', oil_type_id: '', oil_volume: '', oil_brand: '' };
 
 export default function Assets() {
   const [open, setOpen] = useState(false);
@@ -228,7 +228,18 @@ export default function Assets() {
                         <Label className="text-xs">Модель</Label>
                         <Input className="h-8 text-sm" placeholder="C18" value={u.model} onChange={e => setUnit(i, 'model', e.target.value)} />
                       </div>
+                      <div className="col-span-12 grid grid-cols-3 gap-2 pt-2 border-t border-slate-200 mt-1">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Марка масла</Label>
+                          <Input className="h-8 text-sm" placeholder="Shell Rimula R4" value={u.oil_brand} onChange={e => setUnit(i, 'oil_brand', e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Объём масла (л)</Label>
+                          <Input className="h-8 text-sm" type="number" placeholder="20" value={u.oil_volume} onChange={e => setUnit(i, 'oil_volume', e.target.value)} />
+                        </div>
+                      </div>
                       <div className="col-span-1 flex items-end pb-1">
+
                         <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeUnit(i)}>
                           <X className="w-3.5 h-3.5" />
                         </Button>
