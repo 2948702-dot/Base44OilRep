@@ -63,15 +63,16 @@ export default function ThresholdRangeBar({
           ))}
         </div>
         {showLabels && (
-          <div className="relative h-5 mt-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
             {segments.map(s => (
-              <div
+              <span
                 key={`${s.key}-label`}
-                className={`absolute top-0 text-center whitespace-nowrap font-medium leading-4 ${labelClass}`}
-                style={{ left: s.left, width: s.width, color: s.color }}
+                className={`inline-flex items-center gap-1 whitespace-nowrap font-medium leading-4 ${labelClass}`}
+                style={{ color: s.color }}
               >
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
                 {fmt(s.min)}-{fmt(s.max)}{s.label ? ` (${s.label})` : ''}
-              </div>
+              </span>
             ))}
           </div>
         )}
@@ -124,15 +125,16 @@ export default function ThresholdRangeBar({
         ))}
       </div>
       {showLabels && (
-        <div className="relative h-5 mt-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
           {zones.map((z, i) => (
-            <div
+            <span
               key={`${i}-label`}
-              className={`absolute top-0 text-center whitespace-nowrap font-medium leading-4 ${labelClass}`}
-              style={{ left: z.leftPct, width: z.widthPct, color: z.labelColor }}
+              className={`inline-flex items-center gap-1 whitespace-nowrap font-medium leading-4 ${labelClass}`}
+              style={{ color: z.labelColor }}
             >
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: z.labelColor }} />
               {fmt(z.left)}-{fmt(z.right)}
-            </div>
+            </span>
           ))}
         </div>
       )}
