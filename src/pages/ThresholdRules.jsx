@@ -12,7 +12,7 @@ import ThresholdRangeBar from '@/components/ThresholdRangeBar';
 import StepperInput from '@/components/StepperInput';
 import { EQ_TYPES } from '@/utils/labels';
 
-const PARAMS = ['iron_mg_l', 'water_activity', 'water_ppm', 'density', 'viscosity_40', 'viscosity_100', 'dielectric_constant'];
+const PARAMS = ['iron_mg_l', 'water_activity', 'water_ppm', 'density', 'viscosity_40', 'dielectric_constant'];
 
 const NONE_VALUE = '__none__';
 
@@ -53,7 +53,6 @@ const PARAM_UNITS = {
   water_ppm:           'ppm',
   density:             'кг/м³',
   viscosity_40:        'сСт (40°C)',
-  viscosity_100:       'сСт (100°C)',
   dielectric_constant: '',
 };
 
@@ -63,7 +62,6 @@ const PARAM_LABELS = {
   water_ppm:           'Растворённая вода',
   density:             'Плотность',
   viscosity_40:        'Вязкость 40°C',
-  viscosity_100:       'Вязкость 100°C',
   dielectric_constant: 'Диэлектрическая постоянная',
 };
 

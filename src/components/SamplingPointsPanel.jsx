@@ -119,7 +119,7 @@ export default function SamplingPointsPanel({ unit, oils = [] }) {
                 <tr key={p.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50">
                   <td className="px-3 py-2 font-medium text-slate-800">{p.point_name}</td>
                   <td className="px-3 py-2 text-slate-500">{SAMPLING_METHODS[p.sampling_method] || '—'}</td>
-                  <td className="px-3 py-2 text-slate-500">{unit.current_oil_hours ?? unit.current_total_hours ?? '—'}</td>
+                  <td className="px-3 py-2 text-slate-500">{unit.current_oil_hours ?? '—'}</td>
                   <td className="px-3 py-2 text-slate-500">{unit.current_total_hours ?? unit.total_operating_hours ?? '—'}</td>
                   <td className="px-3 py-2">
                     <div className="flex gap-0.5">

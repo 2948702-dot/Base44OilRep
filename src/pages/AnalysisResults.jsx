@@ -38,10 +38,10 @@ function calcIndexes(r, oilRef) {
   return { ...r, water_index: Math.round(water_index), wear_index: Math.round(wear_index), viscosity_index_calc: Math.round(viscosity_index_calc), dielectric_index: Math.round(dielectric_index), oil_health_index, overall_status, recommendation_text };
 }
 
-const DEF = { sample_id: '', iron_mg_l: '', water_ppm: '', water_activity: '', viscosity_40: '', viscosity_100: '', density: '', dielectric_constant: '', recommendation_text: '' };
+const DEF = { sample_id: '', iron_mg_l: '', water_ppm: '', water_activity: '', viscosity_40: '', density: '', dielectric_constant: '', recommendation_text: '' };
 
 const NUMBER_FIELDS = [
-  'iron_mg_l', 'water_ppm', 'water_activity', 'viscosity_40', 'viscosity_100',
+  'iron_mg_l', 'water_ppm', 'water_activity', 'viscosity_40',
   'density', 'dielectric_constant', 'wear_index', 'oil_health_index',
 ];
 const OPTIONAL_STRING_FIELDS = ['client_id', 'asset_id', 'recommendation_text', 'overall_status'];
@@ -296,7 +296,6 @@ export default function AnalysisResults() {
             <div className="space-y-1"><Label>Вода раств., ppm</Label><Input type="number" step="0.1" value={form.water_ppm} onChange={e => num('water_ppm', e.target.value)} /></div>
             <div className="space-y-1"><Label>Активность воды (aw)</Label><Input type="number" step="0.001" min="0" max="1" value={form.water_activity} onChange={e => num('water_activity', e.target.value)} /></div>
             <div className="space-y-1"><Label>Вязкость при 40°C</Label><Input type="number" step="0.01" value={form.viscosity_40} onChange={e => num('viscosity_40', e.target.value)} /></div>
-            <div className="space-y-1"><Label>Вязкость при 100°C</Label><Input type="number" step="0.01" value={form.viscosity_100} onChange={e => num('viscosity_100', e.target.value)} /></div>
             <div className="space-y-1"><Label>Плотность, кг/м³</Label><Input type="number" step="0.1" value={form.density} onChange={e => num('density', e.target.value)} /></div>
             <div className="space-y-1"><Label>Диэлектрич. постоянная</Label><Input type="number" step="0.01" value={form.dielectric_constant} onChange={e => num('dielectric_constant', e.target.value)} /></div>
             <div className="col-span-2 flex items-end">

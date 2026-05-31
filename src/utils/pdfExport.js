@@ -78,7 +78,6 @@ function drawMeasurements(doc, r, y) {
     ['Вода раств., ppm', r.water_ppm],
     ['Активность воды (aw)', r.water_activity],
     ['Вязкость при 40°C, мм²/с', r.viscosity_40],
-    ['Вязкость при 100°C, мм²/с', r.viscosity_100],
     ['Плотность, кг/м³', r.density],
     ['Диэлектр. постоянная', r.dielectric_constant],
   ];

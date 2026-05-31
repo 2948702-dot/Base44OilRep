@@ -29,6 +29,19 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Equipment unit not found' }, { status: 404 });
     }
 
+    // RBAC: check user has access to this unit
+    if (user.role === 'captain') {
+      if (!unit.asset_id || unit.asset_id !== user.asset_id) {
+        return Response.json({ error: 'Forbidden: asset mismatch' }, { status: 403 });
+      }
+    } else if (user.role === 'superintendent') {
+      if (!unit.client_id || unit.client_id !== user.client_id) {
+        return Response.json({ error: 'Forbidden: client mismatch' }, { status: 403 });
+      }
+    } else if (user.role !== 'admin') {
+      return Response.json({ error: 'Forbidden: insufficient role' }, { status: 403 });
+    }
+
     // Fetch all events for this unit
     const events = await base44.asServiceRole.entities.MaintenanceEvent.filter({ equipment_unit_id });
 

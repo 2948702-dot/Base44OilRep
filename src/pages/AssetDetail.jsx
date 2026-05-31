@@ -14,7 +14,7 @@ import SamplingPointsPanel from '@/components/SamplingPointsPanel';
 
 const DEF = {
   unit_name: '', equipment_type: '', manufacturer: '', model: '',
-  serial_number: '', total_operating_hours: '', comments: ''
+  serial_number: '', total_operating_hours: '', initial_oil_hours: '', comments: ''
 };
 
 export default function AssetDetail() {
@@ -45,14 +45,26 @@ export default function AssetDetail() {
   });
 
   const save = useMutation({
-    mutationFn: d => {
+    mutationFn: async d => {
       const clean = { ...d };
       if (clean.total_operating_hours === '' || clean.total_operating_hours === undefined) delete clean.total_operating_hours;
       else clean.total_operating_hours = Number(clean.total_operating_hours);
+      if (clean.initial_oil_hours === '' || clean.initial_oil_hours === undefined) delete clean.initial_oil_hours;
+      else clean.initial_oil_hours = Number(clean.initial_oil_hours);
+      // Never allow direct edit of current_* snapshot fields
+      delete clean.current_total_hours;
+      delete clean.current_oil_hours;
+      delete clean.current_oil_type_id;
+      delete clean.last_hours_update_date;
       const payload = { ...clean, asset_id: assetId, client_id: asset?.client_id };
-      return clean.id
-        ? base44.entities.EquipmentUnit.update(clean.id, payload)
-        : base44.entities.EquipmentUnit.create(payload);
+      const result = clean.id
+        ? await base44.entities.EquipmentUnit.update(clean.id, payload)
+        : await base44.entities.EquipmentUnit.create(payload);
+      const unitId = result?.id || clean.id;
+      if (unitId) {
+        await base44.functions.invoke('recalculateEquipmentUnitState', { equipment_unit_id: unitId });
+      }
+      return result;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['equipment-units', assetId] });
@@ -72,7 +84,7 @@ export default function AssetDetail() {
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const openCreate = () => { setForm(DEF); setOpen(true); };
-  const openEdit = (u) => { setForm({ ...u, total_operating_hours: u.total_operating_hours ?? '' }); setOpen(true); };
+  const openEdit = (u) => { setForm({ ...u, total_operating_hours: u.total_operating_hours ?? '', initial_oil_hours: u.initial_oil_hours ?? '' }); setOpen(true); };
 
   const clientName = clients.find(c => c.id === asset?.client_id)?.company_name || '';
 
@@ -169,9 +181,19 @@ export default function AssetDetail() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>М/ч всего</Label>
-              <Input type="number" value={form.total_operating_hours} onChange={e => f('total_operating_hours', e.target.value)} />
+              <Label>Стартовые м/ч агрегата</Label>
+              <Input type="number" value={form.total_operating_hours} onChange={e => f('total_operating_hours', e.target.value)} placeholder="начальные моточасы" />
             </div>
+            <div className="space-y-1">
+              <Label>Стартовые м/ч масла</Label>
+              <Input type="number" value={form.initial_oil_hours} onChange={e => f('initial_oil_hours', e.target.value)} placeholder="0" />
+            </div>
+            {form.id && (
+              <div className="col-span-2 grid grid-cols-2 gap-2 bg-slate-50 rounded-md px-3 py-2 text-xs text-slate-500">
+                <div>Текущие м/ч агрегата: <span className="font-semibold text-slate-700">{form.current_total_hours ?? '—'}</span></div>
+                <div>Текущие м/ч масла: <span className="font-semibold text-slate-700">{form.current_oil_hours ?? '—'}</span></div>
+              </div>
+            )}
             <div className="space-y-1">
               <Label>Производитель</Label>
               <Input value={form.manufacturer} onChange={e => f('manufacturer', e.target.value)} />

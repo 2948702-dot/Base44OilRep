@@ -35,42 +35,11 @@ export default function MaintenanceEvents() {
 
   const save = useMutation({
     mutationFn: async (d) => {
-      const payload = { ...d };
-      if (payload.total_operating_hours === '') delete payload.total_operating_hours;
-      else if (payload.total_operating_hours !== undefined) payload.total_operating_hours = Number(payload.total_operating_hours);
-      if (payload.oil_hours === '') delete payload.oil_hours;
-      else if (payload.oil_hours !== undefined) payload.oil_hours = Number(payload.oil_hours);
-      if (payload.replaced_oil_volume === '') delete payload.replaced_oil_volume;
-      if (payload.added_oil_volume === '') delete payload.added_oil_volume;
-
-      const result = payload.id
-        ? await base44.entities.MaintenanceEvent.update(payload.id, payload)
-        : await base44.entities.MaintenanceEvent.create(payload);
-
-      // Oil change: close active lifecycle, create new one
-      if (d.event_type === 'oil_change' && d.sampling_point_id) {
-        const activeLC = lifecycles.find(l => l.sampling_point_id === d.sampling_point_id && l.status === 'active');
-        if (activeLC) {
-          await base44.entities.OilLifecycle.update(activeLC.id, {
-            status: 'closed', end_date: d.event_date,
-            end_operating_hours: d.total_operating_hours, end_reason: 'Замена масла'
-          });
-        }
-        if (d.new_oil_type_id) {
-          await base44.entities.OilLifecycle.create({
-            sampling_point_id: d.sampling_point_id, oil_type_id: d.new_oil_type_id,
-            start_date: d.event_date, start_operating_hours: d.total_operating_hours,
-            status: 'active', start_reason: 'Замена масла'
-          });
-        }
-      }
-
-      // Recalculate equipment unit state if unit is specified
-      if (d.equipment_unit_id) {
-        await base44.functions.invoke('recalculateEquipmentUnitState', { equipment_unit_id: d.equipment_unit_id });
-      }
-
-      return result;
+      const action = d.id ? 'update' : 'create';
+      const event_id = d.id || undefined;
+      const event_data = { ...d };
+      delete event_data.id;
+      return base44.functions.invoke('saveMaintenanceEvent', { action, event_data, event_id });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['maintenance-events'] });
@@ -80,12 +49,7 @@ export default function MaintenanceEvents() {
     }
   });
   const del = useMutation({
-    mutationFn: async ({ id, equipment_unit_id }) => {
-      await base44.entities.MaintenanceEvent.delete(id);
-      if (equipment_unit_id) {
-        await base44.functions.invoke('recalculateEquipmentUnitState', { equipment_unit_id });
-      }
-    },
+    mutationFn: ({ id }) => base44.functions.invoke('saveMaintenanceEvent', { action: 'delete', event_id: id }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['maintenance-events'] });
       qc.invalidateQueries({ queryKey: ['equipment-units'] });
