@@ -65,6 +65,10 @@ export default function OilSamples() {
     mutationFn: d => { const c = cleanForm(d); return c.id ? base44.entities.OilSample.update(c.id, c) : base44.entities.OilSample.create(c); },
     onSuccess: () => { setOpen(false); setForm(DEF); qc.invalidateQueries({ queryKey: ['oil-samples'] }); qc.refetchQueries({ queryKey: ['oil-samples'] }); }
   });
+  const saveAnalysis = useMutation({
+    mutationFn: d => d.id ? base44.entities.AnalysisResult.update(d.id, d) : base44.entities.AnalysisResult.create(d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['analysis-results'] }); setOpen(false); setForm(DEF); }
+  });
   const del = useMutation({
     mutationFn: id => base44.entities.OilSample.delete(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['oil-samples'] }); qc.refetchQueries({ queryKey: ['oil-samples'] }); }
@@ -76,6 +80,7 @@ export default function OilSamples() {
   const activeLC = lifecycles.filter(l => l.status === 'active' && (!form.sampling_point_id || l.sampling_point_id === form.sampling_point_id));
 
   const filteredAssetOptions = assets.filter(a => !filterClient || a.client_id === filterClient);
+  const currentAnalysis = results.find(r => r.sample_id === form.id);
 
   const filtered = samples.filter(s =>
     (filterClient === 'none' || s.client_id === filterClient) &&
@@ -187,7 +192,7 @@ export default function OilSamples() {
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" className="h-7 w-7" title="Добавить результат анализа" onClick={() => navigate(`/analysis-results?sample=${s.id}`)}>                        <FlaskConical className="w-3.5 h-3.5 text-blue-500" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(s); setOpen(true); }}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Редактировать пробу и параметры" onClick={() => { const newForm = { ...s }; const existingAnalysis = results.find(r => r.sample_id === s.id); if (existingAnalysis) Object.assign(newForm, existingAnalysis); setForm(newForm); setOpen(true); }}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить пробу?') && del.mutate(s.id)}>
@@ -336,6 +341,15 @@ export default function OilSamples() {
               </div>
             )}
 
+            <div className="col-span-3 border-t pt-3">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Параметры анализа</p>
+            </div>
+            <div className="space-y-1"><Label>Железо, мг/л</Label><Input type="number" step="0.01" value={form.iron_mg_l || ''} onChange={e => f('iron_mg_l', e.target.value === '' ? '' : +e.target.value)} /></div>
+            <div className="space-y-1"><Label>Вода раств., ppm</Label><Input type="number" step="0.1" value={form.water_ppm || ''} onChange={e => f('water_ppm', e.target.value === '' ? '' : +e.target.value)} /></div>
+            <div className="space-y-1"><Label>Активность воды (aw)</Label><Input type="number" step="0.001" min="0" max="1" value={form.water_activity || ''} onChange={e => f('water_activity', e.target.value === '' ? '' : +e.target.value)} /></div>
+            <div className="space-y-1"><Label>Вязкость при 40°C</Label><Input type="number" step="0.01" value={form.viscosity_40 || ''} onChange={e => f('viscosity_40', e.target.value === '' ? '' : +e.target.value)} /></div>
+            <div className="space-y-1"><Label>Плотность, кг/м³</Label><Input type="number" step="0.1" value={form.density || ''} onChange={e => f('density', e.target.value === '' ? '' : +e.target.value)} /></div>
+            <div className="space-y-1"><Label>Диэлектрич. постоянная</Label><Input type="number" step="0.01" value={form.dielectric_constant || ''} onChange={e => f('dielectric_constant', e.target.value === '' ? '' : +e.target.value)} /></div>
             <div className="col-span-3 space-y-1">
               <Label>Комментарии</Label>
               <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
@@ -343,8 +357,26 @@ export default function OilSamples() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
-            <Button onClick={() => save.mutate(form)} disabled={!form.sample_number || !form.sampling_date || (form.sample_type === 'in_service' && !form.client_id) || (form.sample_type === 'in_service' && !form.engine_state) || save.isPending}>
-              {save.isPending ? 'Сохранение...' : 'Сохранить'}
+            <Button onClick={() => {
+              const { iron_mg_l, water_ppm, water_activity, viscosity_40, density, dielectric_constant, ...sampleData } = form;
+              save.mutate(sampleData);
+              if ([iron_mg_l, water_ppm, water_activity, viscosity_40, density, dielectric_constant].some(v => v !== '' && v !== undefined)) {
+                const analysisData = {
+                  ...(form.iron_mg_l !== undefined && form.iron_mg_l !== '' && { iron_mg_l: form.iron_mg_l }),
+                  ...(form.water_ppm !== undefined && form.water_ppm !== '' && { water_ppm: form.water_ppm }),
+                  ...(form.water_activity !== undefined && form.water_activity !== '' && { water_activity: form.water_activity }),
+                  ...(form.viscosity_40 !== undefined && form.viscosity_40 !== '' && { viscosity_40: form.viscosity_40 }),
+                  ...(form.density !== undefined && form.density !== '' && { density: form.density }),
+                  ...(form.dielectric_constant !== undefined && form.dielectric_constant !== '' && { dielectric_constant: form.dielectric_constant }),
+                  sample_id: form.id,
+                  client_id: form.client_id,
+                  asset_id: form.asset_id
+                };
+                if (currentAnalysis?.id) analysisData.id = currentAnalysis.id;
+                saveAnalysis.mutate(analysisData);
+              }
+            }} disabled={!form.sample_number || !form.sampling_date || (form.sample_type === 'in_service' && !form.client_id) || (form.sample_type === 'in_service' && !form.engine_state) || save.isPending || saveAnalysis.isPending}>
+              {save.isPending || saveAnalysis.isPending ? 'Сохранение...' : 'Сохранить'}
             </Button>
           </DialogFooter>
         </DialogContent>
