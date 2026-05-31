@@ -146,9 +146,11 @@ export default function ThresholdRules() {
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Параметр</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип/Узел</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип оборудования</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Единица оборудования</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Масло</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Ед. изм.</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs" colSpan={3}>Диапазоны</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Диапазоны</th>
               <th className="w-20 px-4 py-2.5"></th>
             </tr>
           </thead>
@@ -164,17 +166,19 @@ export default function ThresholdRules() {
                     {PARAM_LABELS[r.parameter_name] || r.parameter_name}
                   </button>
                 </td>
-                <td className="px-4 py-2.5 text-slate-600">
-                  {r.equipment_unit_id ? (
-                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-medium">{r.equipment_unit_id}</span>
-                  ) : (
-                    <span>{r.equipment_type === 'all' ? 'Все типы' : EQ_TYPES[r.equipment_type] || r.equipment_type}</span>
-                  )}
+                <td className="px-4 py-2.5 text-slate-600 text-xs">
+                  {r.equipment_type === 'all' ? <span className="text-slate-400">Все типы</span> : <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">{EQ_TYPES[r.equipment_type] || r.equipment_type}</span>}
+                </td>
+                <td className="px-4 py-2.5 text-slate-600 text-xs">
+                  {r.equipment_unit_id ? <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-medium">{r.equipment_unit_id}</span> : <span className="text-slate-400">—</span>}
+                </td>
+                <td className="px-4 py-2.5 text-slate-600 text-xs">
+                  {r.oil_type_id ? <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-medium">{oils.find(o => o.id === r.oil_type_id)?.oil_name || '—'}</span> : <span className="text-slate-400">Все масла</span>}
                 </td>
                 <td className="px-4 py-2.5 text-slate-500 text-xs">
                   {r.parameter_name === 'dielectric_constant' ? 'б/р' : (PARAM_UNITS[r.parameter_name] || r.unit || '—')}
                 </td>
-                <td className="px-4 py-2.5" colSpan={3}>
+                <td className="px-4 py-2.5">
                   <div className="space-y-1 min-w-[180px]">
                     {r.custom_ranges_mode && r.ranges?.length > 0 ? (
                       <>
