@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckCircle2, QrCode, Droplets, ChevronRight, ChevronLeft, Search, Camera, Wrench, Plus } from 'lucide-react';
+import { CheckCircle2, QrCode, Droplets, ChevronRight, ChevronLeft, Search, Camera, Wrench, Plus, FlaskConical } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import QRScanner from '@/components/mobile/QRScanner';
 import { format } from 'date-fns';
 
@@ -22,6 +23,7 @@ const MODE_CONFIG = {
 
 export default function MobileSampling() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [mode, setMode] = useState(null);
   const [step, setStep] = useState(0);
   const [scanner, setScanner] = useState(null);
@@ -201,6 +203,18 @@ export default function MobileSampling() {
                 <div>
                   <p className="font-bold text-slate-900 text-lg">Замена масла</p>
                   <p className="text-sm text-slate-500">Зафиксировать полную замену масла</p>
+                </div>
+              </div>
+            </button>
+            <button className="w-full bg-white rounded-2xl border-2 border-purple-200 p-5 text-left hover:border-purple-400 active:bg-purple-50"
+              onClick={() => navigate('/mobile-lab')}>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                  <FlaskConical className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-900 text-lg">Ввод анализа</p>
+                  <p className="text-sm text-slate-500">Внести результаты лабораторного анализа</p>
                 </div>
               </div>
             </button>
