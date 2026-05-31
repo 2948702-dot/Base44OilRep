@@ -30,6 +30,7 @@ import AdminPanel from './pages/AdminPanel';
 import MobileSampling from './pages/MobileSampling';
 import MobileLab from './pages/MobileLab';
 import QRManager from './pages/QRManager';
+import AssetDetail from './pages/AssetDetail';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -78,6 +79,7 @@ const AuthenticatedApp = () => {
         <Route path="/mobile-sampling" element={<MobileSampling />} />
         <Route path="/mobile-lab" element={<MobileLab />} />
         <Route path="/qr-manager" element={<QRManager />} />
+        <Route path="/asset/:assetId" element={<AssetDetail />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
