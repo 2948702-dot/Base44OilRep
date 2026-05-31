@@ -66,6 +66,19 @@
         "condition"
       ]
     },
+    "oil_change_interval": {
+      "type": "number",
+      "title": "Oil Change Interval"
+    },
+    "oil_change_interval_unit": {
+      "type": "string",
+      "title": "Oil Change Interval Unit",
+      "enum": [
+        "days",
+        "weeks",
+        "months"
+      ]
+    },
     "oil_filter_type": {
       "type": "string",
       "title": "Oil Filter Type"

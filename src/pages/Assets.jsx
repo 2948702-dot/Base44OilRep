@@ -18,10 +18,25 @@ const OIL_CHANGE_TYPES = {
   condition: 'По состоянию',
 };
 
+const OIL_FILTER_TYPES = [
+  'Полнопоточный',
+  'Частичнопоточный',
+  'Комбинированный',
+  'Центрифужный',
+  'Магнитный',
+];
+
+const CALENDAR_UNITS = {
+  days: 'Дней',
+  weeks: 'Недель',
+  months: 'Месяцев',
+};
+
 const DEF_ASSET = { client_id: '', asset_name: '', asset_type: '', registration_number: '', location: '', comments: '' };
 const DEF_UNIT = {
   unit_name: '', equipment_type: '', manufacturer: '', model: '',
   oil_type_id: '', oil_brand: '', oil_volume: '', oil_change_type: '',
+  oil_change_interval: '', oil_change_interval_unit: 'months',
   oil_filter_type: '', oil_filter_brand: '', oil_filter_article: '',
 };
 
@@ -338,11 +353,52 @@ export default function Assets() {
                         </div>
                       </div>
 
+                      {/* Row 2b: interval (conditional) */}
+                      {u.oil_change_type && u.oil_change_type !== 'condition' && (
+                        <div className="grid grid-cols-3 gap-2">
+                          {u.oil_change_type === 'engine_hours' && (
+                            <div className="space-y-1">
+                              <Label className="text-xs">Интервал (моточасы)</Label>
+                              <Input className="h-8 text-sm" type="number" placeholder="250" value={u.oil_change_interval} onChange={e => setUnit(i, 'oil_change_interval', e.target.value)} />
+                            </div>
+                          )}
+                          {u.oil_change_type === 'mileage' && (
+                            <div className="space-y-1">
+                              <Label className="text-xs">Интервал (км)</Label>
+                              <Input className="h-8 text-sm" type="number" placeholder="10000" value={u.oil_change_interval} onChange={e => setUnit(i, 'oil_change_interval', e.target.value)} />
+                            </div>
+                          )}
+                          {u.oil_change_type === 'calendar' && (
+                            <>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Интервал</Label>
+                                <Input className="h-8 text-sm" type="number" placeholder="6" value={u.oil_change_interval} onChange={e => setUnit(i, 'oil_change_interval', e.target.value)} />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Единица</Label>
+                                <Select value={u.oil_change_interval_unit} onValueChange={v => setUnit(i, 'oil_change_interval_unit', v)}>
+                                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {Object.entries(CALENDAR_UNITS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+
                       {/* Row 3: oil filter */}
+
                       <div className="grid grid-cols-3 gap-2">
                         <div className="space-y-1">
                           <Label className="text-xs">Тип масляного фильтра</Label>
-                          <Input className="h-8 text-sm" placeholder="Полнопоточный" value={u.oil_filter_type} onChange={e => setUnit(i, 'oil_filter_type', e.target.value)} />
+                          <Select value={u.oil_filter_type} onValueChange={v => setUnit(i, 'oil_filter_type', v)}>
+                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Выбрать..." /></SelectTrigger>
+                            <SelectContent>
+                              {OIL_FILTER_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs">Марка фильтра</Label>
