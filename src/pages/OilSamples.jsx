@@ -344,12 +344,12 @@ export default function OilSamples() {
             <div className="col-span-3 border-t pt-3">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Параметры анализа</p>
             </div>
-            <div className="space-y-1"><Label>Железо, мг/л</Label><Input type="number" step="0.01" value={form.iron_mg_l || ''} onChange={e => f('iron_mg_l', e.target.value === '' ? '' : +e.target.value)} /></div>
-            <div className="space-y-1"><Label>Вода раств., ppm</Label><Input type="number" step="0.1" value={form.water_ppm || ''} onChange={e => f('water_ppm', e.target.value === '' ? '' : +e.target.value)} /></div>
-            <div className="space-y-1"><Label>Активность воды (aw)</Label><Input type="number" step="0.001" min="0" max="1" value={form.water_activity || ''} onChange={e => f('water_activity', e.target.value === '' ? '' : +e.target.value)} /></div>
-            <div className="space-y-1"><Label>Вязкость при 40°C</Label><Input type="number" step="0.01" value={form.viscosity_40 || ''} onChange={e => f('viscosity_40', e.target.value === '' ? '' : +e.target.value)} /></div>
-            <div className="space-y-1"><Label>Плотность, кг/м³</Label><Input type="number" step="0.1" value={form.density || ''} onChange={e => f('density', e.target.value === '' ? '' : +e.target.value)} /></div>
-            <div className="space-y-1"><Label>Диэлектрич. постоянная</Label><Input type="number" step="0.01" value={form.dielectric_constant || ''} onChange={e => f('dielectric_constant', e.target.value === '' ? '' : +e.target.value)} /></div>
+            <div className="space-y-1"><Label>Железо, мг/л</Label><Input type="number" step="0.01" value={form.iron_mg_l !== undefined && form.iron_mg_l !== '' ? form.iron_mg_l : ''} onChange={e => f('iron_mg_l', e.target.value === '' ? '' : +e.target.value)} /></div>
+            <div className="space-y-1"><Label>Вода раств., ppm</Label><Input type="number" step="0.1" value={form.water_ppm !== undefined && form.water_ppm !== '' ? form.water_ppm : ''} onChange={e => f('water_ppm', e.target.value === '' ? '' : +e.target.value)} /></div>
+            <div className="space-y-1"><Label>Активность воды (aw)</Label><Input type="number" step="0.001" min="0" max="1" value={form.water_activity !== undefined && form.water_activity !== '' ? form.water_activity : ''} onChange={e => f('water_activity', e.target.value === '' ? '' : +e.target.value)} /></div>
+            <div className="space-y-1"><Label>Вязкость при 40°C</Label><Input type="number" step="0.01" value={form.viscosity_40 !== undefined && form.viscosity_40 !== '' ? form.viscosity_40 : ''} onChange={e => f('viscosity_40', e.target.value === '' ? '' : +e.target.value)} /></div>
+            <div className="space-y-1"><Label>Плотность, кг/м³</Label><Input type="number" step="0.1" value={form.density !== undefined && form.density !== '' ? form.density : ''} onChange={e => f('density', e.target.value === '' ? '' : +e.target.value)} /></div>
+            <div className="space-y-1"><Label>Диэлектрич. постоянная</Label><Input type="number" step="0.01" value={form.dielectric_constant !== undefined && form.dielectric_constant !== '' ? form.dielectric_constant : ''} onChange={e => f('dielectric_constant', e.target.value === '' ? '' : +e.target.value)} /></div>
             <div className="col-span-3 space-y-1">
               <Label>Комментарии</Label>
               <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
