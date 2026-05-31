@@ -39,9 +39,9 @@ const genSampleNumber = (existing) => {
 export default function OilSamples() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
-  const [filterClient, setFilterClient] = useState('');
-  const [filterAsset, setFilterAsset] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  const [filterClient, setFilterClient] = useState('none');
+  const [filterAsset, setFilterAsset] = useState('none');
+  const [filterStatus, setFilterStatus] = useState('none');
   const [searchText, setSearchText] = useState('');
   const qc = useQueryClient();
   const navigate = useNavigate();
