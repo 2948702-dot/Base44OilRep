@@ -98,5 +98,50 @@
   "required": [
     "oil_name",
     "manufacturer"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "superintendent"
+          }
+        }
+      ]
+    },
+    "read": {},
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "superintendent"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "superintendent"
+          }
+        }
+      ]
+    }
+  }
 }
