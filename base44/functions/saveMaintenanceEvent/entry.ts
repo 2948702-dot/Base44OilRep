@@ -42,21 +42,21 @@ Deno.serve(async (req) => {
     // ── CREATE / UPDATE ──────────────────────────────────────────────────────
     if (!event_data) return Response.json({ error: 'event_data is required' }, { status: 400 });
 
-    // For UPDATE: fetch existing record first and RBAC-check it before modifying
+    let existing = null;
+
     if (action === 'update') {
       if (!event_id) return Response.json({ error: 'event_id is required for update' }, { status: 400 });
-      const existing = await base44.asServiceRole.entities.MaintenanceEvent.get(event_id);
+      existing = await base44.asServiceRole.entities.MaintenanceEvent.get(event_id);
       if (!existing) return Response.json({ error: 'Event not found' }, { status: 404 });
 
-      // Check access on existing record
+      // RBAC: check against the existing record (can't bypass by changing client/asset in payload)
       const rbacOnExisting = checkAccess(user, existing);
       if (rbacOnExisting) return rbacOnExisting;
 
-      // Prevent moving event to a different client/asset that user can't access
+      // RBAC: also check that new target is accessible (prevent moving to another client/asset)
       const rbacOnNew = checkAccess(user, event_data);
       if (rbacOnNew) return rbacOnNew;
     } else {
-      // CREATE: RBAC on new data
       const rbacError = checkAccess(user, event_data);
       if (rbacError) return rbacError;
     }
@@ -75,15 +75,22 @@ Deno.serve(async (req) => {
       savedEvent = await base44.asServiceRole.entities.MaintenanceEvent.create(payload);
     }
 
-    // Rebuild OilLifecycle from full oil_change history for affected point
-    const affectedPointId = event_data.sampling_point_id;
-    if (affectedPointId) {
-      await rebuildLifecycles(base44, affectedPointId);
-    }
+    // Collect ALL affected sampling_point_ids and equipment_unit_ids
+    // (covers the case where sampling_point or unit changed on update)
+    const affectedPointIds = unique([
+      existing?.sampling_point_id,
+      event_data.sampling_point_id,
+    ]);
+    const affectedUnitIds = unique([
+      existing?.equipment_unit_id,
+      event_data.equipment_unit_id,
+    ]);
 
-    // Recalculate equipment unit state
-    if (event_data.equipment_unit_id) {
-      await recalcUnit(base44, event_data.equipment_unit_id);
+    for (const ptId of affectedPointIds) {
+      await rebuildLifecycles(base44, ptId);
+    }
+    for (const unitId of affectedUnitIds) {
+      await recalcUnit(base44, unitId);
     }
 
     return Response.json({ success: true, event: savedEvent });
@@ -92,7 +99,12 @@ Deno.serve(async (req) => {
   }
 });
 
-// ── RBAC ─────────────────────────────────────────────────────────────────────
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+
+function unique(arr) {
+  return [...new Set(arr.filter(Boolean))];
+}
+
 function checkAccess(user, event) {
   if (user.role === 'captain') {
     if (!event.asset_id || event.asset_id !== user.asset_id) {
@@ -108,16 +120,17 @@ function checkAccess(user, event) {
   return null;
 }
 
-// ── REBUILD LIFECYCLES ────────────────────────────────────────────────────────
 /**
  * Rebuilds OilLifecycle records for a sampling point by replaying all oil_change
- * MaintenanceEvents in chronological order. This is the canonical approach:
- * OilLifecycle is a derived projection of the oil_change event log.
+ * MaintenanceEvents in chronological order.
+ *
+ * Safe strategy: delete old records, create new ones, then re-link OilSample.lifecycle_id
+ * so that existing samples still point to the correct (new) lifecycle by date.
  */
 async function rebuildLifecycles(base44, sampling_point_id) {
   if (!sampling_point_id) return;
 
-  // Fetch all oil_change events for this point, sorted chronologically
+  // 1. Build ordered oil_change events
   const allEvents = await base44.asServiceRole.entities.MaintenanceEvent.filter({ sampling_point_id });
   const oilChanges = allEvents
     .filter(e => e.event_type === 'oil_change')
@@ -126,13 +139,15 @@ async function rebuildLifecycles(base44, sampling_point_id) {
       return d !== 0 ? d : (a.created_date || '').localeCompare(b.created_date || '');
     });
 
-  // Delete all existing lifecycles for this point
-  const existing = await base44.asServiceRole.entities.OilLifecycle.filter({ sampling_point_id });
-  for (const lc of existing) {
+  // 2. Delete existing lifecycle records for this point
+  const existingLCs = await base44.asServiceRole.entities.OilLifecycle.filter({ sampling_point_id });
+  for (const lc of existingLCs) {
     await base44.asServiceRole.entities.OilLifecycle.delete(lc.id);
   }
 
-  // Recreate from oil_change events
+  // 3. Recreate lifecycles from oil_change events and remember date→id mapping
+  // Each lifecycle covers [oilChanges[i].event_date, oilChanges[i+1].event_date)
+  const newLifecycles = []; // { id, start_date, end_date|null }
   for (let i = 0; i < oilChanges.length; i++) {
     const ev = oilChanges[i];
     if (!ev.new_oil_type_id) continue;
@@ -140,7 +155,7 @@ async function rebuildLifecycles(base44, sampling_point_id) {
     const nextEv = oilChanges[i + 1];
     const isLast = !nextEv;
 
-    await base44.asServiceRole.entities.OilLifecycle.create({
+    const created = await base44.asServiceRole.entities.OilLifecycle.create({
       sampling_point_id,
       oil_type_id: ev.new_oil_type_id,
       start_date: ev.event_date,
@@ -153,6 +168,32 @@ async function rebuildLifecycles(base44, sampling_point_id) {
         end_reason: 'Замена масла',
       }),
     });
+
+    newLifecycles.push({
+      id: created.id,
+      start_date: ev.event_date,
+      end_date: isLast ? null : nextEv.event_date,
+    });
+  }
+
+  // 4. Re-link OilSample.lifecycle_id for all samples of this point
+  // A sample belongs to the lifecycle whose [start_date, end_date) contains sampling_date
+  if (newLifecycles.length === 0) return;
+
+  const samples = await base44.asServiceRole.entities.OilSample.filter({ sampling_point_id });
+  for (const sample of samples) {
+    if (!sample.sampling_date) continue;
+
+    // Find the lifecycle whose window contains this sample's date
+    const matched = newLifecycles.find(lc => {
+      const afterStart = sample.sampling_date >= lc.start_date;
+      const beforeEnd = !lc.end_date || sample.sampling_date < lc.end_date;
+      return afterStart && beforeEnd;
+    });
+
+    if (matched && sample.lifecycle_id !== matched.id) {
+      await base44.asServiceRole.entities.OilSample.update(sample.id, { lifecycle_id: matched.id });
+    }
   }
 }
 
