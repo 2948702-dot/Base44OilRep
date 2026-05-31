@@ -110,7 +110,11 @@ export default function ThresholdRules() {
               <tr><td colSpan={7} className="text-center py-10 text-slate-400">Правила не найдены</td></tr>
             ) : filtered.map(r => (
               <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50">
-                <td className="px-4 py-2.5 font-medium text-slate-900">{PARAM_LABELS[r.parameter_name] || r.parameter_name}</td>
+                <td className="px-4 py-2.5">
+                  <button className="font-medium text-slate-900 hover:text-blue-600 hover:underline text-left" onClick={() => { setForm(r); setOpen(true); }}>
+                    {PARAM_LABELS[r.parameter_name] || r.parameter_name}
+                  </button>
+                </td>
                 <td className="px-4 py-2.5 text-slate-600">
                   {r.equipment_unit_id ? (
                     <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-medium">
