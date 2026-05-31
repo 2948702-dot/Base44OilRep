@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Download, Printer } from 'lucide-react';
+
+import { FileText, Download } from 'lucide-react';
 import StatusBadge from '@/components/StatusBadge';
 
 export default function Reports() {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { QrCode, Droplets, FlaskConical, Settings, Users, Package, TrendingUp, AlertCircle, ShoppingCart, Home, Wrench, Cog, Menu, X } from 'lucide-react';
+import { QrCode, Droplets, FlaskConical, Settings, Users, Package, TrendingUp, AlertCircle, ShoppingCart, Home, Wrench, Cog, Menu } from 'lucide-react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 

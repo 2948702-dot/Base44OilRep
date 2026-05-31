@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Camera, Search, CheckCircle2, FlaskConical, ChevronRight, ChevronLeft, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Camera, Search, CheckCircle2, FlaskConical, ChevronRight, ChevronLeft } from 'lucide-react';
 import QRScanner from '@/components/mobile/QRScanner';
 
 const PARAMS = [

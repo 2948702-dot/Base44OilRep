@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Activity, RefreshCw, Droplets, Clock, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Activity, RefreshCw, Droplets, Clock, AlertTriangle } from 'lucide-react';
 
 const INTERVALS_H = {
   main_engine: 1000, aux_engine: 500, generator: 500,

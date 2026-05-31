@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import ParameterGauge from '@/components/ParameterGauge';
+
 
 const PARAMETERS = [
   { key: 'iron_mg_l', label: 'Железо (мг/л)', unit: 'мг/л' },

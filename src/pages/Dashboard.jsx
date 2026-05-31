@@ -7,7 +7,7 @@ import KPICard from '@/components/KPICard';
 import StatusBadge from '@/components/StatusBadge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { FlaskConical, CheckCircle2, AlertTriangle, XCircle, Activity, CalendarClock } from 'lucide-react';
-import { EQ_TYPES } from '@/utils/labels';
+
 
 export default function Dashboard() {
   const navigate = useNavigate();
