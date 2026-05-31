@@ -9,13 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, MapPin } from 'lucide-react';
 import { SAMPLING_METHODS } from '@/utils/labels';
-import OilSearch from '@/components/OilSearch';
+
 
 const DEF_POINT = {
   point_name: '',
   sampling_method: '',
-  oil_type_id: '',
-  oil_volume: '',
   current_total_hours: '',
   current_oil_hours: '',
   comments: ''
@@ -79,8 +77,6 @@ export default function SamplingPointsPanel({ unit, oils = [] }) {
       id: p.id,
       point_name: p.point_name || '',
       sampling_method: p.sampling_method || '',
-      oil_type_id: p.oil_type_id || '',
-      oil_volume: p.oil_volume ?? '',
       current_total_hours: p.current_total_hours ?? '',
       current_oil_hours: p.current_oil_hours ?? '',
       comments: p.comments || ''
@@ -174,10 +170,7 @@ export default function SamplingPointsPanel({ unit, oils = [] }) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="col-span-2 space-y-1">
-              <Label>Тип масла</Label>
-              <OilSearch oils={oils} value={form.oil_type_id} onChange={v => f('oil_type_id', v)} />
-            </div>
+
             <div className="space-y-1">
               <Label>М/ч масла</Label>
               <Input type="number" placeholder="0" value={form.current_oil_hours} onChange={e => f('current_oil_hours', e.target.value)} />

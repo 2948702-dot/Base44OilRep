@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft } from 'lucide-react';
 import ParameterGauge from '@/components/ParameterGauge';
 import MaintenanceOverdueIndicator from '@/components/MaintenanceOverdueIndicator';
+import { EQ_TYPES } from '@/utils/labels';
 
 const TREND_PARAMS = [
   { key: 'oil_health_index', label: 'OHI', color: '#3b82f6', result: true },
@@ -29,7 +30,7 @@ const GAUGES = [
     zones: [{from:0,to:0.2,color:'#22c55e'},{from:0.2,to:0.5,color:'#eab308'},{from:0.5,to:1,color:'#ef4444'}]
   },
   {
-    key: 'water_activity', label: 'Акт. воды', unit: '', min: 0, max: 1.0, decimals: 3,
+    key: 'water_activity', label: 'Акт. воды', unit: '%', min: 0, max: 100, decimals: 1,
     zones: [{from:0,to:0.4,color:'#22c55e'},{from:0.4,to:0.6,color:'#eab308'},{from:0.6,to:1,color:'#ef4444'}]
   },
   {
@@ -37,7 +38,7 @@ const GAUGES = [
     zones: [{from:0,to:0.267,color:'#ef4444'},{from:0.267,to:0.467,color:'#eab308'},{from:0.467,to:0.733,color:'#22c55e'},{from:0.733,to:0.933,color:'#eab308'},{from:0.933,to:1,color:'#ef4444'}]
   },
   {
-    key: 'dielectric_constant', label: 'Диэлектр.', unit: '', min: 1.5, max: 4.5, decimals: 2,
+    key: 'dielectric_constant', label: 'Диэлектр.', unit: '', min: 1.5, max: 3.5, decimals: 2,
     zones: [{from:0,to:0.33,color:'#ef4444'},{from:0.33,to:0.6,color:'#eab308'},{from:0.6,to:1,color:'#22c55e'}]
   },
   {
@@ -45,6 +46,27 @@ const GAUGES = [
     zones: [{from:0,to:0.4,color:'#22c55e'},{from:0.4,to:0.7,color:'#eab308'},{from:0.7,to:1,color:'#ef4444'}]
   },
 ];
+
+function computeOilChangeInfo(eq, lastChangeEvent) {
+  if (!eq?.oil_change_interval) return null;
+  if (eq.oil_change_type === 'engine_hours') {
+    const lastHours = lastChangeEvent?.total_operating_hours || 0;
+    const currentHours = eq.total_operating_hours || 0;
+    const usedHours = currentHours - lastHours;
+    const remaining = Math.round(eq.oil_change_interval - usedHours);
+    return { remaining, unit: 'м/ч' };
+  }
+  if (eq.oil_change_type === 'calendar' && lastChangeEvent) {
+    const lastDate = new Date(lastChangeEvent.event_date);
+    let intervalDays = eq.oil_change_interval;
+    if (eq.oil_change_interval_unit === 'weeks') intervalDays *= 7;
+    if (eq.oil_change_interval_unit === 'months') intervalDays *= 30;
+    const nextDate = new Date(lastDate.getTime() + intervalDays * 86400000);
+    const remaining = Math.floor((nextDate - Date.now()) / 86400000);
+    return { remaining, unit: 'дней' };
+  }
+  return null;
+}
 
 function ohiColor(v) {
   if (v == null) return 'text-slate-400';
@@ -70,12 +92,14 @@ export default function VesselDashboard() {
   const { data: results = [] } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
   const { data: schedules = [] } = useQuery({ queryKey: ['maintenance-schedules'], queryFn: () => base44.entities.MaintenanceSchedule.list() });
+  const { data: maintenanceEvents = [] } = useQuery({ queryKey: ['maintenance-events'], queryFn: () => base44.entities.MaintenanceEvent.list() });
 
   const N = parseInt(probeCount);
 
   const assetPoints = points.filter(p => p.asset_id === assetId);
   const assetSamples = samples.filter(s => s.asset_id === assetId && s.sample_status === 'completed');
   const assetSchedules = schedules.filter(s => s.asset_id === assetId);
+  const assetMaintenanceEvents = maintenanceEvents.filter(e => e.asset_id === assetId);
 
   // Build per-point data
   const pointData = assetPoints.map(point => {
@@ -108,7 +132,15 @@ export default function VesselDashboard() {
     const oil = oils.find(o => o.id === (eq?.oil_type_id || point.oil_type_id));
     const oilName = eq?.oil_brand || oil?.oil_name || null;
 
-    return { point, eq, latestResult, latestSample, trendData, sampleCount: ptSamples.length, oil, oilName };
+    const lastOilChangeEvent = assetMaintenanceEvents
+      .filter(e => e.equipment_unit_id === eq?.id && e.event_type === 'oil_change')
+      .sort((a, b) => new Date(b.event_date) - new Date(a.event_date))[0] || null;
+    const daysAgoLastSample = latestSample
+      ? Math.floor((Date.now() - new Date(latestSample.sampling_date)) / 86400000)
+      : null;
+    const oilChangeInfo = computeOilChangeInfo(eq, lastOilChangeEvent);
+
+    return { point, eq, latestResult, latestSample, trendData, sampleCount: ptSamples.length, oil, oilName, lastOilChangeEvent, daysAgoLastSample, oilChangeInfo };
   });
 
   return (
@@ -138,15 +170,14 @@ export default function VesselDashboard() {
         <div className="text-center py-20 text-slate-400">Нет точек отбора для этого судна</div>
       ) : (
         <div className="space-y-6">
-          {pointData.map(({ point, eq, latestResult: res, latestSample, trendData, sampleCount, oil, oilName }) => (
+          {pointData.map(({ point, eq, latestResult: res, latestSample, trendData, sampleCount, oil, oilName, lastOilChangeEvent, daysAgoLastSample, oilChangeInfo }) => (
             <div key={point.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               {/* Point header */}
               <div className="flex items-center gap-4 px-5 py-3 border-b border-slate-100 bg-slate-50">
                 <OHIGauge value={res?.oil_health_index} size={80} />
                 <div className="flex-1">
-                  <p className="font-semibold text-slate-900 text-base">{point.point_name}</p>
-                  <p className="text-xs text-slate-500">{eq?.unit_name} · {eq?.equipment_type} · {oilName || 'Масло не задано'}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Всего проб: {sampleCount} · Последняя: {latestSample ? new Date(latestSample.sampling_date).toLocaleDateString('ru-RU') : '—'}</p>
+                  <p className="font-semibold text-slate-900 text-base">{eq?.unit_name || point.point_name}</p>
+                  <p className="text-xs text-slate-500">{EQ_TYPES[eq?.equipment_type] || eq?.equipment_type} · {oilName || 'Масло не задано'}</p>
                 </div>
                 {eq && (
                   <Button 
@@ -163,6 +194,24 @@ export default function VesselDashboard() {
                     <p className={`text-3xl font-bold ${ohiColor(res.oil_health_index)}`}>{res.oil_health_index != null ? Math.round(res.oil_health_index) : '—'}</p>
                     <p className="text-xs text-slate-400">Oil Health Index</p>
                   </div>
+                )}
+              </div>
+              {/* Info row */}
+              <div className="flex flex-wrap gap-x-5 gap-y-1 px-5 py-2 border-b border-slate-100 bg-white text-xs">
+                <span className="text-slate-500">
+                  <span className="font-medium text-slate-700">Последняя проба: </span>
+                  {latestSample ? `${new Date(latestSample.sampling_date).toLocaleDateString('ru-RU')} · ${daysAgoLastSample} дн. назад` : '—'}
+                </span>
+                {lastOilChangeEvent && (
+                  <span className="text-slate-500">
+                    <span className="font-medium text-slate-700">Последняя замена: </span>
+                    {new Date(lastOilChangeEvent.event_date).toLocaleDateString('ru-RU')}
+                  </span>
+                )}
+                {oilChangeInfo && (
+                  <span className={oilChangeInfo.remaining < 0 ? 'text-red-600 font-semibold' : oilChangeInfo.remaining < 100 ? 'text-yellow-600 font-medium' : 'text-green-600 font-medium'}>
+                    До замены: {oilChangeInfo.remaining > 0 ? `~${oilChangeInfo.remaining} ${oilChangeInfo.unit}` : `Просрочено на ${Math.abs(oilChangeInfo.remaining)} ${oilChangeInfo.unit}`}
+                  </span>
                 )}
               </div>
 
