@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Play } from 'lucide-react';
+import { Plus, Pencil, Trash2, Play, Info, AlertTriangle } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 import LifecycleChart from '@/components/LifecycleChart';
 import LifecycleKPICards from '@/components/LifecycleKPICards';
 import StatusBadge from '@/components/StatusBadge';
@@ -19,6 +20,8 @@ const DEF = { sampling_point_id: '', oil_type_id: '', start_date: '', start_oper
 const clean = (d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v === '' ? undefined : v]));
 
 export default function OilLifecycles() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
   const [filterAsset, setFilterAsset] = useState('');
@@ -90,12 +93,16 @@ export default function OilLifecycles() {
           <p className="text-slate-500 text-sm mt-0.5">{lifecycles.length} записей · {maintenanceEvents.length} событий ТО</p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={handleSeed} disabled={seeding} className="gap-1.5 text-violet-700 border-violet-200 hover:bg-violet-50">
-            <Play className="w-3.5 h-3.5" />{seeding ? 'Генерация...' : 'Сгенерировать данные'}
-          </Button>
-          <Button size="sm" onClick={() => { setForm(DEF); setOpen(true); }}>
-            <Plus className="w-4 h-4 mr-1.5" />Новый цикл
-          </Button>
+          {isAdmin && (
+            <>
+              <Button size="sm" variant="outline" onClick={handleSeed} disabled={seeding} className="gap-1.5 text-violet-700 border-violet-200 hover:bg-violet-50">
+                <Play className="w-3.5 h-3.5" />{seeding ? 'Генерация...' : 'Сгенерировать данные'}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => { setForm(DEF); setOpen(true); }} className="gap-1.5 text-orange-700 border-orange-200 hover:bg-orange-50">
+                <Plus className="w-4 h-4" />Исправление (admin)
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -105,6 +112,11 @@ export default function OilLifecycles() {
           {seedResult.breakdown && <span className="ml-2 text-xs opacity-70">(замены: {seedResult.breakdown.oil_change}, доливы: {seedResult.breakdown.oil_topup}, фильтры: {seedResult.breakdown.oil_filter})</span>}
         </div>
       )}
+
+      <div className="mb-4 flex items-start gap-2.5 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-4 py-3 text-sm">
+        <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+        <span>Жизненные циклы масла рассчитываются автоматически по событиям ТО типа «Замена масла». Для изменения жизненного цикла отредактируйте соответствующее событие ТО.</span>
+      </div>
 
       <LifecycleKPICards
         lifecycles={lifecycles}
@@ -193,14 +205,16 @@ export default function OilLifecycles() {
                   </td>
                   <td className="px-4 py-2.5"><StatusBadge status={l.status} /></td>
                   <td className="px-4 py-2.5">
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(l); setOpen(true); }}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить цикл?') && del.mutate(l.id)}>
-                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                      </Button>
-                    </div>
+                    {isAdmin && (
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Административное исправление" onClick={() => { setForm(l); setOpen(true); }}>
+                          <Pencil className="w-3.5 h-3.5 text-orange-500" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить цикл? Следующая пересборка по событиям ТО может изменить данные.') && del.mutate(l.id)}>
+                          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                        </Button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );
@@ -211,7 +225,16 @@ export default function OilLifecycles() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{form.id ? 'Редактировать цикл' : 'Новый жизненный цикл'}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-700">
+              <AlertTriangle className="w-4 h-4" />
+              Административное исправление данных
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800">
+            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+            <span>Внимание: ручные изменения могут быть перезаписаны при следующей пересборке жизненных циклов по событиям ТО.</span>
+          </div>
           <div className="grid grid-cols-2 gap-3 py-2 max-h-[70vh] overflow-y-auto pr-1">
             <div className="col-span-2 space-y-1">
               <Label>Точка отбора <Req /></Label>
