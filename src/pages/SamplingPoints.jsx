@@ -25,7 +25,15 @@ export default function SamplingPoints() {
   const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
 
-  const clean = (d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v === '' ? undefined : v]));
+  const clean = (d) => {
+    const stripped = { ...d };
+    // SamplingPoint is NOT an oil source — strip any legacy oil/hours fields
+    delete stripped.oil_type_id;
+    delete stripped.oil_volume;
+    delete stripped.current_total_hours;
+    delete stripped.current_oil_hours;
+    return Object.fromEntries(Object.entries(stripped).map(([k, v]) => [k, v === '' ? undefined : v]));
+  };
 
   const save = useMutation({
     mutationFn: d => { const c = clean(d); return c.id ? base44.entities.SamplingPoint.update(c.id, c) : base44.entities.SamplingPoint.create(c); },

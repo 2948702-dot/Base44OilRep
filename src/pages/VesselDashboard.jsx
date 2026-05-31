@@ -263,7 +263,7 @@ export default function VesselDashboard() {
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Последние показатели</p>
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 mb-5">
                      {GAUGES.map(g => {
-                        const oilTypeId = eq?.oil_type_id || latestSample?.oil_type_id;
+                        const oilTypeId = latestSample?.oil_type_id || eq?.current_oil_type_id || eq?.oil_type_id;
                         const rule = findBestRule(thresholdRules, g.key, oilTypeId, eq?.equipment_type);
                         const ruleZones = buildZonesFromRule(rule);
                         return (
