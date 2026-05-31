@@ -9,7 +9,7 @@ const NAV = {
       items: [
         { label: 'Дашборд', href: '/', icon: Home },
         { label: 'Клиенты', href: '/clients', icon: Users },
-        { label: 'Судна', href: '/assets', icon: Package },
+        { label: 'Активы', href: '/assets', icon: Package },
         { label: 'Флот (все суда)', href: '/fleet', icon: ShoppingCart },
         { label: 'Критические', href: '/critical', icon: AlertCircle },
         { label: 'Пользователи', href: '/users', icon: Users },
