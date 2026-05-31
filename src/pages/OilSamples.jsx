@@ -362,16 +362,18 @@ export default function OilSamples() {
               const hasAnalysisData = iron_mg_l !== undefined && iron_mg_l !== '' || water_ppm !== undefined && water_ppm !== '' || water_activity !== undefined && water_activity !== '' || viscosity_40 !== undefined && viscosity_40 !== '' || density !== undefined && density !== '' || dielectric_constant !== undefined && dielectric_constant !== '';
               
               save.mutate(sampleData, {
-                onSuccess: () => {
+                onSuccess: (savedSample) => {
                   if (hasAnalysisData) {
-                    const analysisData = { sample_id: form.id, client_id: form.client_id, asset_id: form.asset_id };
+                    const realSampleId = savedSample?.id || form.id;
+                    const existingAnalysis = results.find(r => r.sample_id === realSampleId);
+                    const analysisData = { sample_id: realSampleId, client_id: form.client_id, asset_id: form.asset_id };
                     if (iron_mg_l !== undefined && iron_mg_l !== '') analysisData.iron_mg_l = iron_mg_l;
                     if (water_ppm !== undefined && water_ppm !== '') analysisData.water_ppm = water_ppm;
                     if (water_activity !== undefined && water_activity !== '') analysisData.water_activity = water_activity;
                     if (viscosity_40 !== undefined && viscosity_40 !== '') analysisData.viscosity_40 = viscosity_40;
                     if (density !== undefined && density !== '') analysisData.density = density;
                     if (dielectric_constant !== undefined && dielectric_constant !== '') analysisData.dielectric_constant = dielectric_constant;
-                    if (currentAnalysis?.id) analysisData.id = currentAnalysis.id;
+                    if (existingAnalysis?.id) analysisData.id = existingAnalysis.id;
                     saveAnalysis.mutate(analysisData);
                   } else {
                     setOpen(false);
