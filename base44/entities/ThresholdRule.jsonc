@@ -69,6 +69,38 @@
       "type": "string",
       "title": "Unit"
     },
+    "deviation_mode": {
+      "type": "boolean",
+      "title": "Deviation Mode (% from base)"
+    },
+    "base_value": {
+      "type": "number",
+      "title": "Base Value"
+    },
+    "green_left_pct": {
+      "type": "number",
+      "title": "Green Left %"
+    },
+    "green_right_pct": {
+      "type": "number",
+      "title": "Green Right %"
+    },
+    "yellow_left_pct": {
+      "type": "number",
+      "title": "Yellow Left %"
+    },
+    "yellow_right_pct": {
+      "type": "number",
+      "title": "Yellow Right %"
+    },
+    "red_left_pct": {
+      "type": "number",
+      "title": "Red Left %"
+    },
+    "red_right_pct": {
+      "type": "number",
+      "title": "Red Right %"
+    },
     "comments": {
       "type": "string",
       "title": "Comments"

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 import ThresholdRangeBar from '@/components/ThresholdRangeBar';
 import StepperInput from '@/components/StepperInput';
 import { EQ_TYPES } from '@/utils/labels';
@@ -38,7 +38,21 @@ const PARAM_STEP = { dielectric_constant: '0.01', water_activity: '0.1' };
 
 const UNIT_NAMES = ['ДВС', 'ГД', 'Редуктор', 'Рулевой привод', 'Вспом. двигатель', 'ГД Левый', 'ГД Правый', 'Генератор', 'Пресс', 'Прочее'];
 
-const DEF = { oil_type_id: '', equipment_unit_id: '', equipment_type: 'all', parameter_name: '', green_min: '', green_max: '', yellow_min: '', yellow_max: '', red_min: '', red_max: '', unit: '', comments: '' };
+const DEF = { oil_type_id: '', equipment_unit_id: '', equipment_type: 'all', parameter_name: '', green_min: '', green_max: '', yellow_min: '', yellow_max: '', red_min: '', red_max: '', unit: '', comments: '', deviation_mode: false, base_value: '', green_left_pct: '', green_right_pct: '', yellow_left_pct: '', yellow_right_pct: '', red_left_pct: '', red_right_pct: '' };
+
+function calcDeviationZones(base, gl, gr, yl, yr, rl, rr) {
+  const b = parseFloat(base);
+  if (!b) return {};
+  const pct = (v) => parseFloat(v) || 0;
+  return {
+    green_min:  parseFloat((b * (1 - pct(gl) / 100)).toFixed(4)),
+    green_max:  parseFloat((b * (1 + pct(gr) / 100)).toFixed(4)),
+    yellow_min: parseFloat((b * (1 - pct(yl) / 100)).toFixed(4)),
+    yellow_max: parseFloat((b * (1 + pct(yr) / 100)).toFixed(4)),
+    red_min:    parseFloat((b * (1 - pct(rl) / 100)).toFixed(4)),
+    red_max:    parseFloat((b * (1 + pct(rr) / 100)).toFixed(4)),
+  };
+}
 
 
 
@@ -66,6 +80,15 @@ export default function ThresholdRules() {
 
   const step = PARAM_STEP[form.parameter_name] || 'any';
   const isWaterActivity = form.parameter_name === 'water_activity';
+
+  const devZones = form.deviation_mode
+    ? calcDeviationZones(form.base_value, form.green_left_pct, form.green_right_pct, form.yellow_left_pct, form.yellow_right_pct, form.red_left_pct, form.red_right_pct)
+    : {};
+
+  const handleSave = () => {
+    const data = form.deviation_mode ? { ...form, ...devZones } : form;
+    save.mutate(data);
+  };
 
   return (
     <div className="p-6">
@@ -161,6 +184,16 @@ export default function ThresholdRules() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{form.id ? 'Редактировать правило' : 'Добавить пороговое правило'}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
+            {/* Mode toggle */}
+            <div className="col-span-2 flex items-center justify-between bg-slate-50 rounded-lg px-4 py-2.5">
+              <div>
+                <p className="text-sm font-medium text-slate-800">{form.deviation_mode ? 'Режим: отклонение от базы (%)' : 'Режим: абсолютные значения'}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{form.deviation_mode ? 'Зоны рассчитываются от базового значения' : 'Вводите минимальные и максимальные значения напрямую'}</p>
+              </div>
+              <button onClick={() => setForm(p => ({ ...p, deviation_mode: !p.deviation_mode }))} className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700">
+                {form.deviation_mode ? <ToggleRight className="w-8 h-8" /> : <ToggleLeft className="w-8 h-8 text-slate-400" />}
+              </button>
+            </div>
             <div className="space-y-1">
               <Label>Параметр *</Label>
               <Select value={form.parameter_name} onValueChange={setParam}>
@@ -206,32 +239,110 @@ export default function ThresholdRules() {
                 </SelectContent>
               </Select>
             </div>
-            {/* Live range preview */}
-            {(form.green_min !== '' || form.yellow_min !== '' || form.red_min !== '') && (
-              <div className="col-span-2 space-y-1">
-                <Label className="text-xs text-slate-500">Предпросмотр диапазонов</Label>
-                <ThresholdRangeBar
-                  greenMin={form.green_min} greenMax={form.green_max}
-                  yellowMin={form.yellow_min} yellowMax={form.yellow_max}
-                  redMin={form.red_min} redMax={form.red_max}
-                />
+            {/* Base value input for deviation mode */}
+            {form.deviation_mode && (
+              <div className="col-span-2 bg-blue-50 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-semibold text-blue-700">📌 Базовое (нормативное) значение</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs">База</Label>
+                    <Input type="number" step="any" value={form.base_value} onChange={e => f('base_value', e.target.value)} placeholder="Например: 2.5" className="bg-white" />
+                  </div>
+                  {form.base_value && (
+                    <div className="text-xs text-blue-600 bg-blue-100 rounded px-2 py-1 mt-5">
+                      Расчёт от {form.base_value} {PARAM_UNITS[form.parameter_name] || form.unit}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
-            <div className="col-span-2 grid grid-cols-3 gap-3 bg-green-50 rounded-lg p-3">
-              <p className="col-span-3 text-xs font-semibold text-green-700 mb-1">🟢 Зелёный диапазон</p>
-              <StepperInput label="Мин." value={form.green_min || 0} onChange={v => f('green_min', v)} min={0} max={isWaterActivity ? 100 : 1000} />
-              <StepperInput label="Макс." value={form.green_max || 0} onChange={v => f('green_max', v)} min={0} max={isWaterActivity ? 100 : 1000} />
-            </div>
-            <div className="col-span-2 grid grid-cols-3 gap-3 bg-yellow-50 rounded-lg p-3">
-              <p className="col-span-3 text-xs font-semibold text-yellow-700 mb-1">🟡 Жёлтый диапазон</p>
-              <StepperInput label="Мин." value={form.yellow_min || 0} onChange={v => f('yellow_min', v)} min={0} max={isWaterActivity ? 100 : 1000} />
-              <StepperInput label="Макс." value={form.yellow_max || 0} onChange={v => f('yellow_max', v)} min={0} max={isWaterActivity ? 100 : 1000} />
-            </div>
-            <div className="col-span-2 grid grid-cols-3 gap-3 bg-red-50 rounded-lg p-3">
-              <p className="col-span-3 text-xs font-semibold text-red-700 mb-1">🔴 Красный диапазон</p>
-              <StepperInput label="Мин." value={form.red_min || 0} onChange={v => f('red_min', v)} min={0} max={isWaterActivity ? 100 : 1000} />
-              <StepperInput label="Макс." value={form.red_max || 0} onChange={v => f('red_max', v)} min={0} max={isWaterActivity ? 100 : 1000} />
-            </div>
+
+            {/* Live range preview */}
+            {(form.deviation_mode
+              ? (devZones.green_min !== undefined)
+              : (form.green_min !== '' || form.yellow_min !== '' || form.red_min !== '')) && (
+              <div className="col-span-2 space-y-1">
+                <Label className="text-xs text-slate-500">Предпросмотр диапазонов{form.deviation_mode ? ' (рассчитано)' : ''}</Label>
+                <ThresholdRangeBar
+                  greenMin={form.deviation_mode ? devZones.green_min : form.green_min}
+                  greenMax={form.deviation_mode ? devZones.green_max : form.green_max}
+                  yellowMin={form.deviation_mode ? devZones.yellow_min : form.yellow_min}
+                  yellowMax={form.deviation_mode ? devZones.yellow_max : form.yellow_max}
+                  redMin={form.deviation_mode ? devZones.red_min : form.red_min}
+                  redMax={form.deviation_mode ? devZones.red_max : form.red_max}
+                />
+                {form.deviation_mode && devZones.green_min !== undefined && (
+                  <div className="flex flex-wrap gap-3 text-xs mt-1">
+                    <span className="text-green-700 font-medium">🟢 {devZones.green_min} – {devZones.green_max}</span>
+                    <span className="text-yellow-700 font-medium">🟡 {devZones.yellow_min} – {devZones.yellow_max}</span>
+                    <span className="text-red-700 font-medium">🔴 {devZones.red_min} – {devZones.red_max}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            {form.deviation_mode ? (
+              <div className="col-span-2 bg-green-50 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-semibold text-green-700">🟢 Зелёная зона — отклонение от базы</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Влево (%)</Label>
+                    <Input type="number" min="0" max="100" step="0.1" value={form.green_left_pct} onChange={e => f('green_left_pct', e.target.value)} placeholder="0" className="bg-white" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Вправо (%)</Label>
+                    <Input type="number" min="0" max="100" step="0.1" value={form.green_right_pct} onChange={e => f('green_right_pct', e.target.value)} placeholder="0" className="bg-white" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="col-span-2 grid grid-cols-3 gap-3 bg-green-50 rounded-lg p-3">
+                <p className="col-span-3 text-xs font-semibold text-green-700 mb-1">🟢 Зелёный диапазон</p>
+                <StepperInput label="Мин." value={form.green_min || 0} onChange={v => f('green_min', v)} min={0} max={isWaterActivity ? 100 : 1000} />
+                <StepperInput label="Макс." value={form.green_max || 0} onChange={v => f('green_max', v)} min={0} max={isWaterActivity ? 100 : 1000} />
+              </div>
+            )}
+            {form.deviation_mode ? (
+              <div className="col-span-2 bg-yellow-50 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-semibold text-yellow-700">🟡 Жёлтая зона — отклонение от базы</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Влево (%)</Label>
+                    <Input type="number" min="0" max="100" step="0.1" value={form.yellow_left_pct} onChange={e => f('yellow_left_pct', e.target.value)} placeholder="0" className="bg-white" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Вправо (%)</Label>
+                    <Input type="number" min="0" max="100" step="0.1" value={form.yellow_right_pct} onChange={e => f('yellow_right_pct', e.target.value)} placeholder="0" className="bg-white" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="col-span-2 grid grid-cols-3 gap-3 bg-yellow-50 rounded-lg p-3">
+                <p className="col-span-3 text-xs font-semibold text-yellow-700 mb-1">🟡 Жёлтый диапазон</p>
+                <StepperInput label="Мин." value={form.yellow_min || 0} onChange={v => f('yellow_min', v)} min={0} max={isWaterActivity ? 100 : 1000} />
+                <StepperInput label="Макс." value={form.yellow_max || 0} onChange={v => f('yellow_max', v)} min={0} max={isWaterActivity ? 100 : 1000} />
+              </div>
+            )}
+            {form.deviation_mode ? (
+              <div className="col-span-2 bg-red-50 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-semibold text-red-700">🔴 Красная зона — отклонение от базы</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Влево (%)</Label>
+                    <Input type="number" min="0" max="100" step="0.1" value={form.red_left_pct} onChange={e => f('red_left_pct', e.target.value)} placeholder="0" className="bg-white" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Вправо (%)</Label>
+                    <Input type="number" min="0" max="100" step="0.1" value={form.red_right_pct} onChange={e => f('red_right_pct', e.target.value)} placeholder="0" className="bg-white" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="col-span-2 grid grid-cols-3 gap-3 bg-red-50 rounded-lg p-3">
+                <p className="col-span-3 text-xs font-semibold text-red-700 mb-1">🔴 Красный диапазон</p>
+                <StepperInput label="Мин." value={form.red_min || 0} onChange={v => f('red_min', v)} min={0} max={isWaterActivity ? 100 : 1000} />
+                <StepperInput label="Макс." value={form.red_max || 0} onChange={v => f('red_max', v)} min={0} max={isWaterActivity ? 100 : 1000} />
+              </div>
+            )}
             <div className="col-span-2 space-y-1">
               <Label>Комментарии</Label>
               <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
@@ -239,7 +350,7 @@ export default function ThresholdRules() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
-            <Button onClick={() => save.mutate(form)} disabled={!form.parameter_name || save.isPending}>
+            <Button onClick={handleSave} disabled={!form.parameter_name || save.isPending}>
               {save.isPending ? 'Сохранение...' : 'Сохранить'}
             </Button>
           </DialogFooter>
