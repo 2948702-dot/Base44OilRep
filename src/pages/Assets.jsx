@@ -17,7 +17,7 @@ export default function Assets() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF_ASSET);
   const [units, setUnits] = useState([]); // draft equipment units for new asset
-  const [filterClient, setFilterClient] = useState('');
+  const [filterClient, setFilterClient] = useState('none');
   const qc = useQueryClient();
 
   const { data: assets = [], isLoading } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
