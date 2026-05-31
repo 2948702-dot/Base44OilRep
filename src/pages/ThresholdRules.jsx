@@ -14,6 +14,39 @@ import { EQ_TYPES } from '@/utils/labels';
 
 const PARAMS = ['iron_mg_l', 'water_activity', 'water_ppm', 'density', 'viscosity_40', 'viscosity_100', 'dielectric_constant'];
 
+const NONE_VALUE = '__none__';
+
+const OPTIONAL_STRING_FIELDS = ['client_id', 'asset_id', 'equipment_unit_id', 'sampling_point_id', 'oil_type_id', 'unit', 'comments'];
+const NUMBER_FIELDS = [
+  'green_min', 'green_max', 'yellow_min', 'yellow_max', 'red_min', 'red_max',
+  'base_value', 'green_left_pct', 'green_right_pct', 'yellow_left_pct', 'yellow_right_pct',
+  'red_left_pct', 'red_right_pct',
+];
+
+function toOptionalNumber(value) {
+  if (value === '' || value === null || value === undefined) return undefined;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : undefined;
+}
+
+function cleanThresholdRulePayload(raw) {
+  const data = { ...raw };
+  OPTIONAL_STRING_FIELDS.forEach((field) => {
+    if (data[field] === '' || data[field] === null || data[field] === NONE_VALUE) {
+      delete data[field];
+    }
+  });
+  NUMBER_FIELDS.forEach((field) => {
+    const value = toOptionalNumber(data[field]);
+    if (value === undefined) {
+      delete data[field];
+    } else {
+      data[field] = value;
+    }
+  });
+  return data;
+}
+
 const PARAM_UNITS = {
   iron_mg_l:           'мг/л',
   water_activity:      '% (0–100)',
@@ -73,7 +106,10 @@ export default function ThresholdRules() {
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
 
   const save = useMutation({
-    mutationFn: d => d.id ? base44.entities.ThresholdRule.update(d.id, d) : base44.entities.ThresholdRule.create(d),
+    mutationFn: d => {
+      const { id, ...payload } = d;
+      return id ? base44.entities.ThresholdRule.update(id, payload) : base44.entities.ThresholdRule.create(payload);
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['threshold-rules'] }); setOpen(false); setForm(DEF); }
   });
   const del = useMutation({
@@ -107,7 +143,7 @@ export default function ThresholdRules() {
         max: r.max !== '' ? parseFloat(r.max) : undefined,
       })).filter(r => r.min !== undefined && r.max !== undefined);
     }
-    save.mutate(data);
+    save.mutate(cleanThresholdRulePayload(data));
   };
 
   const setMode = (mode) => {
@@ -278,20 +314,20 @@ export default function ThresholdRules() {
             </div>
             <div className="space-y-1">
               <Label>Единица оборудования (индивид.)</Label>
-              <Select value={form.equipment_unit_id} onValueChange={v => f('equipment_unit_id', v)}>
+              <Select value={form.equipment_unit_id || NONE_VALUE} onValueChange={v => f('equipment_unit_id', v === NONE_VALUE ? '' : v)}>
                 <SelectTrigger><SelectValue placeholder="Не установлено" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={null}>Не установлено</SelectItem>
+                  <SelectItem value={NONE_VALUE}>Не установлено</SelectItem>
                   {UNIT_NAMES.map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
               <Label>Масло (необязательно)</Label>
-              <Select value={form.oil_type_id} onValueChange={v => f('oil_type_id', v)}>
+              <Select value={form.oil_type_id || NONE_VALUE} onValueChange={v => f('oil_type_id', v === NONE_VALUE ? '' : v)}>
                 <SelectTrigger><SelectValue placeholder="Все масла" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={null}>Все масла</SelectItem>
+                  <SelectItem value={NONE_VALUE}>Все масла</SelectItem>
                   {oils.map(o => <SelectItem key={o.id} value={o.id}>{o.oil_name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -465,6 +501,11 @@ export default function ThresholdRules() {
               <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
             </div>
           </div>
+          {save.isError && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-2">
+              Ошибка сохранения: {save.error?.message || 'неизвестная ошибка'}
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
             <Button onClick={handleSave} disabled={!form.parameter_name || save.isPending}>
