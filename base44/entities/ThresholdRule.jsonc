@@ -77,5 +77,139 @@
   "required": [
     "equipment_type",
     "parameter_name"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "superintendent"
+              }
+            },
+            {
+              "$or": [
+                {
+                  "data.client_id": null
+                },
+                {
+                  "data.client_id": "{{user.client_id}}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "superintendent"
+              }
+            },
+            {
+              "$or": [
+                {
+                  "data.client_id": null
+                },
+                {
+                  "data.client_id": "{{user.client_id}}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "captain"
+              }
+            },
+            {
+              "$or": [
+                {
+                  "data.client_id": null,
+                  "data.asset_id": null
+                },
+                {
+                  "data.asset_id": "{{user.asset_id}}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "superintendent"
+              }
+            },
+            {
+              "$or": [
+                {
+                  "data.client_id": null
+                },
+                {
+                  "data.client_id": "{{user.client_id}}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "superintendent"
+              }
+            },
+            {
+              "$or": [
+                {
+                  "data.client_id": null
+                },
+                {
+                  "data.client_id": "{{user.client_id}}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
 }
