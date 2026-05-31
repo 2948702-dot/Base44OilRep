@@ -5,20 +5,37 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { QRCodeSVG } from 'qrcode.react';
-import { Printer, Download, Plus, QrCode, MapPin, Package } from 'lucide-react';
+import { Printer, Plus, QrCode, MapPin, Package } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 function generateCanId() {
   return 'CAN-' + crypto.randomUUID().split('-')[0].toUpperCase() + '-' + crypto.randomUUID().split('-')[1].toUpperCase();
 }
 
-function QRCard({ value, label, sublabel, size = 128 }) {
+function QRCard({ value, pointName, clientName, assetName, unitName, size = 120 }) {
   return (
-    <div className="flex flex-col items-center bg-white border border-slate-200 rounded-xl p-4 gap-2 print-card">
+    <div className="flex flex-col items-center bg-white border border-slate-200 rounded-xl p-3 gap-2 print-card">
       <QRCodeSVG value={value} size={size} level="M" includeMargin />
-      <p className="text-sm font-bold text-slate-900 text-center leading-tight">{label}</p>
-      {sublabel && <p className="text-xs text-slate-500 text-center">{sublabel}</p>}
-      <p className="text-[10px] text-slate-400 font-mono break-all text-center">{value.slice(0, 32)}{value.length > 32 ? '…' : ''}</p>
+      <div className="w-full text-center space-y-0.5">
+        <p className="text-sm font-bold text-slate-900 leading-tight">{pointName}</p>
+        {unitName && <p className="text-xs text-slate-600">{unitName}</p>}
+        {assetName && <p className="text-xs text-slate-500">{assetName}</p>}
+        {clientName && <p className="text-xs text-slate-400">{clientName}</p>}
+        <p className="text-[9px] text-slate-300 font-mono mt-1">{value.slice(0, 24)}…</p>
+      </div>
+    </div>
+  );
+}
+
+function CanQRCard({ value, index }) {
+  return (
+    <div className="flex flex-col items-center bg-white border border-slate-200 rounded-xl p-3 gap-2 print-card">
+      <QRCodeSVG value={value} size={120} level="M" includeMargin />
+      <div className="w-full text-center space-y-0.5">
+        <p className="text-sm font-bold text-slate-900">Банка #{String(index + 1).padStart(3, '0')}</p>
+        <p className="text-xs text-slate-500">Для отбора пробы масла</p>
+        <p className="text-[9px] text-slate-300 font-mono mt-1">{value}</p>
+      </div>
     </div>
   );
 }
@@ -26,9 +43,10 @@ function QRCard({ value, label, sublabel, size = 128 }) {
 export default function QRManager() {
   const [tab, setTab] = useState('points');
   const [selectedClient, setSelectedClient] = useState('all');
+  const [selectedAsset, setSelectedAsset] = useState('all');
+  const [selectedUnit, setSelectedUnit] = useState('all');
   const [canCount, setCanCount] = useState(10);
   const [generatedCans, setGeneratedCans] = useState([]);
-  const printRef = useRef(null);
 
   const { data: samplingPoints = [] } = useQuery({
     queryKey: ['sampling-points'],
@@ -47,21 +65,38 @@ export default function QRManager() {
     queryFn: () => base44.entities.EquipmentUnit.list()
   });
 
-  const getAssetName = (assetId) => assets.find(a => a.id === assetId)?.asset_name || '';
+  const getAssetName = (id) => assets.find(a => a.id === id)?.asset_name || '';
   const getUnitName = (id) => equipmentUnits.find(u => u.id === id)?.unit_name || '';
   const getClientName = (id) => clients.find(c => c.id === id)?.company_name || '';
 
-  const filteredPoints = selectedClient === 'all'
-    ? samplingPoints
-    : samplingPoints.filter(p => p.client_id === selectedClient);
+  // Cascading filter options
+  const filteredAssets = selectedClient === 'all'
+    ? assets
+    : assets.filter(a => a.client_id === selectedClient);
 
-  const generateCans = () => {
-    const cans = Array.from({ length: canCount }, () => generateCanId());
-    setGeneratedCans(cans);
+  const filteredUnits = selectedAsset === 'all'
+    ? equipmentUnits.filter(u => selectedClient === 'all' || u.client_id === selectedClient)
+    : equipmentUnits.filter(u => u.asset_id === selectedAsset);
+
+  const filteredPoints = samplingPoints.filter(p => {
+    if (selectedClient !== 'all' && p.client_id !== selectedClient) return false;
+    if (selectedAsset !== 'all' && p.asset_id !== selectedAsset) return false;
+    if (selectedUnit !== 'all' && p.equipment_unit_id !== selectedUnit) return false;
+    return true;
+  });
+
+  const handleClientChange = (v) => {
+    setSelectedClient(v);
+    setSelectedAsset('all');
+    setSelectedUnit('all');
+  };
+  const handleAssetChange = (v) => {
+    setSelectedAsset(v);
+    setSelectedUnit('all');
   };
 
-  const printPage = () => {
-    window.print();
+  const generateCans = () => {
+    setGeneratedCans(Array.from({ length: canCount }, () => generateCanId()));
   };
 
   return (
@@ -83,7 +118,7 @@ export default function QRManager() {
           </h1>
           <p className="text-slate-500 text-sm mt-0.5">Генерация и печать QR-кодов для точек отбора и банок</p>
         </div>
-        <Button onClick={printPage} className="gap-2">
+        <Button onClick={() => window.print()} className="gap-2">
           <Printer className="w-4 h-4" />Печать
         </Button>
       </div>
@@ -107,17 +142,51 @@ export default function QRManager() {
       {/* Tab: Sampling Points */}
       {tab === 'points' && (
         <div>
-          <div className="mb-4 no-print">
-            <Label className="text-sm mb-2 block">Фильтр по клиенту</Label>
-            <Select value={selectedClient} onValueChange={setSelectedClient}>
-              <SelectTrigger className="w-64">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Все клиенты</SelectItem>
-                {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          {/* Hierarchical filters */}
+          <div className="flex flex-wrap gap-3 mb-4 no-print">
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">Клиент</Label>
+              <Select value={selectedClient} onValueChange={handleClientChange}>
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="Все клиенты" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все клиенты</SelectItem>
+                  {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">Судно / Актив</Label>
+              <Select value={selectedAsset} onValueChange={handleAssetChange} disabled={selectedClient === 'all'}>
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="Все суда" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все суда</SelectItem>
+                  {filteredAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">Агрегат</Label>
+              <Select value={selectedUnit} onValueChange={setSelectedUnit} disabled={selectedAsset === 'all'}>
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="Все агрегаты" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все агрегаты</SelectItem>
+                  {filteredUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="text-xs text-slate-400 mb-3 no-print">
+            Найдено точек отбора: <span className="font-semibold text-slate-600">{filteredPoints.length}</span>
+            {samplingPoints.length > 0 && ` (всего в системе: ${samplingPoints.length})`}
           </div>
 
           <div id="print-area">
@@ -126,14 +195,22 @@ export default function QRManager() {
                 <QRCard
                   key={p.id}
                   value={p.id}
-                  label={p.point_name}
-                  sublabel={`${getAssetName(p.asset_id)} · ${getUnitName(p.equipment_unit_id)}`}
+                  pointName={p.point_name}
+                  unitName={getUnitName(p.equipment_unit_id)}
+                  assetName={getAssetName(p.asset_id)}
+                  clientName={getClientName(p.client_id)}
                 />
               ))}
               {filteredPoints.length === 0 && (
                 <div className="col-span-4 text-center py-12 text-slate-400">
                   <MapPin className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                  <p>Точек отбора не найдено</p>
+                  <p className="text-sm">Точек отбора не найдено</p>
+                  {samplingPoints.length === 0 && (
+                    <p className="text-xs mt-1 text-slate-300">В системе ещё нет ни одной точки отбора. Создайте их на странице «Точки отбора».</p>
+                  )}
+                  {samplingPoints.length > 0 && selectedClient !== 'all' && (
+                    <p className="text-xs mt-1 text-slate-300">Для выбранного клиента / судна / агрегата точек не найдено.</p>
+                  )}
                 </div>
               )}
             </div>
@@ -145,10 +222,10 @@ export default function QRManager() {
       {tab === 'cans' && (
         <div>
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 no-print">
-            <p className="text-sm font-semibold text-blue-900 mb-2">Генерация QR-кодов для банок</p>
+            <p className="text-sm font-semibold text-blue-900 mb-1">Генерация QR-кодов для банок</p>
             <p className="text-sm text-blue-700 mb-4">
-              Создайте уникальные QR-коды, распечатайте и наклейте на банки. 
-              Клиент при отборе пробы сканирует код банки — он привяжется к пробе автоматически.
+              Создайте уникальные QR-коды, распечатайте и наклейте на банки.
+              При отборе пробы оператор сканирует код банки — он привяжется к пробе автоматически.
             </p>
             <div className="flex items-center gap-3">
               <div className="space-y-1">
@@ -178,12 +255,7 @@ export default function QRManager() {
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {generatedCans.map((canId, i) => (
-                  <QRCard
-                    key={canId}
-                    value={canId}
-                    label={`Банка #${String(i + 1).padStart(3, '0')}`}
-                    sublabel="Для отбора пробы масла"
-                  />
+                  <CanQRCard key={canId} value={canId} index={i} />
                 ))}
               </div>
             </div>
