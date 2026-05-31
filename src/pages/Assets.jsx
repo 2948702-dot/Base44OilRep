@@ -230,6 +230,7 @@ export default function Assets() {
 
   const { data: assets = [], isLoading } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
+  const { data: equipUnits = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
   const { data: oilRefs = [] } = useQuery({ queryKey: ['oil-refs'], queryFn: () => base44.entities.OilReference.list() });
 
   const sanitizeUnit = (u) => {
@@ -322,10 +323,8 @@ export default function Assets() {
           <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Наименование</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Клиент</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Рег. номер</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Местоположение</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Марка масла</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Объём масла</th>
               <th className="w-20 px-4 py-2.5"></th>
             </tr>
           </thead>
@@ -334,13 +333,18 @@ export default function Assets() {
               <tr><td colSpan={6} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
             ) : filtered.length === 0 ? (
               <tr><td colSpan={6} className="text-center py-10 text-slate-400">Активы не найдены</td></tr>
-            ) : filtered.map(a => (
+            ) : filtered.map(a => {
+              const assetUnits = equipUnits.filter(u => u.asset_id === a.id);
+              const oilBrands = [...new Set(assetUnits.map(u => u.oil_brand).filter(Boolean))];
+              const totalVolume = assetUnits.reduce((sum, u) => u.oil_volume ? sum + u.oil_volume : sum, 0);
+              return (
               <tr key={a.id} className="border-b border-slate-50 hover:bg-slate-50">
-                <td className="px-4 py-2.5 font-medium text-slate-900">{a.asset_name}</td>
-                <td className="px-4 py-2.5 text-slate-600">{ASSET_TYPES[a.asset_type] || a.asset_type}</td>
-                <td className="px-4 py-2.5 text-slate-600">{getClient(a.client_id)}</td>
-                <td className="px-4 py-2.5 text-slate-600">{a.registration_number || '—'}</td>
-                <td className="px-4 py-2.5 text-slate-600">{a.location || '—'}</td>
+                <td className="px-4 py-2.5">
+                  <div className="font-medium text-slate-900">{a.asset_name}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{getClient(a.client_id)}</div>
+                </td>
+                <td className="px-4 py-2.5 text-slate-600 text-sm">{oilBrands.length > 0 ? oilBrands.join(', ') : '—'}</td>
+                <td className="px-4 py-2.5 text-slate-600 text-sm">{totalVolume > 0 ? `${totalVolume} л` : '—'}</td>
                 <td className="px-4 py-2.5">
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(a)}>
@@ -352,7 +356,8 @@ export default function Assets() {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
