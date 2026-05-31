@@ -56,7 +56,10 @@ export default function AnalysisResults() {
   const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
 
   const save = useMutation({
-    mutationFn: d => d.id ? base44.entities.AnalysisResult.update(d.id, d) : base44.entities.AnalysisResult.create(d),
+    mutationFn: d => {
+      const { id, ...payload } = d;
+      return id ? base44.entities.AnalysisResult.update(id, payload) : base44.entities.AnalysisResult.create(payload);
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['analysis-results'] }); setOpen(false); setForm(DEF); }
   });
   const del = useMutation({
@@ -166,7 +169,7 @@ export default function AnalysisResults() {
                       <Button variant="ghost" size="icon" className="h-7 w-7" title="Экспорт PDF" onClick={() => handleExportSample(r)}>
                           <FileDown className="w-3.5 h-3.5 text-blue-500" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm(r); setOpen(true); }}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm({...r}); setOpen(true); }}>
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить результат?') && del.mutate(r.id)}>
