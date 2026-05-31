@@ -14,8 +14,6 @@ import { SAMPLING_METHODS } from '@/utils/labels';
 const DEF_POINT = {
   point_name: '',
   sampling_method: '',
-  current_total_hours: '',
-  current_oil_hours: '',
   comments: ''
 };
 
@@ -32,10 +30,8 @@ export default function SamplingPointsPanel({ unit, oils = [] }) {
 
   const clean = (d) => {
     const out = { ...d };
-    ['oil_volume', 'current_total_hours', 'current_oil_hours'].forEach(k => {
-      if (out[k] === '' || out[k] === undefined) delete out[k];
-      else out[k] = Number(out[k]);
-    });
+    if (out.oil_volume === '' || out.oil_volume === undefined) delete out.oil_volume;
+    else out.oil_volume = Number(out.oil_volume);
     if (!out.oil_type_id) delete out.oil_type_id;
     return out;
   };
@@ -77,8 +73,6 @@ export default function SamplingPointsPanel({ unit, oils = [] }) {
       id: p.id,
       point_name: p.point_name || '',
       sampling_method: p.sampling_method || '',
-      current_total_hours: p.current_total_hours ?? '',
-      current_oil_hours: p.current_oil_hours ?? '',
       comments: p.comments || ''
     });
     setOpen(true);
@@ -115,8 +109,8 @@ export default function SamplingPointsPanel({ unit, oils = [] }) {
               <tr>
                 <th className="text-left px-3 py-2 font-medium text-slate-500">Точка отбора</th>
                 <th className="text-left px-3 py-2 font-medium text-slate-500">Метод</th>
-                <th className="text-left px-3 py-2 font-medium text-slate-500">М/ч масла</th>
-                <th className="text-left px-3 py-2 font-medium text-slate-500">М/ч всего</th>
+                <th className="text-left px-3 py-2 font-medium text-slate-500">М/ч масла (агрегат)</th>
+                <th className="text-left px-3 py-2 font-medium text-slate-500">М/ч всего (агрегат)</th>
                 <th className="w-16 px-3 py-2"></th>
               </tr>
             </thead>
@@ -125,8 +119,8 @@ export default function SamplingPointsPanel({ unit, oils = [] }) {
                 <tr key={p.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50">
                   <td className="px-3 py-2 font-medium text-slate-800">{p.point_name}</td>
                   <td className="px-3 py-2 text-slate-500">{SAMPLING_METHODS[p.sampling_method] || '—'}</td>
-                  <td className="px-3 py-2 text-slate-500">{p.current_oil_hours ?? '—'}</td>
-                  <td className="px-3 py-2 text-slate-500">{p.current_total_hours ?? '—'}</td>
+                  <td className="px-3 py-2 text-slate-500">{unit.current_oil_hours ?? unit.current_total_hours ?? '—'}</td>
+                  <td className="px-3 py-2 text-slate-500">{unit.current_total_hours ?? unit.total_operating_hours ?? '—'}</td>
                   <td className="px-3 py-2">
                     <div className="flex gap-0.5">
                       <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openEdit(p)}>
@@ -171,13 +165,8 @@ export default function SamplingPointsPanel({ unit, oils = [] }) {
               </Select>
             </div>
 
-            <div className="space-y-1">
-              <Label>М/ч масла</Label>
-              <Input type="number" placeholder="0" value={form.current_oil_hours} onChange={e => f('current_oil_hours', e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>М/ч всего</Label>
-              <Input type="number" placeholder="0" value={form.current_total_hours} onChange={e => f('current_total_hours', e.target.value)} />
+            <div className="col-span-2 bg-blue-50 border border-blue-100 rounded-md px-3 py-2 text-xs text-blue-700">
+              Моточасы агрегата управляются автоматически через события ТО.
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Комментарии</Label>

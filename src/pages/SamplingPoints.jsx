@@ -12,7 +12,7 @@ import { SAMPLING_METHODS } from '@/utils/labels';
 import OilSearch from '@/components/OilSearch';
 import OilFormDialog from '@/components/OilFormDialog';
 
-const DEF = { client_id: '', asset_id: '', equipment_unit_id: '', point_name: '', qr_code: '', oil_type_id: '', oil_volume: '', current_total_hours: '', current_oil_hours: '', sampling_method: '', comments: '' };
+const DEF = { client_id: '', asset_id: '', equipment_unit_id: '', point_name: '', qr_code: '', oil_type_id: '', oil_volume: '', sampling_method: '', comments: '' };
 
 export default function SamplingPoints() {
   const [open, setOpen] = useState(false);
@@ -161,13 +161,8 @@ export default function SamplingPoints() {
               <Label>Объём масла, л</Label>
               <Input type="number" value={form.oil_volume ?? ''} onChange={e => f('oil_volume', e.target.value === '' ? '' : +e.target.value)} />
             </div>
-            <div className="space-y-1">
-              <Label>М/ч всего</Label>
-              <Input type="number" value={form.current_total_hours ?? ''} onChange={e => f('current_total_hours', e.target.value === '' ? '' : +e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>М/ч масла</Label>
-              <Input type="number" value={form.current_oil_hours ?? ''} onChange={e => f('current_oil_hours', e.target.value === '' ? '' : +e.target.value)} />
+            <div className="col-span-2">
+              <p className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-md px-3 py-2">Моточасы агрегата управляются автоматически через события ТО. Для редактирования перейдите в карточку агрегата.</p>
             </div>
             <div className="space-y-1">
               <Label>QR код</Label>

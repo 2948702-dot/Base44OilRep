@@ -50,6 +50,7 @@ export default function MobileSampling() {
   const { data: samplingPoints = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
   const { data: equipmentUnits = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
+  const { data: lifecycles = [] } = useQuery({ queryKey: ['oil-lifecycles'], queryFn: () => base44.entities.OilLifecycle.list(undefined, 500) });
 
   const saveSample = useMutation({
     mutationFn: () => base44.entities.OilSample.create({
@@ -68,32 +69,84 @@ export default function MobileSampling() {
 
   const saveEvent = useMutation({
     mutationFn: async () => {
+      const unitId = samplingPoint.equipment_unit_id;
+      const today = format(new Date(), 'yyyy-MM-dd');
       const base = {
-        event_date: format(new Date(), 'yyyy-MM-dd'),
+        event_date: today,
         client_id: samplingPoint.client_id,
         asset_id: samplingPoint.asset_id,
-        equipment_unit_id: samplingPoint.equipment_unit_id,
+        equipment_unit_id: unitId,
         sampling_point_id: samplingPoint.id,
-        new_oil_type_id: eventForm.oil_type_id || undefined,
         total_operating_hours: eventForm.total_operating_hours ? Number(eventForm.total_operating_hours) : undefined,
         comment: eventForm.comments || undefined,
       };
       if (mode === 'topup') {
-        await base44.entities.MaintenanceEvent.create({ ...base, event_type: 'oil_topup', added_oil_volume: eventForm.volume ? Number(eventForm.volume) : undefined });
+        await base44.entities.MaintenanceEvent.create({
+          ...base,
+          event_type: 'oil_topup',
+          new_oil_type_id: eventForm.oil_type_id || undefined,
+          added_oil_volume: eventForm.volume ? Number(eventForm.volume) : undefined
+        });
       } else if (mode === 'change') {
-        await base44.entities.MaintenanceEvent.create({ ...base, event_type: 'oil_change', replaced_oil_volume: eventForm.volume ? Number(eventForm.volume) : undefined });
+        const currentUnit = equipmentUnits.find(u => u.id === unitId);
+        await base44.entities.MaintenanceEvent.create({
+          ...base,
+          event_type: 'oil_change',
+          old_oil_type_id: currentUnit?.current_oil_type_id || currentUnit?.oil_type_id || undefined,
+          new_oil_type_id: eventForm.oil_type_id || undefined,
+          replaced_oil_volume: eventForm.volume ? Number(eventForm.volume) : undefined
+        });
+        // Close active lifecycle for this sampling point
+        const activeLC = lifecycles.find(l => l.sampling_point_id === samplingPoint.id && l.status === 'active');
+        if (activeLC) {
+          await base44.entities.OilLifecycle.update(activeLC.id, {
+            status: 'closed', end_date: today,
+            end_operating_hours: base.total_operating_hours, end_reason: 'Замена масла'
+          });
+        }
+        if (eventForm.oil_type_id) {
+          await base44.entities.OilLifecycle.create({
+            sampling_point_id: samplingPoint.id,
+            oil_type_id: eventForm.oil_type_id,
+            start_date: today,
+            start_operating_hours: base.total_operating_hours,
+            status: 'active', start_reason: 'Замена масла'
+          });
+        }
         if (eventForm.filter_changed) {
           await base44.entities.MaintenanceEvent.create({ ...base, event_type: 'oil_filter' });
         }
       }
+      // Recalculate equipment unit state from full event history
+      if (unitId) {
+        await base44.functions.invoke('recalculateEquipmentUnitState', { equipment_unit_id: unitId });
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['maintenance-events'] }); setStep(2); }
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['maintenance-events'] });
+      qc.invalidateQueries({ queryKey: ['oil-lifecycles'] });
+      qc.invalidateQueries({ queryKey: ['equipment-units'] });
+      setStep(2);
+    }
   });
+
+  const selectPoint = (point) => {
+    setSamplingPoint(point);
+    // Pre-fill hours from current EquipmentUnit state
+    const unit = equipmentUnits.find(u => u.id === point.equipment_unit_id);
+    if (unit) {
+      const currentTotal = unit.current_total_hours ?? unit.total_operating_hours ?? '';
+      const currentOil = unit.current_oil_hours ?? '';
+      setSampleForm(p => ({ ...p, total_hours_at_sampling: currentTotal, oil_hours_at_sampling: currentOil }));
+      setEventForm(p => ({ ...p, total_operating_hours: currentTotal }));
+    }
+    setStep(1);
+  };
 
   const handlePointQR = (data) => {
     setScanner(null);
     const point = samplingPoints.find(p => p.id === data || p.qr_code === data);
-    if (point) { setSamplingPoint(point); setStep(1); }
+    if (point) selectPoint(point);
     else alert('Точка отбора не найдена. Попробуйте выбрать вручную.');
   };
 
@@ -204,7 +257,7 @@ export default function MobileSampling() {
             <div className="space-y-2">
               {filteredPoints.map(p => (
                 <button key={p.id} className="w-full text-left bg-white rounded-xl p-4 border border-slate-200 hover:border-blue-300 active:bg-blue-50"
-                  onClick={() => { setSamplingPoint(p); setStep(1); }}>
+                  onClick={() => selectPoint(p)}>
                   <p className="font-semibold text-slate-900">{p.point_name}</p>
                   <p className="text-sm text-slate-500 mt-0.5">{getUnitName(p.equipment_unit_id)}</p>
                 </button>
