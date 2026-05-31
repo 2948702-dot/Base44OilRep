@@ -11,14 +11,10 @@ import QRScanner from '@/components/mobile/QRScanner';
 const PARAMS = [
   { key: 'iron_mg_l', label: 'Железо', unit: 'мг/л' },
   { key: 'water_ppm', label: 'Вода', unit: 'ppm' },
-  { key: 'water_activity', label: 'Активность воды', unit: 'aw' },
+  { key: 'water_activity', label: 'Активность воды', unit: '%' },
   { key: 'viscosity_40', label: 'Вязкость 40°C', unit: 'мм²/с' },
-  { key: 'viscosity_100', label: 'Вязкость 100°C', unit: 'мм²/с' },
   { key: 'density', label: 'Плотность', unit: 'кг/м³' },
   { key: 'dielectric_constant', label: 'Диэлектр. константа', unit: '' },
-  { key: 'water_index', label: 'Индекс воды', unit: '0-100' },
-  { key: 'wear_index', label: 'Индекс износа', unit: '0-100' },
-  { key: 'oil_health_index', label: 'ИЗМ (OHI)', unit: '0-100' },
 ];
 
 function StatusDot({ value, rules, paramKey }) {

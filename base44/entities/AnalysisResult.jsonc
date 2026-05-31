@@ -16,15 +16,11 @@
     },
     "water_activity": {
       "type": "number",
-      "title": "Water Activity (aw)"
+      "title": "Water Activity (%)"
     },
     "viscosity_40": {
       "type": "number",
       "title": "Viscosity at 40C (mm2/s)"
-    },
-    "viscosity_100": {
-      "type": "number",
-      "title": "Viscosity at 100C (mm2/s)"
     },
     "density": {
       "type": "number",
@@ -34,21 +30,9 @@
       "type": "number",
       "title": "Dielectric Constant"
     },
-    "water_index": {
-      "type": "number",
-      "title": "Water Index (0-100)"
-    },
     "wear_index": {
       "type": "number",
       "title": "Wear Index (0-100)"
-    },
-    "viscosity_index_calc": {
-      "type": "number",
-      "title": "Viscosity Index (0-100)"
-    },
-    "dielectric_index": {
-      "type": "number",
-      "title": "Dielectric Index (0-100)"
     },
     "oil_health_index": {
       "type": "number",
