@@ -90,7 +90,20 @@ export default function AnalysisResults() {
 
   const save = useMutation({
     mutationFn: async d => {
-      const { id, ...payload } = cleanAnalysisResultPayload(d);
+      const oilRef = getOilForSample(d.sample_id);
+      const sample = samples.find(s => s.id === d.sample_id);
+      const existingResult = d.sample_id ? results.find(r => r.sample_id === d.sample_id) : null;
+      const targetId = d.id || existingResult?.id;
+
+      const withIndexes = calcIndexes({
+        ...d,
+        id: targetId,
+        client_id: d.client_id || existingResult?.client_id || sample?.client_id || '',
+        asset_id: d.asset_id || existingResult?.asset_id || sample?.asset_id || '',
+      }, oilRef);
+
+      const { id, ...payload } = cleanAnalysisResultPayload(withIndexes);
+
       const result = id
         ? await base44.entities.AnalysisResult.update(id, payload)
         : await base44.entities.AnalysisResult.create(payload);
