@@ -10,22 +10,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Pencil, Trash2, Calculator, FileDown, Download } from 'lucide-react';
 import { exportSamplePDF, exportEquipmentReportPDF } from '@/utils/pdfExport';
 import StatusBadge from '@/components/StatusBadge';
+import { findFreshOilBaseline, getReferenceValue } from '@/utils/oilBaselines';
 
-function calcIndexes(r, oilRef) {
+function calcIndexes(r, oilRef, baselineResult = null) {
   const waterAct = r.water_activity ? Math.max(0, Math.min(100, 100 - (r.water_activity / 0.8) * 100)) : 100;
-  const waterPpm = (r.water_ppm && oilRef?.lab_water_ppm)
-    ? Math.max(0, Math.min(100, 100 - Math.abs(r.water_ppm - oilRef.lab_water_ppm) / (oilRef.lab_water_ppm || 100) * 200))
+  const waterRef = getReferenceValue('water_ppm', oilRef, baselineResult).value;
+  const waterPpm = (r.water_ppm && waterRef)
+    ? Math.max(0, Math.min(100, 100 - Math.abs(r.water_ppm - waterRef) / Math.max(waterRef, 100) * 200))
     : 100;
   const water_index = Math.round((waterAct + waterPpm) / 2);
   const wear_index = r.iron_mg_l ? Math.max(0, Math.min(100, 100 - (r.iron_mg_l / 100) * 100)) : 100;
   let viscosity_index_calc = 100;
-  if (r.viscosity_40 && oilRef?.passport_viscosity_40) {
-    const dev = Math.abs(r.viscosity_40 - oilRef.passport_viscosity_40) / oilRef.passport_viscosity_40;
+  const viscosityRef = getReferenceValue('viscosity_40', oilRef, baselineResult).value;
+  if (r.viscosity_40 && viscosityRef) {
+    const dev = Math.abs(r.viscosity_40 - viscosityRef) / viscosityRef;
     viscosity_index_calc = Math.max(0, Math.min(100, 100 - dev * 500));
   }
   let dielectric_index = 100;
-  if (r.dielectric_constant && oilRef?.passport_dielectric) {
-    const dev = Math.abs(r.dielectric_constant - oilRef.passport_dielectric) / oilRef.passport_dielectric;
+  const dielectricRef = getReferenceValue('dielectric_constant', oilRef, baselineResult).value;
+  if (r.dielectric_constant && dielectricRef) {
+    const dev = Math.abs(r.dielectric_constant - dielectricRef) / dielectricRef;
     dielectric_index = Math.max(0, Math.min(100, 100 - dev * 300));
   }
   const oil_health_index = Math.round(water_index * 0.3 + wear_index * 0.3 + viscosity_index_calc * 0.25 + dielectric_index * 0.15);
@@ -92,6 +96,7 @@ export default function AnalysisResults() {
     mutationFn: async d => {
       const oilRef = getOilForSample(d.sample_id);
       const sample = samples.find(s => s.id === d.sample_id);
+      const baseline = findFreshOilBaseline(sample, samples, results, units);
       const existingResult = d.sample_id ? results.find(r => r.sample_id === d.sample_id) : null;
       const targetId = d.id || existingResult?.id;
 
@@ -100,7 +105,7 @@ export default function AnalysisResults() {
         id: targetId,
         client_id: d.client_id || existingResult?.client_id || sample?.client_id || '',
         asset_id: d.asset_id || existingResult?.asset_id || sample?.asset_id || '',
-      }, oilRef);
+      }, oilRef, baseline?.result);
 
       const { id, ...payload } = cleanAnalysisResultPayload(withIndexes);
 
@@ -160,7 +165,9 @@ export default function AnalysisResults() {
 
   const handleCalc = () => {
     const oilRef = getOilForSample(form.sample_id);
-    setForm(prev => calcIndexes({ ...prev }, oilRef));
+    const sample = samples.find(s => s.id === form.sample_id);
+    const baseline = findFreshOilBaseline(sample, samples, results, units);
+    setForm(prev => calcIndexes({ ...prev }, oilRef, baseline?.result));
   };
 
   const filtered = results.filter(r => filterSample === 'none' || r.sample_id === filterSample);
@@ -171,10 +178,11 @@ export default function AnalysisResults() {
     const s = getSample(r.sample_id);
     const pt = points.find(p => p.id === s?.sampling_point_id);
     const oilRef = getOilForSample(r.sample_id);
+    const baseline = findFreshOilBaseline(s, samples, results, units);
     const client = clients.find(c => c.id === s?.client_id);
     const asset = assets.find(a => a.id === s?.asset_id);
     const unit = units.find(u => u.id === s?.equipment_unit_id);
-    exportSamplePDF({ result: r, sample: s, oilRef, client, asset, unit, point: pt });
+    exportSamplePDF({ result: r, sample: s, oilRef, baseline: baseline?.result, client, asset, unit, point: pt });
   };
 
   const handleExportAll = () => {

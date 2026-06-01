@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { findFreshOilBaseline } from '@/utils/oilBaselines';
 
 const STATUS_LABEL = { green: 'ХОРОШЕЕ', yellow: 'ВНИМАНИЕ', red: 'КРИТИЧЕСКОЕ' };
 const STATUS_RGB = { green: [22, 163, 74], yellow: [202, 138, 4], red: [220, 38, 38] };
@@ -154,7 +155,7 @@ function drawFooter(doc, pageNum) {
 // ─────────────────────────────────────────────
 // Export single sample report
 // ─────────────────────────────────────────────
-export function exportSamplePDF({ result, sample, oilRef, client, asset, unit, point }) {
+export function exportSamplePDF({ result, sample, oilRef, baseline, client, asset, unit, point }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
   let y = drawHeader(doc, 'Отчёт по пробе масла', `Проба: ${sample?.sample_number || '—'} · Дата: ${sample?.sampling_date || '—'}`);
@@ -179,6 +180,15 @@ export function exportSamplePDF({ result, sample, oilRef, client, asset, unit, p
   drawKV(doc, 'М/ч на момент отбора', sample?.total_hours_at_sampling, 75, y);
   drawKV(doc, 'Часы на масле', sample?.oil_hours_at_sampling, 140, y);
   y += 14;
+
+  if (baseline) {
+    y = drawSection(doc, 'БАЗОВЫЙ ЛАБОРАТОРНЫЙ АНАЛИЗ СВЕЖЕГО МАСЛА', y);
+    drawKV(doc, 'Вязкость 40°C', baseline.viscosity_40, 10, y);
+    drawKV(doc, 'Плотность', baseline.density, 55, y);
+    drawKV(doc, 'Диэлектр.', baseline.dielectric_constant, 100, y);
+    drawKV(doc, 'Вода ppm', baseline.water_ppm, 145, y);
+    y += 14;
+  }
 
   // Measurements
   y = drawSection(doc, 'РЕЗУЛЬТАТЫ ИЗМЕРЕНИЙ', y);
@@ -285,6 +295,7 @@ export function exportEquipmentReportPDF({ results, samples, oilRefs, clients, a
     const unit = units.find(u => u.id === s.equipment_unit_id);
     const pt = points.find(p => p.id === s.sampling_point_id);
     const oilRef = oilRefs.find(o => o.id === (s.oil_type_id || unit?.current_oil_type_id || unit?.oil_type_id));
+    const baseline = findFreshOilBaseline(s, samples, results, units);
 
     let py = drawHeader(doc, `Проба ${s.sample_number}`, `${asset?.asset_name || ''} · ${unit?.unit_name || ''} · ${s.sampling_date || ''}`);
 
@@ -299,6 +310,15 @@ export function exportEquipmentReportPDF({ results, samples, oilRefs, clients, a
     py = drawSection(doc, 'РЕЗУЛЬТАТЫ ИЗМЕРЕНИЙ', py);
     py = drawMeasurements(doc, r, py);
     py += 3;
+
+    if (baseline?.result) {
+      py = drawSection(doc, 'БАЗОВЫЙ АНАЛИЗ СВЕЖЕГО МАСЛА', py);
+      drawKV(doc, 'Проба', baseline.sample.sample_number, 10, py);
+      drawKV(doc, 'Вязкость 40°C', baseline.result.viscosity_40, 55, py);
+      drawKV(doc, 'Диэлектр.', baseline.result.dielectric_constant, 110, py);
+      drawKV(doc, 'Плотность', baseline.result.density, 155, py);
+      py += 14;
+    }
 
     py = drawSection(doc, 'ИНДЕКСЫ', py);
     py = drawIndices(doc, r, py);

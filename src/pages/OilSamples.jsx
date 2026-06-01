@@ -59,6 +59,9 @@ export default function OilSamples() {
   const cleanForm = (d) => {
     const c = { ...d };
     ['total_hours_at_sampling', 'oil_hours_at_sampling'].forEach(k => { if (c[k] === '' || c[k] === null) delete c[k]; });
+    ['asset_id', 'equipment_unit_id', 'sampling_point_id', 'oil_type_id', 'lifecycle_id', 'batch_number', 'production_date', 'storage_type', 'delivery_date', 'supplier', 'operator_user_id', 'comments'].forEach(k => {
+      if (c[k] === '' || c[k] === null || c[k] === undefined) delete c[k];
+    });
     return c;
   };
 
@@ -98,7 +101,13 @@ export default function OilSamples() {
   const filtAssets = assets.filter(a => !form.client_id || a.client_id === form.client_id);
   const filtUnits = units.filter(u => !form.asset_id || u.asset_id === form.asset_id);
   const filtPoints = points.filter(p => !form.equipment_unit_id || p.equipment_unit_id === form.equipment_unit_id);
-  const activeLC = lifecycles.filter(l => l.status === 'active' && (!form.sampling_point_id || l.sampling_point_id === form.sampling_point_id));
+  const unitPointIds = points.filter(p => p.equipment_unit_id === form.equipment_unit_id).map(p => p.id);
+  const activeLC = lifecycles.filter(l => {
+    if (l.status !== 'active') return false;
+    if (form.sampling_point_id) return l.sampling_point_id === form.sampling_point_id;
+    if (form.equipment_unit_id) return unitPointIds.includes(l.sampling_point_id);
+    return true;
+  });
 
   const filteredAssetOptions = assets.filter(a => !filterClient || a.client_id === filterClient);
   const currentAnalysis = results.find(r => r.sample_id === form.id);
@@ -263,15 +272,17 @@ export default function OilSamples() {
               <Input type="date" value={form.sampling_date} onChange={e => f('sampling_date', e.target.value)} />
             </div>
 
-            {form.sample_type === 'in_service' && (
+            {(form.sample_type === 'in_service' || form.sample_type === 'fresh_oil') && (
               <>
-                <div className="space-y-1">
-                  <Label>Состояние агрегата <span className="text-red-500">*</span></Label>
-                  <Select value={form.engine_state} onValueChange={v => f('engine_state', v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{Object.entries(ENGINE_STATES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
+                {form.sample_type === 'in_service' && (
+                  <div className="space-y-1">
+                    <Label>Состояние агрегата <span className="text-red-500">*</span></Label>
+                    <Select value={form.engine_state} onValueChange={v => f('engine_state', v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{Object.entries(ENGINE_STATES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="col-span-3 space-y-2">
                   <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Иерархия объекта</Label>
                   <div className="grid grid-cols-3 gap-2">
@@ -303,14 +314,38 @@ export default function OilSamples() {
                     unit={units.find(u => u.id === form.equipment_unit_id)?.unit_name}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label>М/ч всего</Label>
-                  <Input type="number" value={form.total_hours_at_sampling} onChange={e => f('total_hours_at_sampling', e.target.value === '' ? '' : +e.target.value)} placeholder="не указано" />
-                </div>
-                <div className="space-y-1">
-                  <Label>М/ч масла</Label>
-                  <Input type="number" value={form.oil_hours_at_sampling} onChange={e => f('oil_hours_at_sampling', e.target.value === '' ? '' : +e.target.value)} placeholder="не указано" />
-                </div>
+                {form.sample_type === 'fresh_oil' && (
+                  <div className="col-span-3 grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Масло *</Label>
+                      <Select value={form.oil_type_id} onValueChange={v => f('oil_type_id', v)}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Выберите масло" /></SelectTrigger>
+                        <SelectContent>{oils.map(o => <SelectItem key={o.id} value={o.id}>{o.oil_name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    {activeLC.length > 0 && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">База для цикла масла</Label>
+                        <Select value={form.lifecycle_id} onValueChange={v => f('lifecycle_id', v)}>
+                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Выберите цикл" /></SelectTrigger>
+                          <SelectContent>{activeLC.map(l => <SelectItem key={l.id} value={l.id}>{l.start_date} — активный</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {form.sample_type === 'in_service' && (
+                  <>
+                    <div className="space-y-1">
+                      <Label>М/ч всего</Label>
+                      <Input type="number" value={form.total_hours_at_sampling} onChange={e => f('total_hours_at_sampling', e.target.value === '' ? '' : +e.target.value)} placeholder="не указано" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>М/ч масла</Label>
+                      <Input type="number" value={form.oil_hours_at_sampling} onChange={e => f('oil_hours_at_sampling', e.target.value === '' ? '' : +e.target.value)} placeholder="не указано" />
+                    </div>
+                  </>
+                )}
               </>
             )}
 
@@ -403,7 +438,7 @@ export default function OilSamples() {
                   }
                 }
               });
-            }} disabled={!form.sample_number || !form.sampling_date || (form.sample_type === 'in_service' && !form.client_id) || (form.sample_type === 'in_service' && !form.engine_state) || save.isPending || saveAnalysis.isPending}>
+            }} disabled={!form.sample_number || !form.sampling_date || !form.client_id || !form.asset_id || !form.equipment_unit_id || (form.sample_type === 'fresh_oil' && !form.oil_type_id) || (form.sample_type === 'in_service' && !form.engine_state) || save.isPending || saveAnalysis.isPending}>
               {save.isPending || saveAnalysis.isPending ? 'Сохранение...' : 'Сохранить'}
             </Button>
           </DialogFooter>

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 
 import { FileText, Download } from 'lucide-react';
 import StatusBadge from '@/components/StatusBadge';
+import { findFreshOilBaseline, getReferenceValue } from '@/utils/oilBaselines';
 
 export default function Reports() {
   const [selectedSample, setSelectedSample] = useState('');
@@ -34,6 +35,7 @@ export default function Reports() {
   const point = points.find(p => p.id === sample?.sampling_point_id);
   const oil = oils.find(o => o.id === (sample?.oil_type_id || unit?.current_oil_type_id || unit?.oil_type_id));
   const lifecycle = lifecycles.find(l => l.id === sample?.lifecycle_id);
+  const baseline = findFreshOilBaseline(sample, samples, results, units);
 
   const getName = (list, id, field) => list.find(x => x.id === id)?.[field] || '—';
 
@@ -120,9 +122,9 @@ export default function Reports() {
         ['Железо', result.iron_mg_l, null, 'мг/л'],
         ['Вода растворённая', result.water_ppm, null, 'ppm'],
         ['Активность воды (aw)', result.water_activity, null, ''],
-        ['Вязкость при 40°C', result.viscosity_40, oil?.passport_viscosity_40, 'мм²/с'],
-        ['Плотность', result.density, oil?.passport_density_15, 'кг/м³'],
-        ['Диэлектрическая пост.', result.dielectric_constant, oil?.passport_dielectric, ''],
+        ['Вязкость при 40°C', result.viscosity_40, getReferenceValue('viscosity_40', oil, baseline?.result).value, 'мм²/с'],
+        ['Плотность', result.density, getReferenceValue('density', oil, baseline?.result).value, 'кг/м³'],
+        ['Диэлектрическая пост.', result.dielectric_constant, getReferenceValue('dielectric_constant', oil, baseline?.result).value, ''],
       ];
 
       // Table header
