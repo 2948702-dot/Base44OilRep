@@ -10,6 +10,7 @@ import { ArrowLeft } from 'lucide-react';
 import ParameterGauge from '@/components/ParameterGauge';
 import MaintenanceOverdueIndicator from '@/components/MaintenanceOverdueIndicator';
 import { EQ_TYPES } from '@/utils/labels';
+import { buildThresholdGaugeZones, resolveThresholdRule } from '@/utils/thresholdRules';
 
 const TREND_PARAMS = [
   { key: 'oil_health_index', label: 'OHI', color: '#3b82f6', result: true },
@@ -73,47 +74,6 @@ function ohiColor(v) {
   if (v >= 70) return 'text-green-600';
   if (v >= 40) return 'text-yellow-600';
   return 'text-red-600';
-}
-
-function findBestRule(rules, paramKey, oilTypeId, equipmentType) {
-  return (
-    rules.find(r => r.parameter_name === paramKey && r.oil_type_id === oilTypeId && r.equipment_type === equipmentType) ||
-    rules.find(r => r.parameter_name === paramKey && r.oil_type_id === oilTypeId && (!r.equipment_type || r.equipment_type === 'all')) ||
-    rules.find(r => r.parameter_name === paramKey && !r.oil_type_id && r.equipment_type === equipmentType) ||
-    rules.find(r => r.parameter_name === paramKey && !r.oil_type_id && (!r.equipment_type || r.equipment_type === 'all')) ||
-    null
-  );
-}
-
-function buildZonesFromRule(rule) {
-  if (!rule) return null;
-
-  if (rule.custom_ranges_mode && rule.ranges?.length > 0) {
-    const valid = rule.ranges.filter(r => r.min != null && r.max != null);
-    if (!valid.length) return null;
-    const totalMin = Math.min(...valid.map(r => r.min));
-    const totalMax = Math.max(...valid.map(r => r.max));
-    const span = totalMax - totalMin;
-    if (span <= 0) return null;
-    return {
-      zones: valid.map(r => ({ from: (r.min - totalMin) / span, to: (r.max - totalMin) / span, color: r.color || '#94a3b8' })).sort((a, b) => a.from - b.from),
-      min: totalMin,
-      max: totalMax,
-    };
-  }
-
-  const vals = [rule.red_min, rule.red_max, rule.yellow_min, rule.yellow_max, rule.green_min, rule.green_max].filter(v => v != null);
-  if (!vals.length) return null;
-  const totalMin = Math.min(...vals);
-  const totalMax = Math.max(...vals);
-  const span = totalMax - totalMin;
-  if (span <= 0) return null;
-  const norm = v => (v - totalMin) / span;
-  const segs = [];
-  if (rule.green_min != null && rule.green_max != null) segs.push({ from: norm(rule.green_min), to: norm(rule.green_max), color: '#22c55e' });
-  if (rule.yellow_min != null && rule.yellow_max != null) segs.push({ from: norm(rule.yellow_min), to: norm(rule.yellow_max), color: '#eab308' });
-  if (rule.red_min != null && rule.red_max != null) segs.push({ from: norm(rule.red_min), to: norm(rule.red_max), color: '#ef4444' });
-  return segs.length ? { zones: segs.sort((a, b) => a.from - b.from), min: totalMin, max: totalMax } : null;
 }
 
 export default function VesselDashboard() {
@@ -264,8 +224,8 @@ export default function VesselDashboard() {
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 mb-5">
                      {GAUGES.map(g => {
                         const oilTypeId = latestSample?.oil_type_id || eq?.current_oil_type_id || eq?.oil_type_id;
-                        const rule = findBestRule(thresholdRules, g.key, oilTypeId, eq?.equipment_type);
-                        const ruleZones = buildZonesFromRule(rule);
+                        const rule = resolveThresholdRule(thresholdRules, g.key, oilTypeId, eq);
+                        const ruleZones = buildThresholdGaugeZones(rule);
                         return (
                           <div key={g.key} className="bg-slate-50 rounded-xl border border-slate-100 px-2 py-2">
                             <ParameterGauge

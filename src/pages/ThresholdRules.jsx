@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Pencil, Trash2, Palette } from 'lucide-react';
 import ThresholdRangeBar from '@/components/ThresholdRangeBar';
 import StepperInput from '@/components/StepperInput';
-import { EQ_TYPES } from '@/utils/labels';
 
 const PARAMS = ['iron_mg_l', 'water_activity', 'water_ppm', 'density', 'viscosity_40', 'dielectric_constant'];
 
@@ -97,7 +96,6 @@ function calcDeviationZones(base, gl, gr, yl, yr, rl, rr) {
 export default function ThresholdRules() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
-  const [filterEq, setFilterEq] = useState('none');
   const [selected, setSelected] = useState(new Set());
   const qc = useQueryClient();
 
@@ -122,7 +120,7 @@ export default function ThresholdRules() {
   const toggle = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => setSelected(s => s.size === filtered.length ? new Set() : new Set(filtered.map(x => x.id)));
 
-  const filtered = filterEq === 'none' ? rules : rules.filter(r => r.equipment_type === filterEq);
+  const filtered = rules;
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const setParam = v => setForm(p => ({ ...p, parameter_name: v, unit: PARAM_UNITS[v] ?? '' }));
 
@@ -136,9 +134,11 @@ export default function ThresholdRules() {
   const updateRange = (i, key, val) => setForm(p => ({ ...p, ranges: p.ranges.map((r, idx) => idx === i ? { ...r, [key]: val } : r) }));
 
   const handleSave = () => {
+    if (!form.oil_type_id) return;
     let data = form.deviation_mode ? { ...form, ...devZones } : { ...form };
     data.equipment_type = 'all';
     delete data.equipment_unit_id;
+    delete data.sampling_point_id;
     if (!data.custom_ranges_mode) {
       // strip ranges with empty min/max to avoid validation errors
       data.ranges = [];
@@ -180,25 +180,12 @@ export default function ThresholdRules() {
         </div>
       </div>
 
-      <div className="mb-3">
-        <Select value={filterEq} onValueChange={setFilterEq}>
-          <SelectTrigger className="w-52"><SelectValue placeholder="Все типы оборудования" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Все</SelectItem>
-            <SelectItem value="all">Универсальный</SelectItem>
-            {Object.entries(EQ_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden overflow-x-auto">
         <table className="w-full text-sm min-w-max">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="w-8 px-3 py-2.5"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={filtered.length > 0 && selected.size === filtered.length} onChange={toggleAll} /></th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Параметр</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип<br/>обор.</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Ед.<br/>обор.</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Масло</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Ед.<br/>изм.</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Диапазоны</th>
@@ -207,9 +194,9 @@ export default function ThresholdRules() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={7} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
+              <tr><td colSpan={6} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-10 text-slate-400">Правила не найдены</td></tr>
+              <tr><td colSpan={6} className="text-center py-10 text-slate-400">Правила не найдены</td></tr>
             ) : filtered.map(r => (
               <tr key={r.id} className={`border-b border-slate-50 hover:bg-slate-50 ${selected.has(r.id) ? 'bg-blue-50' : ''}`}>
                 <td className="px-3 py-2.5"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={selected.has(r.id)} onChange={() => toggle(r.id)} /></td>
@@ -219,13 +206,7 @@ export default function ThresholdRules() {
                   </button>
                 </td>
                 <td className="px-4 py-2.5 text-slate-600 text-xs">
-                  {r.equipment_type === 'all' ? <span className="text-slate-400">Все типы</span> : <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">{EQ_TYPES[r.equipment_type] || r.equipment_type}</span>}
-                </td>
-                <td className="px-4 py-2.5 text-slate-600 text-xs">
-                  {r.equipment_unit_id ? <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-medium max-w-[90px] truncate block" title={r.equipment_unit_id}>{r.equipment_unit_id}</span> : <span className="text-slate-400">—</span>}
-                </td>
-                <td className="px-4 py-2.5 text-slate-600 text-xs">
-                  {r.oil_type_id ? <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-medium">{oils.find(o => o.id === r.oil_type_id)?.oil_name || '—'}</span> : <span className="text-slate-400">Все масла</span>}
+                  {r.oil_type_id ? <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-medium">{oils.find(o => o.id === r.oil_type_id)?.oil_name || '—'}</span> : <span className="text-red-500">Масло не задано</span>}
                 </td>
                 <td className="px-4 py-2.5 text-slate-500 text-xs">
                   {r.parameter_name === 'dielectric_constant' ? 'б/р' : (PARAM_UNITS[r.parameter_name] || r.unit || '—')}
@@ -319,11 +300,10 @@ export default function ThresholdRules() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label>Масло (необязательно)</Label>
-              <Select value={form.oil_type_id || NONE_VALUE} onValueChange={v => f('oil_type_id', v === NONE_VALUE ? '' : v)}>
-                <SelectTrigger><SelectValue placeholder="Все масла" /></SelectTrigger>
+              <Label>Масло *</Label>
+              <Select value={form.oil_type_id || ''} onValueChange={v => f('oil_type_id', v)}>
+                <SelectTrigger><SelectValue placeholder="Выберите масло" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NONE_VALUE}>Все масла</SelectItem>
                   {oils.map(o => <SelectItem key={o.id} value={o.id}>{o.oil_name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -506,7 +486,7 @@ export default function ThresholdRules() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
-            <Button onClick={handleSave} disabled={!form.parameter_name || save.isPending}>
+            <Button onClick={handleSave} disabled={!form.parameter_name || !form.oil_type_id || save.isPending}>
               {save.isPending ? 'Сохранение...' : 'Сохранить'}
             </Button>
           </DialogFooter>

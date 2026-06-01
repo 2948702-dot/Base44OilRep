@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Camera, Search, CheckCircle2, FlaskConical, ChevronRight, ChevronLeft } from 'lucide-react';
 import QRScanner from '@/components/mobile/QRScanner';
+import { getThresholdSeverity, resolveThresholdRule } from '@/utils/thresholdRules';
 
 const PARAMS = [
   { key: 'iron_mg_l', label: 'Железо', unit: 'мг/л' },
@@ -17,15 +18,13 @@ const PARAMS = [
   { key: 'dielectric_constant', label: 'Диэлектр. константа', unit: '' },
 ];
 
-function StatusDot({ value, rules, paramKey }) {
-  if (!value || !rules.length) return null;
-  const rule = rules.find(r => r.parameter_name === paramKey);
-  if (!rule) return null;
-  const v = Number(value);
+function StatusDot({ value, rule }) {
+  if (value === '' || value === null || value === undefined || !rule) return null;
+  const severity = getThresholdSeverity(rule, value);
   let color = 'bg-slate-300';
-  if (rule.green_min !== undefined && v >= rule.green_min && v <= rule.green_max) color = 'bg-green-500';
-  else if (rule.yellow_min !== undefined && v >= rule.yellow_min && v <= rule.yellow_max) color = 'bg-yellow-400';
-  else if (rule.red_min !== undefined && v >= rule.red_min && v <= rule.red_max) color = 'bg-red-500';
+  if (severity === 'green') color = 'bg-green-500';
+  else if (severity === 'yellow') color = 'bg-yellow-400';
+  else if (severity === 'red') color = 'bg-red-500';
   return <span className={`w-3 h-3 rounded-full ${color} flex-shrink-0 mt-1`} />;
 }
 
@@ -79,15 +78,17 @@ export default function MobileLab() {
       Object.entries(results).forEach(([k, v]) => {
         if (v !== '') numericResults[k] = Number(v);
       });
+      const unit = equipmentUnits.find(u => u.id === sample.equipment_unit_id);
+      const oilTypeId = sample.oil_type_id || unit?.current_oil_type_id || unit?.oil_type_id;
       // Determine status
       let overall = 'green';
       PARAMS.forEach(({ key }) => {
-        if (!numericResults[key]) return;
-        const rule = thresholds.find(r => r.parameter_name === key);
+        if (numericResults[key] === null || numericResults[key] === undefined || Number.isNaN(numericResults[key])) return;
+        const rule = resolveThresholdRule(thresholds, key, oilTypeId, unit);
         if (!rule) return;
-        const v = numericResults[key];
-        if (rule.red_min !== undefined && v >= rule.red_min && v <= rule.red_max) overall = 'red';
-        else if (overall !== 'red' && rule.yellow_min !== undefined && v >= rule.yellow_min && v <= rule.yellow_max) overall = 'yellow';
+        const severity = getThresholdSeverity(rule, numericResults[key]);
+        if (severity === 'red') overall = 'red';
+        else if (overall !== 'red' && severity === 'yellow') overall = 'yellow';
       });
       // Upsert: update existing result if any, create otherwise
       const existing = await base44.entities.AnalysisResult.filter({ sample_id: sample.id });
@@ -106,6 +107,8 @@ export default function MobileLab() {
 
   const getPointName = (id) => samplingPoints.find(p => p.id === id)?.point_name || '';
   const getUnitName = (id) => equipmentUnits.find(u => u.id === id)?.unit_name || '';
+  const selectedUnit = sample ? equipmentUnits.find(u => u.id === sample.equipment_unit_id) : null;
+  const selectedOilTypeId = sample?.oil_type_id || selectedUnit?.current_oil_type_id || selectedUnit?.oil_type_id;
 
   const filtered = pendingSamples.filter(s =>
     s.sample_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -187,7 +190,7 @@ export default function MobileLab() {
                       <p className="text-sm font-medium text-slate-800">{label}</p>
                       {unit && <p className="text-xs text-slate-400">{unit}</p>}
                     </div>
-                    <StatusDot value={results[key]} rules={thresholds} paramKey={key} />
+                    <StatusDot value={results[key]} rule={resolveThresholdRule(thresholds, key, selectedOilTypeId, selectedUnit)} />
                     <Input
                       className="w-28 h-10 text-right text-base"
                       inputMode="decimal"

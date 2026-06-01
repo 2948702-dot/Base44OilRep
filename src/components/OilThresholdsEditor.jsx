@@ -28,24 +28,20 @@ export default function OilThresholdsEditor({ oilId }) {
     enabled: !!oilId,
   });
 
-  // Initialize drafts from loaded rules (only for rows not yet in draft)
   useEffect(() => {
-    if (!rules.length) return;
-    setDrafts(prev => {
-      const next = { ...prev };
-      rules.forEach(r => {
-        if (!next[r.parameter_name]) {
-          next[r.parameter_name] = {
-            id: r.id,
-            green_min: r.green_min ?? '', green_max: r.green_max ?? '',
-            yellow_min: r.yellow_min ?? '', yellow_max: r.yellow_max ?? '',
-            red_min: r.red_min ?? '', red_max: r.red_max ?? '',
-          };
-        }
-      });
-      return next;
+    const next = {};
+    rules.forEach(r => {
+      if (!next[r.parameter_name]) {
+        next[r.parameter_name] = {
+          id: r.id,
+          green_min: r.green_min ?? '', green_max: r.green_max ?? '',
+          yellow_min: r.yellow_min ?? '', yellow_max: r.yellow_max ?? '',
+          red_min: r.red_min ?? '', red_max: r.red_max ?? '',
+        };
+      }
     });
-  }, [rules]);
+    setDrafts(next);
+  }, [oilId, rules]);
 
   const saveRule = useMutation({
     mutationFn: async ({ param, data }) => {
@@ -54,6 +50,9 @@ export default function OilThresholdsEditor({ oilId }) {
         oil_type_id: oilId,
         parameter_name: param,
         equipment_type: 'all',
+        custom_ranges_mode: false,
+        deviation_mode: false,
+        ranges: [],
         green_min: toNum(data.green_min), green_max: toNum(data.green_max),
         yellow_min: toNum(data.yellow_min), yellow_max: toNum(data.yellow_max),
         red_min: toNum(data.red_min), red_max: toNum(data.red_max),
