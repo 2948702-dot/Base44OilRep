@@ -70,24 +70,27 @@ function roundByParam(param, value) {
   return Number(value.toFixed(decimals));
 }
 
-function calculateDeviationRule(param, baseValue, greenPct, yellowPct, redPct) {
+function calculateDeviationRule(param, baseValue, greenLeftPct, greenRightPct, yellowLeftPct, yellowRightPct, redLeftPct, redRightPct) {
   const base = Number(baseValue);
-  const green = Number(greenPct);
-  const yellow = Number(yellowPct);
-  const red = Number(redPct);
+  const greenLeft = Number(greenLeftPct);
+  const greenRight = Number(greenRightPct);
+  const yellowLeft = Number(yellowLeftPct);
+  const yellowRight = Number(yellowRightPct);
+  const redLeft = Number(redLeftPct);
+  const redRight = Number(redRightPct);
 
-  if (![base, green, yellow, red].every(Number.isFinite)) {
+  if (![base, greenLeft, greenRight, yellowLeft, yellowRight, redLeft, redRight].every(Number.isFinite)) {
     return {};
   }
 
-  const range = pct => ({
-    min: roundByParam(param, base * (1 - pct / 100)),
-    max: roundByParam(param, base * (1 + pct / 100)),
+  const range = (leftPct, rightPct) => ({
+    min: roundByParam(param, base * (1 - leftPct / 100)),
+    max: roundByParam(param, base * (1 + rightPct / 100)),
   });
 
-  const greenRange = range(green);
-  const yellowRange = range(yellow);
-  const redRange = range(red);
+  const greenRange = range(greenLeft, greenRight);
+  const yellowRange = range(yellowLeft, yellowRight);
+  const redRange = range(redLeft, redRight);
 
   return {
     green_min: greenRange.min,
@@ -109,9 +112,12 @@ function emptyDraft(param) {
       }
     : {
         base_value: '',
-        green_pct: '',
-        yellow_pct: '',
-        red_pct: '',
+        green_left_pct: '',
+        green_right_pct: '',
+        yellow_left_pct: '',
+        yellow_right_pct: '',
+        red_left_pct: '',
+        red_right_pct: '',
       };
 }
 
@@ -131,9 +137,12 @@ function draftFromRule(param, rule) {
   return {
     id: rule.id,
     base_value: toInputValue(rule.base_value),
-    green_pct: toInputValue(rule.green_right_pct ?? rule.green_left_pct),
-    yellow_pct: toInputValue(rule.yellow_right_pct ?? rule.yellow_left_pct),
-    red_pct: toInputValue(rule.red_right_pct ?? rule.red_left_pct),
+    green_left_pct: toInputValue(rule.green_left_pct),
+    green_right_pct: toInputValue(rule.green_right_pct),
+    yellow_left_pct: toInputValue(rule.yellow_left_pct),
+    yellow_right_pct: toInputValue(rule.yellow_right_pct),
+    red_left_pct: toInputValue(rule.red_left_pct),
+    red_right_pct: toInputValue(rule.red_right_pct),
   };
 }
 
@@ -150,7 +159,16 @@ function absolutePreview(draft) {
 }
 
 function deviationPreview(param, draft) {
-  return calculateDeviationRule(param, draft.base_value, draft.green_pct, draft.yellow_pct, draft.red_pct);
+  return calculateDeviationRule(
+    param,
+    draft.base_value,
+    draft.green_left_pct,
+    draft.green_right_pct,
+    draft.yellow_left_pct,
+    draft.yellow_right_pct,
+    draft.red_left_pct,
+    draft.red_right_pct,
+  );
 }
 
 function cleanPayload(payload) {
@@ -215,12 +233,12 @@ export default function OilThresholdsEditor({ oilId }) {
           deviation_mode: true,
           ranges: [],
           base_value: draft.base_value,
-          green_left_pct: draft.green_pct,
-          green_right_pct: draft.green_pct,
-          yellow_left_pct: draft.yellow_pct,
-          yellow_right_pct: draft.yellow_pct,
-          red_left_pct: draft.red_pct,
-          red_right_pct: draft.red_pct,
+          green_left_pct: draft.green_left_pct,
+          green_right_pct: draft.green_right_pct,
+          yellow_left_pct: draft.yellow_left_pct,
+          yellow_right_pct: draft.yellow_right_pct,
+          red_left_pct: draft.red_left_pct,
+          red_right_pct: draft.red_right_pct,
           ...preview,
         };
       }
@@ -254,7 +272,15 @@ export default function OilThresholdsEditor({ oilId }) {
     const draft = getDraft(param);
     return ABSOLUTE_PARAMS.includes(param)
       ? [draft.start, draft.green_end, draft.yellow_end, draft.red_end].every(hasValue)
-      : [draft.base_value, draft.green_pct, draft.yellow_pct, draft.red_pct].every(hasValue);
+      : [
+          draft.base_value,
+          draft.green_left_pct,
+          draft.green_right_pct,
+          draft.yellow_left_pct,
+          draft.yellow_right_pct,
+          draft.red_left_pct,
+          draft.red_right_pct,
+        ].every(hasValue);
   };
 
   if (!oilId) {
@@ -340,7 +366,7 @@ export default function OilThresholdsEditor({ oilId }) {
         <div>
           <h3 className="text-sm font-semibold text-slate-900">Паспортные показатели с отклонением</h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Вводится центральное значение и три симметричных отклонения в процентах: зелёный, жёлтый и красный уровни.
+            Вводится центральное значение и отдельные отклонения влево/вправо для зелёной, жёлтой и красной зон.
           </p>
         </div>
 
@@ -351,7 +377,7 @@ export default function OilThresholdsEditor({ oilId }) {
 
           return (
             <div key={param} className="rounded-lg border border-slate-200 bg-white p-3">
-              <div className="grid grid-cols-[minmax(130px,1fr)_repeat(4,minmax(76px,92px))_38px] gap-2 items-end">
+              <div className="grid grid-cols-[minmax(130px,1fr)_repeat(7,minmax(70px,86px))_38px] gap-2 items-end">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">
                     {PARAM_LABELS[param]}
@@ -362,9 +388,12 @@ export default function OilThresholdsEditor({ oilId }) {
                   </p>
                 </div>
                 <NumberCell label="Центр" value={draft.base_value} onChange={value => updateField(param, 'base_value', value)} />
-                <NumberCell label="Зелёный ±%" value={draft.green_pct} onChange={value => updateField(param, 'green_pct', value)} />
-                <NumberCell label="Жёлтый ±%" value={draft.yellow_pct} onChange={value => updateField(param, 'yellow_pct', value)} />
-                <NumberCell label="Красный ±%" value={draft.red_pct} onChange={value => updateField(param, 'red_pct', value)} />
+                <NumberCell label="Зел. влево %" value={draft.green_left_pct} onChange={value => updateField(param, 'green_left_pct', value)} />
+                <NumberCell label="Зел. вправо %" value={draft.green_right_pct} onChange={value => updateField(param, 'green_right_pct', value)} />
+                <NumberCell label="Жёлт. влево %" value={draft.yellow_left_pct} onChange={value => updateField(param, 'yellow_left_pct', value)} />
+                <NumberCell label="Жёлт. вправо %" value={draft.yellow_right_pct} onChange={value => updateField(param, 'yellow_right_pct', value)} />
+                <NumberCell label="Красн. влево %" value={draft.red_left_pct} onChange={value => updateField(param, 'red_left_pct', value)} />
+                <NumberCell label="Красн. вправо %" value={draft.red_right_pct} onChange={value => updateField(param, 'red_right_pct', value)} />
                 <Button
                   type="button"
                   size="icon"
