@@ -11,7 +11,7 @@ import { FlaskConical, CheckCircle2, AlertTriangle, XCircle, Activity, CalendarC
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { isAdmin, isSuperintendent, isCaptain, assignedAssetId, assignedClientId } = useRoleAccess();
+  const { isAdmin, isSuperintendent, isCaptain, assignedAssetId, assignedAssetIds, assignedClientId } = useRoleAccess();
   
   const { data: samples = [] } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list() });
   const { data: results = [] } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
@@ -26,10 +26,11 @@ export default function Dashboard() {
   let filteredAssets = assets;
   let filteredClients = clients;
 
-  if (isCaptain && assignedAssetId) {
-    filteredAssets = assets.filter(a => a.id === assignedAssetId);
-    filteredSamples = samples.filter(s => s.asset_id === assignedAssetId);
-    filteredSchedules = schedules.filter(s => s.asset_id === assignedAssetId);
+  if (isCaptain && assignedAssetIds.length > 0) {
+    const assetIdSet = new Set(assignedAssetIds);
+    filteredAssets = assets.filter(a => assetIdSet.has(a.id));
+    filteredSamples = samples.filter(s => assetIdSet.has(s.asset_id));
+    filteredSchedules = schedules.filter(s => assetIdSet.has(s.asset_id));
   } else if (isSuperintendent && assignedClientId) {
     const clientAssetIds = new Set(assets.filter(a => a.client_id === assignedClientId).map(a => a.id));
     filteredClients = clients.filter(c => c.id === assignedClientId);
@@ -71,7 +72,7 @@ export default function Dashboard() {
   const needAttention = filteredSchedules.filter(s => s.status === 'due_soon' || s.status === 'overdue');
 
   // Early return for captain after all hooks
-  if (isCaptain && assignedAssetId) {
+  if (isCaptain && assignedAssetId && assignedAssetIds.length <= 1) {
     navigate(`/vessel/${assignedAssetId}`, { replace: true });
     return null;
   }

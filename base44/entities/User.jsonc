@@ -17,7 +17,30 @@
     },
     "asset_id": {
       "type": "string",
-      "title": "Asset"
+      "title": "Primary Asset"
+    },
+    "asset_ids": {
+      "type": "array",
+      "title": "Assigned Assets",
+      "items": {
+        "type": "string"
+      }
+    },
+    "position_title": {
+      "type": "string",
+      "title": "Position Title",
+      "enum": [
+        "captain",
+        "chief_engineer",
+        "chief_mechanic",
+        "mechanic",
+        "workshop_manager",
+        "site_foreman",
+        "operator",
+        "excavator_operator",
+        "driver",
+        "asset_responsible"
+      ]
     }
   },
   "required": []

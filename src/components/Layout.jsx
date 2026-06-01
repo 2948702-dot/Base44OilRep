@@ -120,6 +120,7 @@ function RolePreviewPanel() {
       role: next.role,
       client_id: next.client_id || '',
       asset_id: next.asset_id || '',
+      asset_ids: next.asset_ids || (next.asset_id ? [next.asset_id] : []),
     });
   };
 
@@ -138,6 +139,7 @@ function RolePreviewPanel() {
     updatePreview({
       role: nextRole,
       asset_id: firstAsset?.id || '',
+      asset_ids: firstAsset?.id ? [firstAsset.id] : [],
       client_id: firstAsset?.client_id || '',
     });
   };
@@ -148,7 +150,7 @@ function RolePreviewPanel() {
 
   const handleAssetChange = (asset_id) => {
     const asset = assets.find(item => item.id === asset_id);
-    updatePreview({ role: 'captain', asset_id, client_id: asset?.client_id || '' });
+    updatePreview({ role: 'captain', asset_id, asset_ids: [asset_id], client_id: asset?.client_id || '' });
   };
 
   return (
@@ -167,7 +169,7 @@ function RolePreviewPanel() {
         <SelectContent>
           <SelectItem value="admin">Администратор</SelectItem>
           <SelectItem value="superintendent">Суперинтендант</SelectItem>
-          <SelectItem value="captain">Капитан</SelectItem>
+          <SelectItem value="captain">Ответственный</SelectItem>
         </SelectContent>
       </Select>
 
@@ -262,7 +264,7 @@ export default function Layout() {
   else if (isSuperintendent) groups = NAV.superintendent;
   else if (isCaptain) groups = NAV.captain;
 
-  const roleLabel = isAdmin ? 'Администратор' : isSuperintendent ? 'Суперинтендант' : 'Капитан';
+  const roleLabel = isAdmin ? 'Администратор' : isSuperintendent ? 'Суперинтендант' : 'Ответственный';
   const roleNav = { groups, _roleLabel: roleLabel, _userName: user?.full_name || 'User' };
 
   const isMobilePage = location.pathname === '/mobile-sampling' || location.pathname === '/mobile-lab';

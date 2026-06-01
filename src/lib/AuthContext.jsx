@@ -25,6 +25,7 @@ function buildEffectiveUser(user, rolePreview) {
     role: rolePreview.role,
     client_id: rolePreview.client_id || '',
     asset_id: rolePreview.asset_id || '',
+    asset_ids: rolePreview.asset_ids || (rolePreview.asset_id ? [rolePreview.asset_id] : []),
     _real_role: user.role,
     _role_preview: rolePreview,
   };

@@ -10,7 +10,7 @@ import { UserPlus, Trash2 } from 'lucide-react';
 const ROLE_LABELS = {
   admin: 'Администратор',
   superintendent: 'Суперинтендант',
-  captain: 'Капитан',
+  captain: 'Ответственный за активы',
 };
 
 const ROLE_BADGES = {
@@ -19,13 +19,27 @@ const ROLE_BADGES = {
   captain: 'bg-green-100 text-green-700',
 };
 
+const POSITION_LABELS = {
+  captain: 'Капитан',
+  chief_engineer: 'Главный инженер',
+  chief_mechanic: 'Главный механик',
+  mechanic: 'Механик',
+  workshop_manager: 'Начальник цеха',
+  site_foreman: 'Мастер участка',
+  operator: 'Оператор',
+  excavator_operator: 'Оператор экскаватора',
+  driver: 'Водитель',
+  asset_responsible: 'Ответственный за оборудование',
+};
+
 export default function UserManagement() {
   const queryClient = useQueryClient();
   const [showDialog, setShowDialog] = useState(false);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('captain');
   const [clientId, setClientId] = useState('');
-  const [assetId, setAssetId] = useState('');
+  const [assetIds, setAssetIds] = useState([]);
+  const [positionTitle, setPositionTitle] = useState('asset_responsible');
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -48,6 +62,11 @@ export default function UserManagement() {
     return assets;
   }, [assets, currentUser]);
 
+  const selectedAssets = useMemo(
+    () => availableAssets.filter(asset => assetIds.includes(asset.id)),
+    [availableAssets, assetIds]
+  );
+
   const findInvitedUser = async (targetEmail, invitationResult) => {
     const directUser = invitationResult?.user || invitationResult?.data || invitationResult;
     if (directUser?.id) return directUser;
@@ -55,6 +74,22 @@ export default function UserManagement() {
     const normalizedEmail = targetEmail.trim().toLowerCase();
     const refreshedUsers = await base44.entities.User.list();
     return refreshedUsers.find(user => user.email?.toLowerCase() === normalizedEmail);
+  };
+
+  const resetForm = () => {
+    setEmail('');
+    setRole('captain');
+    setClientId('');
+    setAssetIds([]);
+    setPositionTitle('asset_responsible');
+  };
+
+  const toggleAsset = (assetId) => {
+    setAssetIds(prev => (
+      prev.includes(assetId)
+        ? prev.filter(id => id !== assetId)
+        : [...prev, assetId]
+    ));
   };
 
   const handleInvite = async () => {
@@ -66,12 +101,12 @@ export default function UserManagement() {
     }
 
     if (currentUser.role === 'captain') {
-      alert('У капитана нет прав приглашать пользователей.');
+      alert('У ответственного за активы нет прав приглашать пользователей.');
       return;
     }
 
     if (currentUser.role === 'superintendent' && role !== 'captain') {
-      alert('Суперинтендант может приглашать только капитанов своих активов.');
+      alert('Суперинтендант может приглашать только ответственных за активы своего клиента.');
       return;
     }
 
@@ -80,21 +115,26 @@ export default function UserManagement() {
       return;
     }
 
-    if (role === 'captain' && !assetId) {
-      alert('Выберите актив для капитана.');
+    if (role === 'captain' && assetIds.length === 0) {
+      alert('Выберите хотя бы один актив для ответственного.');
       return;
     }
 
-    const selectedAsset = assets.find(asset => asset.id === assetId);
-    if (role === 'captain' && currentUser.role === 'superintendent' && selectedAsset?.client_id !== currentUser.client_id) {
-      alert('Можно назначить капитана только на актив своего клиента.');
-      return;
+    if (role === 'captain' && currentUser.role === 'superintendent') {
+      const hasForeignAsset = selectedAssets.some(asset => asset.client_id !== currentUser.client_id);
+      if (hasForeignAsset) {
+        alert('Можно назначать только активы своего клиента.');
+        return;
+      }
     }
 
+    const primaryAsset = selectedAssets[0];
     const assignment = {
       role,
-      client_id: role === 'superintendent' ? clientId : role === 'captain' ? selectedAsset?.client_id || '' : '',
-      asset_id: role === 'captain' ? assetId : '',
+      client_id: role === 'superintendent' ? clientId : role === 'captain' ? primaryAsset?.client_id || '' : '',
+      asset_id: role === 'captain' ? primaryAsset?.id || '' : '',
+      asset_ids: role === 'captain' ? assetIds : [],
+      position_title: role === 'captain' ? positionTitle : '',
     };
 
     setLoading(true);
@@ -105,13 +145,10 @@ export default function UserManagement() {
       if (invitedUser?.id) {
         await base44.entities.User.update(invitedUser.id, assignment);
       } else {
-        alert('Приглашение отправлено, но запись пользователя не найдена для назначения клиента/актива. Проверьте пользователя после принятия приглашения.');
+        alert('Приглашение отправлено, но запись пользователя не найдена для назначения клиента/активов. Проверьте пользователя после принятия приглашения.');
       }
 
-      setEmail('');
-      setRole('captain');
-      setClientId('');
-      setAssetId('');
+      resetForm();
       setShowDialog(false);
       queryClient.invalidateQueries({ queryKey: ['users'] });
     } catch (error) {
@@ -132,6 +169,21 @@ export default function UserManagement() {
     }
   };
 
+  const getAssignmentLabel = (user) => {
+    if (user.role === 'superintendent') {
+      return clients.find(client => client.id === user.client_id)?.company_name || '-';
+    }
+
+    const ids = user.asset_ids?.length ? user.asset_ids : user.asset_id ? [user.asset_id] : [];
+    const names = ids
+      .map(id => assets.find(asset => asset.id === id)?.asset_name)
+      .filter(Boolean);
+
+    if (names.length === 0) return '-';
+    if (names.length <= 2) return names.join(', ');
+    return `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
+  };
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -149,16 +201,18 @@ export default function UserManagement() {
               <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Email</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Имя</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Роль</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Должность</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Назначение</th>
               <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Действия</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {users.map(user => {
-              const assignedAsset = user.asset_id ? assets.find(asset => asset.id === user.asset_id) : null;
-              const assignedClient = user.client_id ? clients.find(client => client.id === user.client_id) : null;
               const roleClass = ROLE_BADGES[user.role] || 'bg-slate-100 text-slate-700';
               const roleLabel = ROLE_LABELS[user.role] || user.role || 'Не задана';
+              const positionLabel = user.role === 'captain'
+                ? POSITION_LABELS[user.position_title] || POSITION_LABELS.asset_responsible
+                : '-';
 
               return (
                 <tr key={user.id} className="hover:bg-slate-50">
@@ -169,9 +223,8 @@ export default function UserManagement() {
                       {roleLabel}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {assignedAsset?.asset_name || assignedClient?.company_name || '-'}
-                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{positionLabel}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{getAssignmentLabel(user)}</td>
                   <td className="px-6 py-4 text-sm">
                     <Button
                       variant="ghost"
@@ -189,7 +242,7 @@ export default function UserManagement() {
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Пригласить нового пользователя</DialogTitle>
           </DialogHeader>
@@ -204,8 +257,8 @@ export default function UserManagement() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-900 block mb-1">Роль</label>
-              <Select value={role} onValueChange={setRole}>
+              <label className="text-sm font-medium text-slate-900 block mb-1">Роль доступа</label>
+              <Select value={role} onValueChange={(value) => { setRole(value); setAssetIds([]); }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -216,7 +269,7 @@ export default function UserManagement() {
                       <SelectItem value="superintendent">Суперинтендант</SelectItem>
                     </>
                   )}
-                  <SelectItem value="captain">Капитан</SelectItem>
+                  <SelectItem value="captain">Ответственный за активы</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -238,21 +291,46 @@ export default function UserManagement() {
               </div>
             )}
             {role === 'captain' && (
-              <div>
-                <label className="text-sm font-medium text-slate-900 block mb-1">Актив</label>
-                <Select value={assetId} onValueChange={setAssetId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Выберите актив..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableAssets.map(asset => (
-                      <SelectItem key={asset.id} value={asset.id}>
-                        {asset.asset_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <>
+                <div>
+                  <label className="text-sm font-medium text-slate-900 block mb-1">Должность</label>
+                  <Select value={positionTitle} onValueChange={setPositionTitle}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(POSITION_LABELS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-slate-900">Активы</label>
+                    <span className="text-xs text-slate-500">Выбрано: {assetIds.length}</span>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
+                    {availableAssets.map(asset => {
+                      const clientName = clients.find(client => client.id === asset.client_id)?.company_name;
+                      return (
+                        <label key={asset.id} className="flex items-start gap-3 px-3 py-2.5 hover:bg-slate-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="mt-1 w-4 h-4"
+                            checked={assetIds.includes(asset.id)}
+                            onChange={() => toggleAsset(asset.id)}
+                          />
+                          <span>
+                            <span className="block text-sm text-slate-900">{asset.asset_name}</span>
+                            <span className="block text-xs text-slate-500">{clientName || asset.asset_type || '-'}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
             )}
           </div>
           <DialogFooter>
