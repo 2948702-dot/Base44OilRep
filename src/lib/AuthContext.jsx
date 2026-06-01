@@ -4,9 +4,35 @@ import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 
 const AuthContext = createContext();
+const ROLE_PREVIEW_STORAGE_KEY = 'smartoil_role_preview';
+
+function getStoredRolePreview() {
+  if (typeof window === 'undefined') return null;
+  try {
+    return JSON.parse(window.localStorage.getItem(ROLE_PREVIEW_STORAGE_KEY) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+function buildEffectiveUser(user, rolePreview) {
+  if (!user || user.role !== 'admin' || !rolePreview?.role || rolePreview.role === 'admin') {
+    return user;
+  }
+
+  return {
+    ...user,
+    role: rolePreview.role,
+    client_id: rolePreview.client_id || '',
+    asset_id: rolePreview.asset_id || '',
+    _real_role: user.role,
+    _role_preview: rolePreview,
+  };
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [rolePreview, setRolePreviewState] = useState(getStoredRolePreview);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
@@ -132,9 +158,30 @@ export const AuthProvider = ({ children }) => {
     base44.auth.redirectToLogin(window.location.href);
   };
 
+  const setRolePreview = (preview) => {
+    const nextPreview = preview?.role && preview.role !== 'admin' ? preview : null;
+    setRolePreviewState(nextPreview);
+
+    if (typeof window !== 'undefined') {
+      if (nextPreview) {
+        window.localStorage.setItem(ROLE_PREVIEW_STORAGE_KEY, JSON.stringify(nextPreview));
+      } else {
+        window.localStorage.removeItem(ROLE_PREVIEW_STORAGE_KEY);
+      }
+    }
+  };
+
+  const clearRolePreview = () => setRolePreview(null);
+  const effectiveUser = buildEffectiveUser(user, rolePreview);
+
   return (
     <AuthContext.Provider value={{ 
-      user, 
+      user: effectiveUser,
+      realUser: user,
+      rolePreview,
+      setRolePreview,
+      clearRolePreview,
+      isRolePreviewActive: Boolean(effectiveUser?._role_preview),
       isAuthenticated, 
       isLoadingAuth,
       isLoadingPublicSettings,

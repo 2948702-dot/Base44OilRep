@@ -7,6 +7,7 @@ export function useRoleAccess() {
   const isSuperintendent = user?.role === 'superintendent';
   const isCaptain = user?.role === 'captain';
   const assignedAssetId = user?.asset_id;
+  const assignedClientId = user?.client_id;
 
   return {
     user,
@@ -14,6 +15,7 @@ export function useRoleAccess() {
     isSuperintendent,
     isCaptain,
     assignedAssetId,
+    assignedClientId,
     hasRole: (role) => user?.role === role,
   };
 }

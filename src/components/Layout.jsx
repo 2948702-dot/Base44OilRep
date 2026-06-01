@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { QrCode, Droplets, FlaskConical, Settings, Users, Package, TrendingUp, AlertCircle, ShoppingCart, Home, Wrench, Cog, Menu, Plus } from 'lucide-react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useAuth } from '@/lib/AuthContext';
+import { base44 } from '@/api/base44Client';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 
 const NAV = {
   admin: [
@@ -85,7 +90,127 @@ const NAV = {
   ]
 };
 
-function NavContent({ roleNav, location, onClose }) {
+function RolePreviewPanel() {
+  const { realUser, rolePreview, setRolePreview, clearRolePreview, isRolePreviewActive } = useAuth();
+  const isRealAdmin = realUser?.role === 'admin';
+
+  const { data: clients = [] } = useQuery({
+    queryKey: ['clients'],
+    queryFn: () => base44.entities.Client.list(),
+    enabled: isRealAdmin,
+  });
+  const { data: assets = [] } = useQuery({
+    queryKey: ['assets'],
+    queryFn: () => base44.entities.Asset.list(),
+    enabled: isRealAdmin,
+  });
+
+  if (!isRealAdmin) return null;
+
+  const previewRole = rolePreview?.role || 'admin';
+  const selectedClientId = rolePreview?.client_id || '';
+  const selectedAssetId = rolePreview?.asset_id || '';
+
+  const updatePreview = (next) => {
+    if (!next.role || next.role === 'admin') {
+      clearRolePreview();
+      return;
+    }
+    setRolePreview({
+      role: next.role,
+      client_id: next.client_id || '',
+      asset_id: next.asset_id || '',
+    });
+  };
+
+  const handleRoleChange = (nextRole) => {
+    if (nextRole === 'admin') {
+      clearRolePreview();
+      return;
+    }
+
+    if (nextRole === 'superintendent') {
+      updatePreview({ role: nextRole, client_id: clients[0]?.id || '' });
+      return;
+    }
+
+    const firstAsset = assets[0];
+    updatePreview({
+      role: nextRole,
+      asset_id: firstAsset?.id || '',
+      client_id: firstAsset?.client_id || '',
+    });
+  };
+
+  const handleClientChange = (client_id) => {
+    updatePreview({ role: 'superintendent', client_id });
+  };
+
+  const handleAssetChange = (asset_id) => {
+    const asset = assets.find(item => item.id === asset_id);
+    updatePreview({ role: 'captain', asset_id, client_id: asset?.client_id || '' });
+  };
+
+  return (
+    <div className="border-t border-slate-200 p-4 space-y-3">
+      <div>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Просмотр как</p>
+        <p className="text-[11px] text-slate-400 mt-1">
+          Для проверки интерфейса. RLS проверяй отдельным тестовым входом.
+        </p>
+      </div>
+
+      <Select value={previewRole} onValueChange={handleRoleChange}>
+        <SelectTrigger className="h-9 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="admin">Администратор</SelectItem>
+          <SelectItem value="superintendent">Суперинтендант</SelectItem>
+          <SelectItem value="captain">Капитан</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {previewRole === 'superintendent' && (
+        <Select value={selectedClientId} onValueChange={handleClientChange}>
+          <SelectTrigger className="h-9 text-xs">
+            <SelectValue placeholder="Клиент" />
+          </SelectTrigger>
+          <SelectContent>
+            {clients.map(client => (
+              <SelectItem key={client.id} value={client.id}>
+                {client.company_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {previewRole === 'captain' && (
+        <Select value={selectedAssetId} onValueChange={handleAssetChange}>
+          <SelectTrigger className="h-9 text-xs">
+            <SelectValue placeholder="Актив" />
+          </SelectTrigger>
+          <SelectContent>
+            {assets.map(asset => (
+              <SelectItem key={asset.id} value={asset.id}>
+                {asset.asset_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {isRolePreviewActive && (
+        <Button variant="outline" size="sm" className="w-full h-8 text-xs" onClick={clearRolePreview}>
+          Вернуться к админу
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function NavContent({ roleNav, location, onClose, previewPanel }) {
   const roleLabel = roleNav._roleLabel;
   const userName = roleNav._userName;
   return (
@@ -122,6 +247,7 @@ function NavContent({ roleNav, location, onClose }) {
           </div>
         ))}
       </nav>
+      {previewPanel}
     </div>
   );
 }
@@ -145,7 +271,7 @@ export default function Layout() {
     <div className="flex h-full">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex md:w-64 bg-white border-r border-slate-200 overflow-y-auto flex-col">
-        <NavContent roleNav={roleNav} location={location} onClose={() => {}} />
+        <NavContent roleNav={roleNav} location={location} onClose={() => {}} previewPanel={<RolePreviewPanel />} />
       </aside>
 
       {/* Mobile layout */}
@@ -160,7 +286,7 @@ export default function Layout() {
               </button>
             </SheetTrigger>
             <SheetContent side="left" className="p-0 w-72">
-              <NavContent roleNav={roleNav} location={location} onClose={() => setMobileOpen(false)} />
+              <NavContent roleNav={roleNav} location={location} onClose={() => setMobileOpen(false)} previewPanel={<RolePreviewPanel />} />
             </SheetContent>
           </Sheet>
         </header>

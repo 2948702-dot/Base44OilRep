@@ -11,7 +11,7 @@ import { FlaskConical, CheckCircle2, AlertTriangle, XCircle, Activity, CalendarC
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { isAdmin, isSuperintendent, isCaptain, assignedAssetId } = useRoleAccess();
+  const { isAdmin, isSuperintendent, isCaptain, assignedAssetId, assignedClientId } = useRoleAccess();
   
   const { data: samples = [] } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list() });
   const { data: results = [] } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
@@ -30,6 +30,12 @@ export default function Dashboard() {
     filteredAssets = assets.filter(a => a.id === assignedAssetId);
     filteredSamples = samples.filter(s => s.asset_id === assignedAssetId);
     filteredSchedules = schedules.filter(s => s.asset_id === assignedAssetId);
+  } else if (isSuperintendent && assignedClientId) {
+    const clientAssetIds = new Set(assets.filter(a => a.client_id === assignedClientId).map(a => a.id));
+    filteredClients = clients.filter(c => c.id === assignedClientId);
+    filteredAssets = assets.filter(a => a.client_id === assignedClientId);
+    filteredSamples = samples.filter(s => s.client_id === assignedClientId || clientAssetIds.has(s.asset_id));
+    filteredSchedules = schedules.filter(s => s.client_id === assignedClientId || clientAssetIds.has(s.asset_id));
   }
 
   // All hooks must be before early return
