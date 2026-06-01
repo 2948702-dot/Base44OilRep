@@ -226,6 +226,7 @@ export default function Assets() {
   const [form, setForm] = useState(DEF_ASSET);
   const [units, setUnits] = useState([]);
   const [filterClient, setFilterClient] = useState('none');
+  const [selected, setSelected] = useState(new Set());
   const qc = useQueryClient();
 
   const { data: assets = [], isLoading } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
@@ -275,6 +276,12 @@ export default function Assets() {
     mutationFn: id => base44.entities.Asset.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['assets'] })
   });
+  const bulkDel = useMutation({
+    mutationFn: async (ids) => { for (const id of ids) await base44.entities.Asset.delete(id); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['assets'] }); setSelected(new Set()); }
+  });
+  const toggle = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => setSelected(s => s.size === filtered.length ? new Set() : new Set(filtered.map(x => x.id)));
 
   const filtered = assets.filter(a => filterClient === 'none' || a.client_id === filterClient);
   const getClient = id => clients.find(c => c.id === id)?.company_name || '—';
@@ -301,12 +308,19 @@ export default function Assets() {
           <h1 className="text-xl font-bold text-slate-900">Активы</h1>
           <p className="text-slate-500 text-sm mt-0.5">{assets.length} объектов</p>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="w-4 h-4 mr-1.5" />Добавить актив
+        <div className="flex gap-2">
+          {selected.size > 0 && (
+            <Button size="sm" variant="destructive" onClick={() => window.confirm(`Удалить ${selected.size} активов?`) && bulkDel.mutate([...selected])} disabled={bulkDel.isPending}>
+              <Trash2 className="w-4 h-4 mr-1.5" />Удалить выбранные ({selected.size})
+            </Button>
+          )}
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="w-4 h-4 mr-1.5" />Добавить актив
         </Button>
-      </div>
+        </div>
+        </div>
 
-      <div className="mb-3">
+        <div className="mb-3">
         <Select value={filterClient} onValueChange={setFilterClient}>
           <SelectTrigger className="w-56">
             <SelectValue placeholder="Все клиенты" />
@@ -322,6 +336,7 @@ export default function Assets() {
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
             <tr>
+              <th className="w-8 px-3 py-2.5"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={filtered.length > 0 && selected.size === filtered.length} onChange={toggleAll} /></th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Наименование</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Марка масла</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Объём масла</th>
@@ -338,7 +353,8 @@ export default function Assets() {
               const oilBrands = [...new Set(assetUnits.map(u => u.oil_brand).filter(Boolean))];
               const totalVolume = assetUnits.reduce((sum, u) => u.oil_volume ? sum + u.oil_volume : sum, 0);
               return (
-              <tr key={a.id} className="border-b border-slate-50 hover:bg-slate-50">
+              <tr key={a.id} className={`border-b border-slate-50 hover:bg-slate-50 ${selected.has(a.id) ? 'bg-blue-50' : ''}`}>
+                <td className="px-3 py-2.5"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={selected.has(a.id)} onChange={() => toggle(a.id)} /></td>
                 <td className="px-4 py-2.5">
                   <div className="font-medium text-slate-900">{a.asset_name}</div>
                   <div className="text-xs text-slate-400 mt-0.5">{getClient(a.client_id)}</div>

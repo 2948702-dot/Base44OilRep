@@ -40,6 +40,7 @@ export default function OilSamples() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
   const [filterClient, setFilterClient] = useState('none');
+  const [selected, setSelected] = useState(new Set());
   const [filterAsset, setFilterAsset] = useState('none');
   const [filterStatus, setFilterStatus] = useState('none');
   const [searchText, setSearchText] = useState('');
@@ -87,6 +88,12 @@ export default function OilSamples() {
     mutationFn: id => base44.entities.OilSample.delete(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['oil-samples'] }); qc.refetchQueries({ queryKey: ['oil-samples'] }); }
   });
+  const bulkDel = useMutation({
+    mutationFn: async (ids) => { for (const id of ids) await base44.entities.OilSample.delete(id); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['oil-samples'] }); setSelected(new Set()); }
+  });
+  const toggle = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => setSelected(s => s.size === filtered.length ? new Set() : new Set(filtered.slice(0,100).map(x => x.id)));
 
   const filtAssets = assets.filter(a => !form.client_id || a.client_id === form.client_id);
   const filtUnits = units.filter(u => !form.asset_id || u.asset_id === form.asset_id);
@@ -113,9 +120,16 @@ export default function OilSamples() {
           <h1 className="text-xl font-bold text-slate-900">Пробы масла</h1>
           <p className="text-slate-500 text-sm mt-0.5">{samples.length} проб</p>
         </div>
-        <Button size="sm" onClick={() => { setForm({ ...DEF, sampling_date: new Date().toISOString().split('T')[0], sample_number: genSampleNumber(samples) }); setOpen(true); }}>
-          <Plus className="w-4 h-4 mr-1.5" />Добавить пробу
-        </Button>
+        <div className="flex gap-2">
+          {selected.size > 0 && (
+            <Button size="sm" variant="destructive" onClick={() => window.confirm(`Удалить ${selected.size} проб?`) && bulkDel.mutate([...selected])} disabled={bulkDel.isPending}>
+              <Trash2 className="w-4 h-4 mr-1.5" />Удалить выбранные ({selected.size})
+            </Button>
+          )}
+          <Button size="sm" onClick={() => { setForm({ ...DEF, sampling_date: new Date().toISOString().split('T')[0], sample_number: genSampleNumber(samples) }); setOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1.5" />Добавить пробу
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-2 mb-3 flex-wrap">
@@ -156,6 +170,7 @@ export default function OilSamples() {
         <table className="w-full text-xs min-w-max">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
+              <th className="w-8 px-3 py-2.5"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={filtered.length > 0 && selected.size >= Math.min(filtered.length, 100) && filtered.slice(0,100).every(s => selected.has(s.id))} onChange={toggleAll} /></th>
               <th className="text-left px-3 py-2.5 font-medium text-slate-600 w-28">№ пробы</th>
               <th className="text-left px-3 py-2.5 font-medium text-slate-600 w-32">Клиент / Актив</th>
               <th className="text-center px-2 py-2.5 font-medium text-slate-600 w-20">Вязк.<br/>40°C</th>
@@ -180,7 +195,8 @@ export default function OilSamples() {
               const cell = (val, dec = 1) => val != null ? <span className="font-medium text-slate-800">{typeof val === 'number' ? val.toFixed(dec) : val}</span> : <span className="text-slate-300">—</span>;
               const ohiColor = (v) => v == null ? '' : v >= 70 ? 'text-green-600' : v >= 40 ? 'text-yellow-600' : 'text-red-600';
               return (
-                <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50">
+                <tr key={s.id} className={`border-b border-slate-50 hover:bg-slate-50 ${selected.has(s.id) ? 'bg-blue-50' : ''}`}>
+                  <td className="px-3 py-2"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={selected.has(s.id)} onChange={() => toggle(s.id)} /></td>
                   <td className="px-3 py-2">
                     <div className="font-mono text-slate-900 font-medium">{s.sample_number}</div>
                     <div className="text-slate-400 text-xs">{s.sampling_date ? s.sampling_date.split('-').reverse().join('.') : '—'}</div>

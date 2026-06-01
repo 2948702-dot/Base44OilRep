@@ -24,6 +24,7 @@ export default function EquipmentUnits() {
   const [expandedId, setExpandedId] = useState(null);
   const [filterClient, setFilterClient] = useState('none');
   const [filterAsset, setFilterAsset] = useState('none');
+  const [selected, setSelected] = useState(new Set());
   const qc = useQueryClient();
 
   const { data: units = [], isLoading } = useQuery({
@@ -68,6 +69,12 @@ export default function EquipmentUnits() {
     mutationFn: id => base44.entities.EquipmentUnit.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['equipment-units'] })
   });
+  const bulkDel = useMutation({
+    mutationFn: async (ids) => { for (const id of ids) await base44.entities.EquipmentUnit.delete(id); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['equipment-units'] }); setSelected(new Set()); }
+  });
+  const toggle = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => setSelected(s => s.size === filteredUnits.length ? new Set() : new Set(filteredUnits.map(x => x.id)));
 
   const filterAssets = assets.filter(a => filterClient === 'none' || a.client_id === filterClient);
   const formAssets = assets.filter(a => !form.client_id || a.client_id === form.client_id);
@@ -96,9 +103,16 @@ export default function EquipmentUnits() {
           <h1 className="text-xl font-bold text-slate-900">Агрегаты</h1>
           <p className="text-slate-500 text-sm mt-0.5">{units.length} записей · нажмите на строку для просмотра точек отбора</p>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="w-4 h-4 mr-1.5" />Добавить агрегат
-        </Button>
+        <div className="flex gap-2">
+          {selected.size > 0 && (
+            <Button size="sm" variant="destructive" onClick={() => window.confirm(`Удалить ${selected.size} агрегатов?`) && bulkDel.mutate([...selected])} disabled={bulkDel.isPending}>
+              <Trash2 className="w-4 h-4 mr-1.5" />Удалить выбранные ({selected.size})
+            </Button>
+          )}
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="w-4 h-4 mr-1.5" />Добавить агрегат
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -129,6 +143,7 @@ export default function EquipmentUnits() {
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="w-8 px-2 py-2.5"></th>
+              <th className="w-8 px-2 py-2.5"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={filteredUnits.length > 0 && selected.size === filteredUnits.length} onChange={toggleAll} /></th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Наименование</th>
               <th className="text-left px-3 py-2.5 font-medium text-slate-600 text-xs whitespace-nowrap">М/ч агрегата</th>
               <th className="text-left px-3 py-2.5 font-medium text-slate-600 text-xs whitespace-nowrap">М/ч масла</th>
@@ -145,9 +160,12 @@ export default function EquipmentUnits() {
               <>
                 <tr
                   key={u.id}
-                  className={`border-b border-slate-100 hover:bg-slate-50 cursor-pointer ${expandedId === u.id ? 'bg-blue-50/40' : ''}`}
+                  className={`border-b border-slate-100 hover:bg-slate-50 cursor-pointer ${expandedId === u.id ? 'bg-blue-50/40' : ''} ${selected.has(u.id) ? 'bg-blue-50' : ''}`}
                   onClick={() => toggleExpand(u.id)}
                 >
+                  <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" className="w-4 h-4 cursor-pointer" checked={selected.has(u.id)} onChange={() => toggle(u.id)} />
+                  </td>
                   <td className="px-2 py-2.5 text-slate-400">
                     {expandedId === u.id
                       ? <ChevronDown className="w-4 h-4" />

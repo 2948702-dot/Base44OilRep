@@ -14,6 +14,7 @@ export default function Clients() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
   const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState(new Set());
   const qc = useQueryClient();
 
   const { data: clients = [], isLoading } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
@@ -26,6 +27,12 @@ export default function Clients() {
     mutationFn: id => base44.entities.Client.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['clients'] })
   });
+  const bulkDel = useMutation({
+    mutationFn: async (ids) => { for (const id of ids) await base44.entities.Client.delete(id); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); setSelected(new Set()); }
+  });
+  const toggle = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => setSelected(s => s.size === filtered.length ? new Set() : new Set(filtered.map(x => x.id)));
 
   const filtered = clients.filter(c => c.company_name?.toLowerCase().includes(search.toLowerCase()));
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -37,9 +44,16 @@ export default function Clients() {
           <h1 className="text-xl font-bold text-slate-900">Клиенты</h1>
           <p className="text-slate-500 text-sm mt-0.5">{clients.length} компаний</p>
         </div>
-        <Button size="sm" onClick={() => { setForm(DEF); setOpen(true); }}>
-          <Plus className="w-4 h-4 mr-1.5" />Добавить клиента
-        </Button>
+        <div className="flex gap-2">
+          {selected.size > 0 && (
+            <Button size="sm" variant="destructive" onClick={() => window.confirm(`Удалить ${selected.size} записей?`) && bulkDel.mutate([...selected])} disabled={bulkDel.isPending}>
+              <Trash2 className="w-4 h-4 mr-1.5" />Удалить выбранные ({selected.size})
+            </Button>
+          )}
+          <Button size="sm" onClick={() => { setForm(DEF); setOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1.5" />Добавить клиента
+          </Button>
+        </div>
       </div>
 
       <div className="mb-3">
@@ -50,6 +64,7 @@ export default function Clients() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
+              <th className="w-8 px-3 py-2.5"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={filtered.length > 0 && selected.size === filtered.length} onChange={toggleAll} /></th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Компания</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Контакт</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Телефон</th>
@@ -63,7 +78,8 @@ export default function Clients() {
             ) : filtered.length === 0 ? (
               <tr><td colSpan={5} className="text-center py-10 text-slate-400">Клиенты не найдены</td></tr>
             ) : filtered.map(c => (
-              <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50">
+              <tr key={c.id} className={`border-b border-slate-50 hover:bg-slate-50 ${selected.has(c.id) ? 'bg-blue-50' : ''}`}>
+                <td className="px-3 py-2.5"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={selected.has(c.id)} onChange={() => toggle(c.id)} /></td>
                 <td className="px-4 py-2.5 font-medium text-slate-900">{c.company_name}</td>
                 <td className="px-4 py-2.5 text-slate-600">{c.contact_person || '—'}</td>
                 <td className="px-4 py-2.5 text-slate-600">{c.phone || '—'}</td>
