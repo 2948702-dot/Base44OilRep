@@ -49,7 +49,6 @@ export default function OilThresholdsEditor({ oilId }) {
       const payload = {
         oil_type_id: oilId,
         parameter_name: param,
-        equipment_type: 'all',
         custom_ranges_mode: false,
         deviation_mode: false,
         ranges: [],

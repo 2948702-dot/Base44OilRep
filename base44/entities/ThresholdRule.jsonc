@@ -132,7 +132,6 @@
     }
   },
   "required": [
-    "equipment_type",
     "oil_type_id",
     "parameter_name"
   ],

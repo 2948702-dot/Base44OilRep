@@ -71,7 +71,7 @@ const PRESET_COLORS = ['#dc2626', '#f97316', '#ca8a04', '#16a34a', '#0891b2', '#
 const DEF_RANGE = { min: '', max: '', color: '#16a34a', label: '' };
 
 const DEF = {
-  oil_type_id: '', equipment_unit_id: '', equipment_type: 'all', parameter_name: '',
+  oil_type_id: '', parameter_name: '',
   green_min: '', green_max: '', yellow_min: '', yellow_max: '', red_min: '', red_max: '',
   unit: '', comments: '', deviation_mode: false, base_value: '',
   green_left_pct: '', green_right_pct: '', yellow_left_pct: '', yellow_right_pct: '', red_left_pct: '', red_right_pct: '',
@@ -136,7 +136,7 @@ export default function ThresholdRules() {
   const handleSave = () => {
     if (!form.oil_type_id) return;
     let data = form.deviation_mode ? { ...form, ...devZones } : { ...form };
-    data.equipment_type = 'all';
+    delete data.equipment_type;
     delete data.equipment_unit_id;
     delete data.sampling_point_id;
     if (!data.custom_ranges_mode) {
@@ -201,7 +201,7 @@ export default function ThresholdRules() {
               <tr key={r.id} className={`border-b border-slate-50 hover:bg-slate-50 ${selected.has(r.id) ? 'bg-blue-50' : ''}`}>
                 <td className="px-3 py-2.5"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={selected.has(r.id)} onChange={() => toggle(r.id)} /></td>
                 <td className="px-4 py-2.5">
-                  <button className="font-medium text-slate-900 hover:text-blue-600 hover:underline text-left" onClick={() => { setForm({ ...DEF, ...r, equipment_type: r.equipment_type || 'all', ranges: r.ranges || [{ ...DEF_RANGE }] }); setOpen(true); }}>
+                  <button className="font-medium text-slate-900 hover:text-blue-600 hover:underline text-left" onClick={() => { setForm({ ...DEF, ...r, ranges: r.ranges || [{ ...DEF_RANGE }] }); setOpen(true); }}>
                     {PARAM_LABELS[r.parameter_name] || r.parameter_name}
                   </button>
                 </td>
