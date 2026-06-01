@@ -1,26 +1,173 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Save } from 'lucide-react';
+import ThresholdRangeBar from '@/components/ThresholdRangeBar';
 
-const PARAMS = ['iron_mg_l', 'water_activity', 'water_ppm', 'density', 'viscosity_40', 'dielectric_constant'];
+const ABSOLUTE_PARAMS = ['iron_mg_l', 'water_ppm', 'water_activity'];
+const DEVIATION_PARAMS = ['viscosity_40', 'density', 'dielectric_constant'];
+const PARAMS = [...ABSOLUTE_PARAMS, ...DEVIATION_PARAMS];
+
 const PARAM_LABELS = {
-  iron_mg_l: 'Железо', water_activity: 'Активная вода', water_ppm: 'Растворённая вода',
-  density: 'Плотность', viscosity_40: 'Вязкость 40°C', dielectric_constant: 'Диэл. постоянная',
+  iron_mg_l: 'Железо',
+  water_ppm: 'Вода ppm',
+  water_activity: 'Активная вода',
+  viscosity_40: 'Вязкость 40°C',
+  density: 'Плотность',
+  dielectric_constant: 'Диэлектрика',
 };
-const PARAM_UNITS = {
-  iron_mg_l: 'мг/л', water_activity: '%', water_ppm: 'ppm',
-  density: 'кг/м³', viscosity_40: 'сСт', dielectric_constant: '',
-};
-const FIELDS = ['green_min','green_max','yellow_min','yellow_max','red_min','red_max'];
 
-const emptyRow = () => ({ green_min: '', green_max: '', yellow_min: '', yellow_max: '', red_min: '', red_max: '' });
+const PARAM_UNITS = {
+  iron_mg_l: 'мг/л',
+  water_ppm: 'ppm',
+  water_activity: '%',
+  viscosity_40: 'сСт',
+  density: 'кг/м³',
+  dielectric_constant: '',
+};
+
+const PARAM_HINTS = {
+  iron_mg_l: 'Введите 4 границы: старт, конец зелёной, конец жёлтой, конец красной зоны.',
+  water_ppm: 'Введите 4 границы: старт, конец зелёной, конец жёлтой, конец красной зоны.',
+  water_activity: 'Введите 4 границы: старт, конец зелёной, конец жёлтой, конец красной зоны.',
+  viscosity_40: 'Центральное значение и симметричные отклонения: зелёное, жёлтое, красное.',
+  density: 'Центральное значение и симметричные отклонения: зелёное, жёлтое, красное.',
+  dielectric_constant: 'Центральное значение и симметричные отклонения: зелёное, жёлтое, красное.',
+};
+
+const DECIMALS = {
+  viscosity_40: 0,
+  density: 0,
+  dielectric_constant: 2,
+};
+
+const NUMBER_FIELDS = [
+  'green_min', 'green_max', 'yellow_min', 'yellow_max', 'red_min', 'red_max',
+  'base_value', 'green_left_pct', 'green_right_pct', 'yellow_left_pct', 'yellow_right_pct',
+  'red_left_pct', 'red_right_pct',
+];
+
+function hasValue(value) {
+  return value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
+}
+
+function toInputValue(value) {
+  return hasValue(value) ? String(value) : '';
+}
+
+function toOptionalNumber(value) {
+  if (value === '' || value === null || value === undefined) return undefined;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : undefined;
+}
+
+function roundByParam(param, value) {
+  if (!Number.isFinite(value)) return undefined;
+  const decimals = DECIMALS[param] ?? 0;
+  return Number(value.toFixed(decimals));
+}
+
+function calculateDeviationRule(param, baseValue, greenPct, yellowPct, redPct) {
+  const base = Number(baseValue);
+  const green = Number(greenPct);
+  const yellow = Number(yellowPct);
+  const red = Number(redPct);
+
+  if (![base, green, yellow, red].every(Number.isFinite)) {
+    return {};
+  }
+
+  const range = pct => ({
+    min: roundByParam(param, base * (1 - pct / 100)),
+    max: roundByParam(param, base * (1 + pct / 100)),
+  });
+
+  const greenRange = range(green);
+  const yellowRange = range(yellow);
+  const redRange = range(red);
+
+  return {
+    green_min: greenRange.min,
+    green_max: greenRange.max,
+    yellow_min: yellowRange.min,
+    yellow_max: yellowRange.max,
+    red_min: redRange.min,
+    red_max: redRange.max,
+  };
+}
+
+function emptyDraft(param) {
+  return ABSOLUTE_PARAMS.includes(param)
+    ? {
+        start: '',
+        green_end: '',
+        yellow_end: '',
+        red_end: '',
+      }
+    : {
+        base_value: '',
+        green_pct: '',
+        yellow_pct: '',
+        red_pct: '',
+      };
+}
+
+function draftFromRule(param, rule) {
+  if (!rule) return emptyDraft(param);
+
+  if (ABSOLUTE_PARAMS.includes(param)) {
+    return {
+      id: rule.id,
+      start: toInputValue(rule.green_min),
+      green_end: toInputValue(rule.green_max),
+      yellow_end: toInputValue(rule.yellow_max),
+      red_end: toInputValue(rule.red_max),
+    };
+  }
+
+  return {
+    id: rule.id,
+    base_value: toInputValue(rule.base_value),
+    green_pct: toInputValue(rule.green_right_pct ?? rule.green_left_pct),
+    yellow_pct: toInputValue(rule.yellow_right_pct ?? rule.yellow_left_pct),
+    red_pct: toInputValue(rule.red_right_pct ?? rule.red_left_pct),
+  };
+}
+
+function absolutePreview(draft) {
+  if (![draft.start, draft.green_end, draft.yellow_end, draft.red_end].every(hasValue)) return null;
+  return {
+    green_min: Number(draft.start),
+    green_max: Number(draft.green_end),
+    yellow_min: Number(draft.green_end),
+    yellow_max: Number(draft.yellow_end),
+    red_min: Number(draft.yellow_end),
+    red_max: Number(draft.red_end),
+  };
+}
+
+function deviationPreview(param, draft) {
+  return calculateDeviationRule(param, draft.base_value, draft.green_pct, draft.yellow_pct, draft.red_pct);
+}
+
+function cleanPayload(payload) {
+  const next = { ...payload };
+  NUMBER_FIELDS.forEach(field => {
+    const value = toOptionalNumber(next[field]);
+    if (value === undefined) delete next[field];
+    else next[field] = value;
+  });
+  Object.keys(next).forEach(field => next[field] === undefined && delete next[field]);
+  return next;
+}
 
 export default function OilThresholdsEditor({ oilId }) {
   const qc = useQueryClient();
   const [drafts, setDrafts] = useState({});
+  const [savedParams, setSavedParams] = useState(new Set());
 
   const { data: rules = [], isLoading } = useQuery({
     queryKey: ['threshold-rules-oil', oilId],
@@ -30,57 +177,92 @@ export default function OilThresholdsEditor({ oilId }) {
 
   useEffect(() => {
     const next = {};
-    rules.forEach(r => {
-      if (!next[r.parameter_name]) {
-        next[r.parameter_name] = {
-          id: r.id,
-          green_min: r.green_min ?? '', green_max: r.green_max ?? '',
-          yellow_min: r.yellow_min ?? '', yellow_max: r.yellow_max ?? '',
-          red_min: r.red_min ?? '', red_max: r.red_max ?? '',
-        };
+    const saved = new Set();
+    rules.forEach(rule => {
+      if (PARAMS.includes(rule.parameter_name) && !next[rule.parameter_name]) {
+        next[rule.parameter_name] = draftFromRule(rule.parameter_name, rule);
+        saved.add(rule.parameter_name);
       }
     });
-    setDrafts(next);
+    setDrafts(Object.fromEntries(PARAMS.map(param => [param, next[param] || emptyDraft(param)])));
+    setSavedParams(saved);
   }, [oilId, rules]);
 
   const saveRule = useMutation({
-    mutationFn: async ({ param, data }) => {
-      const toNum = v => v === '' || v === null || v === undefined ? undefined : Number(v);
-      const payload = {
-        oil_type_id: oilId,
-        parameter_name: param,
-        custom_ranges_mode: false,
-        deviation_mode: false,
-        ranges: [],
-        green_min: toNum(data.green_min), green_max: toNum(data.green_max),
-        yellow_min: toNum(data.yellow_min), yellow_max: toNum(data.yellow_max),
-        red_min: toNum(data.red_min), red_max: toNum(data.red_max),
-      };
-      // Remove undefined keys
-      Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
-      return data.id
-        ? base44.entities.ThresholdRule.update(data.id, payload)
-        : base44.entities.ThresholdRule.create(payload);
+    mutationFn: async ({ param, draft }) => {
+      let payload;
+
+      if (ABSOLUTE_PARAMS.includes(param)) {
+        const preview = absolutePreview(draft);
+        payload = {
+          oil_type_id: oilId,
+          parameter_name: param,
+          unit: PARAM_UNITS[param],
+          equipment_type: 'all',
+          custom_ranges_mode: false,
+          deviation_mode: false,
+          ranges: [],
+          ...preview,
+        };
+      } else {
+        const preview = deviationPreview(param, draft);
+        payload = {
+          oil_type_id: oilId,
+          parameter_name: param,
+          unit: PARAM_UNITS[param],
+          equipment_type: 'all',
+          custom_ranges_mode: false,
+          deviation_mode: true,
+          ranges: [],
+          base_value: draft.base_value,
+          green_left_pct: draft.green_pct,
+          green_right_pct: draft.green_pct,
+          yellow_left_pct: draft.yellow_pct,
+          yellow_right_pct: draft.yellow_pct,
+          red_left_pct: draft.red_pct,
+          red_right_pct: draft.red_pct,
+          ...preview,
+        };
+      }
+
+      const clean = cleanPayload(payload);
+      return draft.id
+        ? base44.entities.ThresholdRule.update(draft.id, clean)
+        : base44.entities.ThresholdRule.create(clean);
     },
     onSuccess: (result, { param }) => {
       qc.invalidateQueries({ queryKey: ['threshold-rules-oil', oilId] });
       qc.invalidateQueries({ queryKey: ['threshold-rules'] });
-      // Update local draft with the saved id
       setDrafts(prev => ({ ...prev, [param]: { ...prev[param], id: result.id } }));
+      setSavedParams(prev => new Set([...prev, param]));
     },
   });
 
-  const getRow = (param) => drafts[param] || emptyRow();
+  const getDraft = param => drafts[param] || emptyDraft(param);
 
-  const updateField = (param, field, val) => {
+  const updateField = (param, field, value) => {
     setDrafts(prev => ({
       ...prev,
-      [param]: { ...getRow(param), [field]: val }
+      [param]: {
+        ...getDraft(param),
+        [field]: value,
+      },
     }));
   };
 
+  const canSave = param => {
+    const draft = getDraft(param);
+    return ABSOLUTE_PARAMS.includes(param)
+      ? [draft.start, draft.green_end, draft.yellow_end, draft.red_end].every(hasValue)
+      : [draft.base_value, draft.green_pct, draft.yellow_pct, draft.red_pct].every(hasValue);
+  };
+
   if (!oilId) {
-    return <p className="text-sm text-slate-400 italic">Сохраните масло, чтобы задать стандартные границы параметров.</p>;
+    return (
+      <p className="text-sm text-slate-400 italic">
+        Сохраните масло, чтобы задать стандартные границы параметров.
+      </p>
+    );
   }
 
   if (isLoading) {
@@ -88,63 +270,146 @@ export default function OilThresholdsEditor({ oilId }) {
   }
 
   return (
-    <div className="space-y-2">
-      <p className="text-xs text-slate-500">Стандартные границы применяются ко всем агрегатам с этим маслом (если не переопределены на уровне агрегата). Сохраняйте каждую строку отдельно.</p>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="text-left px-2 py-1.5 font-medium text-slate-600">Параметр</th>
-              <th colSpan={2} className="px-1 py-1.5 font-medium text-green-700 text-center">Зелёная</th>
-              <th colSpan={2} className="px-1 py-1.5 font-medium text-yellow-700 text-center">Жёлтая</th>
-              <th colSpan={2} className="px-1 py-1.5 font-medium text-red-700 text-center">Красная</th>
-              <th className="px-1 py-1.5"></th>
-            </tr>
-            <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-normal">
-              <th></th>
-              <th className="px-1 py-0.5">мин</th><th className="px-1 py-0.5">макс</th>
-              <th className="px-1 py-0.5">мин</th><th className="px-1 py-0.5">макс</th>
-              <th className="px-1 py-0.5">мин</th><th className="px-1 py-0.5">макс</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {PARAMS.map(param => {
-              const d = getRow(param);
-              const isSaved = !!d.id;
-              return (
-                <tr key={param} className={`border-b border-slate-100 hover:bg-slate-50 ${isSaved ? '' : 'opacity-70'}`}>
-                  <td className="px-2 py-1 font-medium text-slate-700 whitespace-nowrap">
-                    {PARAM_LABELS[param]}
-                    {PARAM_UNITS[param] && <span className="text-slate-400 ml-1 text-[10px]">{PARAM_UNITS[param]}</span>}
-                    {isSaved && <span className="ml-1 text-green-500 text-[10px]">✓</span>}
-                  </td>
-                  {FIELDS.map(field => (
-                    <td key={field} className="px-0.5 py-1">
-                      <Input
-                        type="number" step="any"
-                        value={d[field] ?? ''}
-                        onChange={e => updateField(param, field, e.target.value)}
-                        className="h-6 w-14 text-xs px-1"
-                      />
-                    </td>
-                  ))}
-                  <td className="px-1 py-1">
-                    <Button
-                      size="sm" variant="ghost" className="h-6 w-6 p-0"
-                      onClick={() => saveRule.mutate({ param, data: d })}
-                      disabled={saveRule.isPending}
-                      title="Сохранить строку"
-                    >
-                      <Save className="w-3.5 h-3.5 text-blue-500" />
-                    </Button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+    <div className="space-y-5">
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+        <p className="text-sm font-semibold text-slate-800">Стандартные границы масла</p>
+        <p className="text-xs text-slate-500 mt-1">
+          Эти значения применяются ко всем агрегатам с этим маслом, если в агрегате не включены индивидуальные границы.
+        </p>
       </div>
+
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Сигнальные показатели</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Вводятся 4 числа: начало, конец зелёной зоны, конец жёлтой зоны, конец красной зоны. Границы стыкуются автоматически.
+          </p>
+        </div>
+
+        {ABSOLUTE_PARAMS.map(param => {
+          const draft = getDraft(param);
+          const preview = absolutePreview(draft);
+          const isSaved = savedParams.has(param);
+
+          return (
+            <div key={param} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="grid grid-cols-[minmax(130px,1fr)_repeat(4,minmax(76px,92px))_38px] gap-2 items-end">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {PARAM_LABELS[param]}
+                    {isSaved && <span className="ml-1 text-green-600 text-xs">✓</span>}
+                  </p>
+                  <p className="text-xs text-slate-400">{PARAM_UNITS[param]} · {PARAM_HINTS[param]}</p>
+                </div>
+                <NumberCell label="Старт" value={draft.start} onChange={value => updateField(param, 'start', value)} />
+                <NumberCell label="Зелёный до" value={draft.green_end} onChange={value => updateField(param, 'green_end', value)} />
+                <NumberCell label="Жёлтый до" value={draft.yellow_end} onChange={value => updateField(param, 'yellow_end', value)} />
+                <NumberCell label="Красный до" value={draft.red_end} onChange={value => updateField(param, 'red_end', value)} />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-9 w-9"
+                  onClick={() => saveRule.mutate({ param, draft })}
+                  disabled={!canSave(param) || saveRule.isPending}
+                  title="Сохранить параметр"
+                >
+                  <Save className="w-4 h-4 text-blue-500" />
+                </Button>
+              </div>
+              {preview && (
+                <div className="mt-3">
+                  <ThresholdRangeBar
+                    compact
+                    showLabels
+                    greenMin={preview.green_min}
+                    greenMax={preview.green_max}
+                    yellowMin={preview.yellow_min}
+                    yellowMax={preview.yellow_max}
+                    redMin={preview.red_min}
+                    redMax={preview.red_max}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Паспортные показатели с отклонением</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Вводится центральное значение и три симметричных отклонения в процентах: зелёный, жёлтый и красный уровни.
+          </p>
+        </div>
+
+        {DEVIATION_PARAMS.map(param => {
+          const draft = getDraft(param);
+          const preview = deviationPreview(param, draft);
+          const isSaved = savedParams.has(param);
+
+          return (
+            <div key={param} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="grid grid-cols-[minmax(130px,1fr)_repeat(4,minmax(76px,92px))_38px] gap-2 items-end">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {PARAM_LABELS[param]}
+                    {isSaved && <span className="ml-1 text-green-600 text-xs">✓</span>}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {PARAM_UNITS[param] || 'б/р'} · округление {DECIMALS[param]} знаков
+                  </p>
+                </div>
+                <NumberCell label="Центр" value={draft.base_value} onChange={value => updateField(param, 'base_value', value)} />
+                <NumberCell label="Зелёный ±%" value={draft.green_pct} onChange={value => updateField(param, 'green_pct', value)} />
+                <NumberCell label="Жёлтый ±%" value={draft.yellow_pct} onChange={value => updateField(param, 'yellow_pct', value)} />
+                <NumberCell label="Красный ±%" value={draft.red_pct} onChange={value => updateField(param, 'red_pct', value)} />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-9 w-9"
+                  onClick={() => saveRule.mutate({ param, draft })}
+                  disabled={!canSave(param) || saveRule.isPending}
+                  title="Сохранить параметр"
+                >
+                  <Save className="w-4 h-4 text-blue-500" />
+                </Button>
+              </div>
+              {preview.green_min !== undefined && (
+                <div className="mt-3">
+                  <ThresholdRangeBar
+                    compact
+                    showLabels
+                    greenMin={preview.green_min}
+                    greenMax={preview.green_max}
+                    yellowMin={preview.yellow_min}
+                    yellowMax={preview.yellow_max}
+                    redMin={preview.red_min}
+                    redMax={preview.red_max}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </section>
+    </div>
+  );
+}
+
+function NumberCell({ label, value, onChange }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-[11px] text-slate-500">{label}</Label>
+      <Input
+        type="number"
+        step="any"
+        value={value ?? ''}
+        onChange={event => onChange(event.target.value)}
+        className="h-9 text-sm"
+      />
     </div>
   );
 }

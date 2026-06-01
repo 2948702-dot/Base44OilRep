@@ -65,7 +65,7 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-6xl w-[95vw]">
         <DialogHeader>
           <DialogTitle>{form.id ? 'Редактировать масло' : 'Добавить масло'}</DialogTitle>
         </DialogHeader>
@@ -123,7 +123,7 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
             </div>
           </TabsContent>
           <TabsContent value="thresholds">
-            <div className="py-1 max-h-[55vh] overflow-y-auto pr-1">
+            <div className="py-1 max-h-[65vh] overflow-y-auto pr-1">
               <OilThresholdsEditor oilId={form.id} />
             </div>
           </TabsContent>

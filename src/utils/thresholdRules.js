@@ -66,9 +66,9 @@ export function getThresholdSeverity(rule, value) {
     return matching ? customRangeSeverity(matching) : null;
   }
 
-  if (inRange(value, rule.red_min, rule.red_max)) return 'red';
-  if (inRange(value, rule.yellow_min, rule.yellow_max)) return 'yellow';
   if (inRange(value, rule.green_min, rule.green_max)) return 'green';
+  if (inRange(value, rule.yellow_min, rule.yellow_max)) return 'yellow';
+  if (inRange(value, rule.red_min, rule.red_max)) return 'red';
   return null;
 }
 
