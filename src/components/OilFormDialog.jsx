@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import OilThresholdsEditor from '@/components/OilThresholdsEditor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ISO_VG_GRADES = [
@@ -71,6 +72,7 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
         <Tabs defaultValue="passport">
           <TabsList className="mb-3">
             <TabsTrigger value="passport">Паспортные данные</TabsTrigger>
+            <TabsTrigger value="thresholds">Границы параметров</TabsTrigger>
           </TabsList>
           <TabsContent value="passport">
             <div className="grid grid-cols-3 gap-3 max-h-[55vh] overflow-y-auto pr-1">
@@ -118,6 +120,11 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
                 <Label>Комментарии</Label>
                 <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
               </div>
+            </div>
+          </TabsContent>
+          <TabsContent value="thresholds">
+            <div className="py-1 max-h-[55vh] overflow-y-auto pr-1">
+              <OilThresholdsEditor oilId={form.id} />
             </div>
           </TabsContent>
         </Tabs>

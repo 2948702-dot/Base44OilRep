@@ -137,7 +137,8 @@ export default function ThresholdRules() {
 
   const handleSave = () => {
     let data = form.deviation_mode ? { ...form, ...devZones } : { ...form };
-    if (!data.equipment_type) data.equipment_type = 'all';
+    data.equipment_type = 'all';
+    delete data.equipment_unit_id;
     if (!data.custom_ranges_mode) {
       // strip ranges with empty min/max to avoid validation errors
       data.ranges = [];
@@ -310,32 +311,12 @@ export default function ThresholdRules() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Тип оборудования</Label>
-              <Select value={form.equipment_type} onValueChange={v => f('equipment_type', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Все / Универсальный</SelectItem>
-                  {Object.entries(EQ_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
               <Label>Единица измерения</Label>
               <div className="h-9 flex items-center px-3 rounded-md border border-input bg-muted text-sm text-slate-600">
                 {form.parameter_name
                   ? (form.parameter_name === 'dielectric_constant' ? 'безразмерная (шаг 0.01)' : PARAM_UNITS[form.parameter_name])
                   : '— выберите параметр —'}
               </div>
-            </div>
-            <div className="space-y-1">
-              <Label>Единица оборудования (индивид.)</Label>
-              <Select value={form.equipment_unit_id || NONE_VALUE} onValueChange={v => f('equipment_unit_id', v === NONE_VALUE ? '' : v)}>
-                <SelectTrigger><SelectValue placeholder="Не установлено" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE_VALUE}>Не установлено</SelectItem>
-                  {UNIT_NAMES.map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)}
-                </SelectContent>
-              </Select>
             </div>
             <div className="space-y-1">
               <Label>Масло (необязательно)</Label>

@@ -11,11 +11,14 @@ import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, ExternalLink } from 'l
 import { useNavigate } from 'react-router-dom';
 import { EQ_TYPES } from '@/utils/labels';
 import SamplingPointsPanel from '@/components/SamplingPointsPanel';
+import UnitThresholdsEditor from '@/components/UnitThresholdsEditor';
 
 const DEF = {
   client_id: '', asset_id: '', unit_name: '', equipment_type: '',
   manufacturer: '', model: '', serial_number: '',
-  total_operating_hours: '', initial_oil_hours: '', comments: ''
+  total_operating_hours: '', initial_oil_hours: '',
+  use_standard_thresholds: true, custom_thresholds: [],
+  comments: ''
 };
 
 export default function EquipmentUnits() {
@@ -51,6 +54,16 @@ export default function EquipmentUnits() {
       else clean.total_operating_hours = Number(clean.total_operating_hours);
       if (clean.initial_oil_hours === '' || clean.initial_oil_hours === undefined) delete clean.initial_oil_hours;
       else clean.initial_oil_hours = Number(clean.initial_oil_hours);
+      if (clean.use_standard_thresholds === undefined) clean.use_standard_thresholds = true;
+      if (Array.isArray(clean.custom_thresholds)) {
+        clean.custom_thresholds = clean.custom_thresholds.map(t => {
+          const ct = { parameter_name: t.parameter_name };
+          ['green_min','green_max','yellow_min','yellow_max','red_min','red_max'].forEach(fld => {
+            if (t[fld] !== '' && t[fld] !== null && t[fld] !== undefined) ct[fld] = Number(t[fld]);
+          });
+          return ct;
+        });
+      }
       const result = clean.id
         ? await base44.entities.EquipmentUnit.update(clean.id, clean)
         : await base44.entities.EquipmentUnit.create(clean);
@@ -291,6 +304,28 @@ export default function EquipmentUnits() {
             <div className="col-span-2 space-y-1">
               <Label>Серийный номер</Label>
               <Input value={form.serial_number} onChange={e => f('serial_number', e.target.value)} />
+            </div>
+            <div className="col-span-2">
+              <div className="flex items-center gap-2 py-2 border-t border-slate-100 mt-1">
+                <input
+                  type="checkbox" id="use-std-thresh"
+                  className="w-4 h-4 cursor-pointer"
+                  checked={form.use_standard_thresholds !== false}
+                  onChange={e => f('use_standard_thresholds', e.target.checked)}
+                />
+                <label htmlFor="use-std-thresh" className="text-sm font-medium text-slate-700 cursor-pointer">
+                  Использовать стандартные границы параметров масла
+                </label>
+              </div>
+              {form.use_standard_thresholds === false && (
+                <div className="border border-amber-200 rounded-lg p-3 bg-amber-50 mt-1">
+                  <p className="text-xs font-semibold text-amber-800 mb-2">Индивидуальные границы для этого агрегата</p>
+                  <UnitThresholdsEditor
+                    value={form.custom_thresholds || []}
+                    onChange={v => f('custom_thresholds', v)}
+                  />
+                </div>
+              )}
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Комментарии</Label>

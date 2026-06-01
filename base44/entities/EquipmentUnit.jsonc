@@ -112,6 +112,40 @@
       "type": "string",
       "title": "Oil Filter Article"
     },
+    "use_standard_thresholds": {
+      "type": "boolean",
+      "title": "\u0418\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c \u0441\u0442\u0430\u043d\u0434\u0430\u0440\u0442\u043d\u044b\u0435 \u0433\u0440\u0430\u043d\u0438\u0446\u044b \u043f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u043e\u0432 \u043c\u0430\u0441\u043b\u0430"
+    },
+    "custom_thresholds": {
+      "type": "array",
+      "title": "\u0418\u043d\u0434\u0438\u0432\u0438\u0434\u0443\u0430\u043b\u044c\u043d\u044b\u0435 \u0433\u0440\u0430\u043d\u0438\u0446\u044b \u043f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u043e\u0432",
+      "items": {
+        "type": "object",
+        "properties": {
+          "parameter_name": {
+            "type": "string"
+          },
+          "green_min": {
+            "type": "number"
+          },
+          "green_max": {
+            "type": "number"
+          },
+          "yellow_min": {
+            "type": "number"
+          },
+          "yellow_max": {
+            "type": "number"
+          },
+          "red_min": {
+            "type": "number"
+          },
+          "red_max": {
+            "type": "number"
+          }
+        }
+      }
+    },
     "comments": {
       "type": "string",
       "title": "Comments"
