@@ -21,7 +21,7 @@ export default function ThresholdRangeBar({
   const fmt = (v) => {
     const n = Number(v);
     if (!Number.isFinite(n)) return v;
-    return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(4)));
+    return Math.round(n).toString();
   };
 
   const buildBoundaryLabels = (values, min, span) => {

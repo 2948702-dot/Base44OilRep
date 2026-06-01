@@ -98,6 +98,7 @@ export default function ThresholdRules() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
   const [filterEq, setFilterEq] = useState('none');
+  const [selected, setSelected] = useState(new Set());
   const qc = useQueryClient();
 
   const { data: rules = [], isLoading } = useQuery({ queryKey: ['threshold-rules'], queryFn: () => base44.entities.ThresholdRule.list() });
@@ -114,6 +115,12 @@ export default function ThresholdRules() {
     mutationFn: id => base44.entities.ThresholdRule.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['threshold-rules'] })
   });
+  const bulkDel = useMutation({
+    mutationFn: async (ids) => { for (const id of ids) await base44.entities.ThresholdRule.delete(id); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['threshold-rules'] }); setSelected(new Set()); }
+  });
+  const toggle = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => setSelected(s => s.size === filtered.length ? new Set() : new Set(filtered.map(x => x.id)));
 
   const filtered = filterEq === 'none' ? rules : rules.filter(r => r.equipment_type === filterEq);
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -130,6 +137,7 @@ export default function ThresholdRules() {
 
   const handleSave = () => {
     let data = form.deviation_mode ? { ...form, ...devZones } : { ...form };
+    if (!data.equipment_type) data.equipment_type = 'all';
     if (!data.custom_ranges_mode) {
       // strip ranges with empty min/max to avoid validation errors
       data.ranges = [];
@@ -159,9 +167,16 @@ export default function ThresholdRules() {
           <h1 className="text-xl font-bold text-slate-900">Пороговые правила</h1>
           <p className="text-slate-500 text-sm mt-0.5">{rules.length} правил</p>
         </div>
-        <Button size="sm" onClick={() => { setForm(DEF); setOpen(true); }}>
-          <Plus className="w-4 h-4 mr-1.5" />Добавить правило
-        </Button>
+        <div className="flex gap-2">
+          {selected.size > 0 && (
+            <Button size="sm" variant="destructive" onClick={() => window.confirm(`Удалить ${selected.size} правил?`) && bulkDel.mutate([...selected])} disabled={bulkDel.isPending}>
+              <Trash2 className="w-4 h-4 mr-1.5" />Удалить выбранные ({selected.size})
+            </Button>
+          )}
+          <Button size="sm" onClick={() => { setForm(DEF); setOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1.5" />Добавить правило
+          </Button>
+        </div>
       </div>
 
       <div className="mb-3">
@@ -179,6 +194,7 @@ export default function ThresholdRules() {
         <table className="w-full text-sm min-w-max">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
+              <th className="w-8 px-3 py-2.5"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={filtered.length > 0 && selected.size === filtered.length} onChange={toggleAll} /></th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Параметр</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип<br/>обор.</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Ед.<br/>обор.</th>
@@ -194,9 +210,10 @@ export default function ThresholdRules() {
             ) : filtered.length === 0 ? (
               <tr><td colSpan={7} className="text-center py-10 text-slate-400">Правила не найдены</td></tr>
             ) : filtered.map(r => (
-              <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50">
+              <tr key={r.id} className={`border-b border-slate-50 hover:bg-slate-50 ${selected.has(r.id) ? 'bg-blue-50' : ''}`}>
+                <td className="px-3 py-2.5"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={selected.has(r.id)} onChange={() => toggle(r.id)} /></td>
                 <td className="px-4 py-2.5">
-                  <button className="font-medium text-slate-900 hover:text-blue-600 hover:underline text-left" onClick={() => { setForm({ ...DEF, ...r, ranges: r.ranges || [{ ...DEF_RANGE }] }); setOpen(true); }}>
+                  <button className="font-medium text-slate-900 hover:text-blue-600 hover:underline text-left" onClick={() => { setForm({ ...DEF, ...r, equipment_type: r.equipment_type || 'all', ranges: r.ranges || [{ ...DEF_RANGE }] }); setOpen(true); }}>
                     {PARAM_LABELS[r.parameter_name] || r.parameter_name}
                   </button>
                 </td>
