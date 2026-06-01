@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     // Role-based authorization: verify user has access to the submitted asset/client.
     // This prevents privilege escalation via asServiceRole by accepting arbitrary IDs from the frontend.
     if (user.role === 'captain') {
-      const allowedAssetIds = user.asset_ids?.length ? user.asset_ids : user.asset_id ? [user.asset_id] : [];
+      const allowedAssetIds = user.asset_id ? [user.asset_id] : user.asset_ids?.[0] ? [user.asset_ids[0]] : [];
       if (!baseData.asset_id || !allowedAssetIds.includes(baseData.asset_id)) {
         return Response.json({ error: 'Forbidden: asset mismatch' }, { status: 403 });
       }

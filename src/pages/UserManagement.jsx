@@ -10,7 +10,7 @@ import { UserPlus, Trash2 } from 'lucide-react';
 const ROLE_LABELS = {
   admin: 'Администратор',
   superintendent: 'Суперинтендант',
-  captain: 'Ответственный за активы',
+  captain: 'Ответственный за актив',
 };
 
 const ROLE_BADGES = {
@@ -38,7 +38,7 @@ export default function UserManagement() {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('captain');
   const [clientId, setClientId] = useState('');
-  const [assetIds, setAssetIds] = useState([]);
+  const [assetId, setAssetId] = useState('');
   const [positionTitle, setPositionTitle] = useState('asset_responsible');
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -62,11 +62,6 @@ export default function UserManagement() {
     return assets;
   }, [assets, currentUser]);
 
-  const selectedAssets = useMemo(
-    () => availableAssets.filter(asset => assetIds.includes(asset.id)),
-    [availableAssets, assetIds]
-  );
-
   const findInvitedUser = async (targetEmail, invitationResult) => {
     const directUser = invitationResult?.user || invitationResult?.data || invitationResult;
     if (directUser?.id) return directUser;
@@ -80,16 +75,8 @@ export default function UserManagement() {
     setEmail('');
     setRole('captain');
     setClientId('');
-    setAssetIds([]);
+    setAssetId('');
     setPositionTitle('asset_responsible');
-  };
-
-  const toggleAsset = (assetId) => {
-    setAssetIds(prev => (
-      prev.includes(assetId)
-        ? prev.filter(id => id !== assetId)
-        : [...prev, assetId]
-    ));
   };
 
   const handleInvite = async () => {
@@ -101,7 +88,7 @@ export default function UserManagement() {
     }
 
     if (currentUser.role === 'captain') {
-      alert('У ответственного за активы нет прав приглашать пользователей.');
+      alert('У ответственного за актив нет прав приглашать пользователей.');
       return;
     }
 
@@ -115,25 +102,22 @@ export default function UserManagement() {
       return;
     }
 
-    if (role === 'captain' && assetIds.length === 0) {
-      alert('Выберите хотя бы один актив для ответственного.');
+    if (role === 'captain' && !assetId) {
+      alert('Выберите актив для ответственного.');
       return;
     }
 
-    if (role === 'captain' && currentUser.role === 'superintendent') {
-      const hasForeignAsset = selectedAssets.some(asset => asset.client_id !== currentUser.client_id);
-      if (hasForeignAsset) {
-        alert('Можно назначать только активы своего клиента.');
-        return;
-      }
+    const selectedAsset = availableAssets.find(asset => asset.id === assetId);
+    if (role === 'captain' && currentUser.role === 'superintendent' && selectedAsset?.client_id !== currentUser.client_id) {
+      alert('Можно назначить только актив своего клиента.');
+      return;
     }
 
-    const primaryAsset = selectedAssets[0];
     const assignment = {
       role,
-      client_id: role === 'superintendent' ? clientId : role === 'captain' ? primaryAsset?.client_id || '' : '',
-      asset_id: role === 'captain' ? primaryAsset?.id || '' : '',
-      asset_ids: role === 'captain' ? assetIds : [],
+      client_id: role === 'superintendent' ? clientId : role === 'captain' ? selectedAsset?.client_id || '' : '',
+      asset_id: role === 'captain' ? selectedAsset?.id || '' : '',
+      asset_ids: role === 'captain' && selectedAsset?.id ? [selectedAsset.id] : [],
       position_title: role === 'captain' ? positionTitle : '',
     };
 
@@ -145,7 +129,7 @@ export default function UserManagement() {
       if (invitedUser?.id) {
         await base44.entities.User.update(invitedUser.id, assignment);
       } else {
-        alert('Приглашение отправлено, но запись пользователя не найдена для назначения клиента/активов. Проверьте пользователя после принятия приглашения.');
+        alert('Приглашение отправлено, но запись пользователя не найдена для назначения клиента/актива. Проверьте пользователя после принятия приглашения.');
       }
 
       resetForm();
@@ -174,14 +158,8 @@ export default function UserManagement() {
       return clients.find(client => client.id === user.client_id)?.company_name || '-';
     }
 
-    const ids = user.asset_ids?.length ? user.asset_ids : user.asset_id ? [user.asset_id] : [];
-    const names = ids
-      .map(id => assets.find(asset => asset.id === id)?.asset_name)
-      .filter(Boolean);
-
-    if (names.length === 0) return '-';
-    if (names.length <= 2) return names.join(', ');
-    return `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
+    const id = user.asset_id || user.asset_ids?.[0];
+    return assets.find(asset => asset.id === id)?.asset_name || '-';
   };
 
   return (
@@ -258,7 +236,7 @@ export default function UserManagement() {
             </div>
             <div>
               <label className="text-sm font-medium text-slate-900 block mb-1">Роль доступа</label>
-              <Select value={role} onValueChange={(value) => { setRole(value); setAssetIds([]); }}>
+              <Select value={role} onValueChange={(value) => { setRole(value); setAssetId(''); }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -269,7 +247,7 @@ export default function UserManagement() {
                       <SelectItem value="superintendent">Суперинтендант</SelectItem>
                     </>
                   )}
-                  <SelectItem value="captain">Ответственный за активы</SelectItem>
+                  <SelectItem value="captain">Ответственный за актив</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -306,29 +284,22 @@ export default function UserManagement() {
                   </Select>
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-medium text-slate-900">Активы</label>
-                    <span className="text-xs text-slate-500">Выбрано: {assetIds.length}</span>
-                  </div>
-                  <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
-                    {availableAssets.map(asset => {
-                      const clientName = clients.find(client => client.id === asset.client_id)?.company_name;
-                      return (
-                        <label key={asset.id} className="flex items-start gap-3 px-3 py-2.5 hover:bg-slate-50 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="mt-1 w-4 h-4"
-                            checked={assetIds.includes(asset.id)}
-                            onChange={() => toggleAsset(asset.id)}
-                          />
-                          <span>
-                            <span className="block text-sm text-slate-900">{asset.asset_name}</span>
-                            <span className="block text-xs text-slate-500">{clientName || asset.asset_type || '-'}</span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                  <label className="text-sm font-medium text-slate-900 block mb-1">Актив</label>
+                  <Select value={assetId} onValueChange={setAssetId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Выберите актив..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableAssets.map(asset => {
+                        const clientName = clients.find(client => client.id === asset.client_id)?.company_name;
+                        return (
+                          <SelectItem key={asset.id} value={asset.id}>
+                            {asset.asset_name}{clientName ? ` · ${clientName}` : ''}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
                 </div>
               </>
             )}

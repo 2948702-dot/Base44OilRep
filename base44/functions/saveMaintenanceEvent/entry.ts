@@ -107,7 +107,7 @@ function unique(arr) {
 
 function checkAccess(user, event) {
   if (user.role === 'captain') {
-    const allowedAssetIds = user.asset_ids?.length ? user.asset_ids : user.asset_id ? [user.asset_id] : [];
+    const allowedAssetIds = user.asset_id ? [user.asset_id] : user.asset_ids?.[0] ? [user.asset_ids[0]] : [];
     if (!event.asset_id || !allowedAssetIds.includes(event.asset_id)) {
       return Response.json({ error: 'Forbidden: asset mismatch' }, { status: 403 });
     }
