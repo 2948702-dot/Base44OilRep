@@ -24,6 +24,20 @@ const DEF = {
   comments: ''
 };
 
+const EDITABLE_FIELDS = Object.keys(DEF);
+const NUMBER_FIELDS = [
+  'passport_viscosity_40',
+  'passport_viscosity_100',
+  'passport_viscosity_index',
+  'passport_density_15',
+  'passport_flash_point',
+  'passport_pour_point',
+  'passport_dielectric',
+  'passport_tbn',
+  'passport_tan',
+  'passport_ash_content',
+];
+
 function Req() { return <span className="text-red-500 ml-0.5">*</span>; }
 
 function NInput({ label, value, onChange, unit, required, allowNegative }) {
@@ -38,7 +52,29 @@ function NInput({ label, value, onChange, unit, required, allowNegative }) {
   );
 }
 
-const clean = (d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v === '' ? undefined : v]));
+function cleanOilPayload(data) {
+  const payload = {};
+
+  EDITABLE_FIELDS.forEach(field => {
+    const value = data[field];
+    if (NUMBER_FIELDS.includes(field)) {
+      if (value === '' || value === null || value === undefined) {
+        payload[field] = null;
+      } else {
+        const numberValue = Number(value);
+        payload[field] = Number.isFinite(numberValue) ? numberValue : null;
+      }
+      return;
+    }
+    if (field === 'oil_name' || field === 'manufacturer') {
+      payload[field] = value ?? '';
+    } else {
+      payload[field] = value === '' || value === undefined ? null : value;
+    }
+  });
+
+  return payload;
+}
 
 export default function OilFormDialog({ open, onOpenChange, initialData = null, onCreated }) {
   const [form, setForm] = useState(initialData || DEF);
@@ -53,11 +89,11 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
 
   const save = useMutation({
     mutationFn: d => {
-      const c = clean(d);
-      return c.id ? base44.entities.OilReference.update(c.id, c) : base44.entities.OilReference.create(c);
+      const payload = cleanOilPayload(d);
+      return d.id ? base44.entities.OilReference.update(d.id, payload) : base44.entities.OilReference.create(payload);
     },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ['oil-references'] });
+    onSuccess: async (data) => {
+      await qc.invalidateQueries({ queryKey: ['oil-references'] });
       onCreated?.(data);
       onOpenChange(false);
       setForm(DEF);
@@ -134,6 +170,11 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
             </div>
           </TabsContent>
         </Tabs>
+        {save.isError && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            Ошибка сохранения: {save.error?.message || 'Base44 не принял изменения'}
+          </div>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpen(false)}>Отмена</Button>
           <Button onClick={() => save.mutate(form)} disabled={!form.oil_name || !form.manufacturer || save.isPending}>
