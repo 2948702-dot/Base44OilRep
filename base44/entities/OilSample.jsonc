@@ -42,6 +42,20 @@
       "type": "string",
       "title": "Oil Lifecycle"
     },
+    "applies_to_equipment_unit_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Applies To Equipment Units"
+    },
+    "applies_to_lifecycle_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Applies To Oil Lifecycles"
+    },
     "sampling_date": {
       "type": "string",
       "title": "Sampling Date",

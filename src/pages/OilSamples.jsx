@@ -20,6 +20,7 @@ const DEF = {
   sample_number: '', client_id: '', asset_id: '', equipment_unit_id: '', sampling_point_id: '',
   oil_type_id: '', lifecycle_id: '', sampling_date: '', total_hours_at_sampling: '',
   oil_hours_at_sampling: '', engine_state: 'warm', sample_status: 'pending',
+  applies_to_equipment_unit_ids: [], applies_to_lifecycle_ids: [],
   batch_number: '', production_date: '', storage_type: '', delivery_date: '', supplier: '',
   operator_user_id: '', comments: ''
 };
@@ -61,6 +62,9 @@ export default function OilSamples() {
     ['total_hours_at_sampling', 'oil_hours_at_sampling'].forEach(k => { if (c[k] === '' || c[k] === null) delete c[k]; });
     ['asset_id', 'equipment_unit_id', 'sampling_point_id', 'oil_type_id', 'lifecycle_id', 'batch_number', 'production_date', 'storage_type', 'delivery_date', 'supplier', 'operator_user_id', 'comments'].forEach(k => {
       if (c[k] === '' || c[k] === null || c[k] === undefined) delete c[k];
+    });
+    ['applies_to_equipment_unit_ids', 'applies_to_lifecycle_ids'].forEach(k => {
+      if (!Array.isArray(c[k]) || c[k].length === 0) delete c[k];
     });
     return c;
   };
@@ -111,6 +115,54 @@ export default function OilSamples() {
 
   const filteredAssetOptions = assets.filter(a => !filterClient || a.client_id === filterClient);
   const currentAnalysis = results.find(r => r.sample_id === form.id);
+  const baselineUnitOptions = filtUnits.filter(unit => {
+    const unitOilId = unit.current_oil_type_id || unit.oil_type_id;
+    return form.oil_type_id && unitOilId === form.oil_type_id;
+  });
+
+  const lifecycleIdsForUnit = (unitId) => {
+    const pointIds = points.filter(p => p.equipment_unit_id === unitId).map(p => p.id);
+    return lifecycles
+      .filter(l => l.status === 'active' && pointIds.includes(l.sampling_point_id))
+      .map(l => l.id);
+  };
+
+  const setAllBaselineTargets = () => {
+    const unitIds = baselineUnitOptions.map(u => u.id);
+    const lifecycleIds = [...new Set(unitIds.flatMap(lifecycleIdsForUnit))];
+    setForm(p => ({
+      ...p,
+      applies_to_equipment_unit_ids: unitIds,
+      applies_to_lifecycle_ids: lifecycleIds,
+    }));
+  };
+
+  const clearBaselineTargets = () => {
+    setForm(p => ({ ...p, applies_to_equipment_unit_ids: [], applies_to_lifecycle_ids: [] }));
+  };
+
+  const toggleBaselineUnit = (unitId) => {
+    const lifecycleIds = lifecycleIdsForUnit(unitId);
+    setForm(p => {
+      const unitsSet = new Set(p.applies_to_equipment_unit_ids || []);
+      const lcSet = new Set(p.applies_to_lifecycle_ids || []);
+      const isSelected = unitsSet.has(unitId);
+
+      if (isSelected) {
+        unitsSet.delete(unitId);
+        lifecycleIds.forEach(id => lcSet.delete(id));
+      } else {
+        unitsSet.add(unitId);
+        lifecycleIds.forEach(id => lcSet.add(id));
+      }
+
+      return {
+        ...p,
+        applies_to_equipment_unit_ids: [...unitsSet],
+        applies_to_lifecycle_ids: [...lcSet],
+      };
+    });
+  };
 
   const filtered = samples.filter(s =>
     (filterClient === 'none' || s.client_id === filterClient) &&
@@ -315,21 +367,65 @@ export default function OilSamples() {
                   />
                 </div>
                 {form.sample_type === 'fresh_oil' && (
-                  <div className="col-span-3 grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Масло *</Label>
-                      <Select value={form.oil_type_id} onValueChange={v => f('oil_type_id', v)}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Выберите масло" /></SelectTrigger>
-                        <SelectContent>{oils.map(o => <SelectItem key={o.id} value={o.id}>{o.oil_name}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                    {activeLC.length > 0 && (
+                  <div className="col-span-3 space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
-                        <Label className="text-xs">База для цикла масла</Label>
-                        <Select value={form.lifecycle_id} onValueChange={v => f('lifecycle_id', v)}>
-                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Выберите цикл" /></SelectTrigger>
-                          <SelectContent>{activeLC.map(l => <SelectItem key={l.id} value={l.id}>{l.start_date} — активный</SelectItem>)}</SelectContent>
+                        <Label className="text-xs">Масло *</Label>
+                        <Select value={form.oil_type_id} onValueChange={v => setForm(p => ({ ...p, oil_type_id: v, applies_to_equipment_unit_ids: [], applies_to_lifecycle_ids: [] }))}>
+                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Выберите масло" /></SelectTrigger>
+                          <SelectContent>{oils.map(o => <SelectItem key={o.id} value={o.id}>{o.oil_name}</SelectItem>)}</SelectContent>
                         </Select>
+                      </div>
+                      {activeLC.length > 0 && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">База для цикла масла</Label>
+                          <Select value={form.lifecycle_id} onValueChange={v => f('lifecycle_id', v)}>
+                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Выберите цикл" /></SelectTrigger>
+                            <SelectContent>{activeLC.map(l => <SelectItem key={l.id} value={l.id}>{l.start_date} — активный</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                    {form.oil_type_id && (
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-semibold text-slate-700">Назначить базовую пробу</p>
+                            <p className="text-[11px] text-slate-500">Выберите агрегаты этого актива с тем же маслом.</p>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={setAllBaselineTargets} disabled={baselineUnitOptions.length === 0}>
+                              Все
+                            </Button>
+                            <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={clearBaselineTargets}>
+                              Снять
+                            </Button>
+                          </div>
+                        </div>
+                        {baselineUnitOptions.length === 0 ? (
+                          <p className="text-xs text-slate-400">Нет агрегатов с выбранным маслом в этом активе.</p>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                            {baselineUnitOptions.map(unit => {
+                              const lifecycleCount = lifecycleIdsForUnit(unit.id).length;
+                              const checked = (form.applies_to_equipment_unit_ids || []).includes(unit.id);
+                              return (
+                                <label key={unit.id} className="flex items-start gap-2 rounded-md bg-white border border-slate-100 px-2 py-1.5 text-xs cursor-pointer hover:border-blue-200">
+                                  <input
+                                    type="checkbox"
+                                    className="mt-0.5"
+                                    checked={checked}
+                                    onChange={() => toggleBaselineUnit(unit.id)}
+                                  />
+                                  <span>
+                                    <span className="font-medium text-slate-700">{unit.unit_name}</span>
+                                    {lifecycleCount > 0 && <span className="block text-[11px] text-slate-400">активных циклов: {lifecycleCount}</span>}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

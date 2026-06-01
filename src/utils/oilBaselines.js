@@ -19,21 +19,30 @@ export function findFreshOilBaseline(sample, samples = [], results = [], units =
     .filter(candidate => {
       if (candidate.sample_type !== 'fresh_oil') return false;
       if (candidate.id === sample.id) return false;
-      if (sample.lifecycle_id && candidate.lifecycle_id === sample.lifecycle_id) return true;
-      if (!sample.equipment_unit_id || candidate.equipment_unit_id !== sample.equipment_unit_id) return false;
       if (sampleOilId && oilIdForSample(candidate, units) !== sampleOilId) return false;
       if (sampleTime && toTime(candidate.sampling_date) > sampleTime) return false;
-      return true;
+
+      if (sample.lifecycle_id && candidate.lifecycle_id === sample.lifecycle_id) return true;
+      if (sample.lifecycle_id && candidate.applies_to_lifecycle_ids?.includes(sample.lifecycle_id)) return true;
+      if (sample.equipment_unit_id && candidate.applies_to_equipment_unit_ids?.includes(sample.equipment_unit_id)) return true;
+      if (sample.equipment_unit_id && candidate.equipment_unit_id === sample.equipment_unit_id) return true;
+      return false;
     })
     .map(candidate => ({
       sample: candidate,
       result: results.find(result => result.sample_id === candidate.id),
       time: toTime(candidate.sampling_date),
       lifecycleMatch: sample.lifecycle_id && candidate.lifecycle_id === sample.lifecycle_id,
+      assignedLifecycleMatch: sample.lifecycle_id && candidate.applies_to_lifecycle_ids?.includes(sample.lifecycle_id),
+      assignedUnitMatch: sample.equipment_unit_id && candidate.applies_to_equipment_unit_ids?.includes(sample.equipment_unit_id),
+      unitMatch: sample.equipment_unit_id && candidate.equipment_unit_id === sample.equipment_unit_id,
     }))
     .filter(candidate => candidate.result)
     .sort((a, b) => {
       if (a.lifecycleMatch !== b.lifecycleMatch) return a.lifecycleMatch ? -1 : 1;
+      if (a.assignedLifecycleMatch !== b.assignedLifecycleMatch) return a.assignedLifecycleMatch ? -1 : 1;
+      if (a.assignedUnitMatch !== b.assignedUnitMatch) return a.assignedUnitMatch ? -1 : 1;
+      if (a.unitMatch !== b.unitMatch) return a.unitMatch ? -1 : 1;
       return b.time - a.time;
     });
 
