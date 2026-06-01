@@ -122,11 +122,13 @@ Deno.serve(async (req) => {
     }
 
     // 3. Recalculate equipment unit state (inlined — function-to-function calls not supported)
+    let updatedUnit = null;
     if (unitId) {
       await recalcUnit(base44, unitId);
+      updatedUnit = await base44.asServiceRole.entities.EquipmentUnit.get(unitId);
     }
 
-    return Response.json({ success: true });
+    return Response.json({ success: true, updated_unit: updatedUnit });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
