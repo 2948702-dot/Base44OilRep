@@ -31,6 +31,7 @@ export default function OilReferenceDB() {
   const [editData, setEditData] = useState(null);
   const [compareOil, setCompareOil] = useState(null);
   const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState(new Set());
   const qc = useQueryClient();
 
   const { data: oils = [], isLoading } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
@@ -39,6 +40,12 @@ export default function OilReferenceDB() {
     mutationFn: id => base44.entities.OilReference.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['oil-references'] })
   });
+  const bulkDel = useMutation({
+    mutationFn: async (ids) => { for (const id of ids) await base44.entities.OilReference.delete(id); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['oil-references'] }); setSelected(new Set()); }
+  });
+  const toggle = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => setSelected(s => s.size === filtered.length ? new Set() : new Set(filtered.map(x => x.id)));
 
   const filtered = oils.filter(o =>
     o.oil_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -55,9 +62,16 @@ export default function OilReferenceDB() {
           <h1 className="text-xl font-bold text-slate-900">База масел</h1>
           <p className="text-slate-500 text-sm mt-0.5">{oils.length} марок масел</p>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="w-4 h-4 mr-1.5" />Добавить масло
-        </Button>
+        <div className="flex gap-2">
+          {selected.size > 0 && (
+            <Button size="sm" variant="destructive" onClick={() => window.confirm(`Удалить ${selected.size} записей?`) && bulkDel.mutate([...selected])} disabled={bulkDel.isPending}>
+              <Trash2 className="w-4 h-4 mr-1.5" />Удалить выбранные ({selected.size})
+            </Button>
+          )}
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="w-4 h-4 mr-1.5" />Добавить масло
+          </Button>
+        </div>
       </div>
 
       <div className="mb-3">
@@ -68,6 +82,7 @@ export default function OilReferenceDB() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
+              <th className="w-8 px-3 py-2.5"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={filtered.length > 0 && selected.size === filtered.length} onChange={toggleAll} /></th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Наименование</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Производитель</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Категория</th>
@@ -93,7 +108,8 @@ export default function OilReferenceDB() {
                 </td>
               </tr>
             ) : filtered.map(o => (
-              <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-50">
+              <tr key={o.id} className={`border-b border-slate-50 hover:bg-slate-50 ${selected.has(o.id) ? 'bg-blue-50' : ''}`}>
+                <td className="px-3 py-2.5"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={selected.has(o.id)} onChange={() => toggle(o.id)} /></td>
                 <td className="px-4 py-2.5 font-medium text-slate-900">{o.oil_name}</td>
                 <td className="px-4 py-2.5 text-slate-600">{o.manufacturer}</td>
                 <td className="px-4 py-2.5 text-slate-600">{o.oil_category || '—'}</td>

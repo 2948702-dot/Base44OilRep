@@ -274,7 +274,7 @@ export default function OilSamples() {
                 </div>
                 <div className="col-span-3 space-y-2">
                   <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Иерархия объекта</Label>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
                       <Label className="text-xs">Клиент *</Label>
                       <Select value={form.client_id} onValueChange={v => setForm(p => ({ ...p, client_id: v, asset_id: '', equipment_unit_id: '', sampling_point_id: '', lifecycle_id: '' }))}>
@@ -296,19 +296,11 @@ export default function OilSamples() {
                         <SelectContent>{filtUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Точка отбора</Label>
-                      <Select value={form.sampling_point_id} onValueChange={v => f('sampling_point_id', v)} disabled={!form.equipment_unit_id}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.equipment_unit_id ? 'Точка' : '← сначала оборудование'} /></SelectTrigger>
-                        <SelectContent>{filtPoints.map(p => <SelectItem key={p.id} value={p.id}>{p.point_name}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
                   </div>
                   <HierarchyPath
                     client={clients.find(c => c.id === form.client_id)?.company_name}
                     asset={assets.find(a => a.id === form.asset_id)?.asset_name}
                     unit={units.find(u => u.id === form.equipment_unit_id)?.unit_name}
-                    point={points.find(p => p.id === form.sampling_point_id)?.point_name}
                   />
                 </div>
                 <div className="space-y-1">
