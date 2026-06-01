@@ -37,10 +37,10 @@ current_oil_hours = lastResetOilHours + (currentTotal - lastResetTotal)
 
 ---
 
-## SamplingPoint — legacy-поля
+## SamplingPoint — legacy-поля удалены
 
-`SamplingPoint.current_total_hours` и `current_oil_hours` — **устаревшие поля**, оставшиеся для совместимости.  
-Не использовать как источник истины. Актуальные значения берутся из `EquipmentUnit.current_*`.
+`SamplingPoint.current_total_hours` и `current_oil_hours` удалены из схемы как устаревшие поля.
+Актуальные значения м/ч берутся только из `EquipmentUnit.current_*`.
 
 ---
 

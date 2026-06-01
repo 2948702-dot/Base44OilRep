@@ -22,14 +22,6 @@
       "type": "string",
       "title": "QR Code"
     },
-    "current_total_hours": {
-      "type": "number",
-      "title": "Current Total Hours"
-    },
-    "current_oil_hours": {
-      "type": "number",
-      "title": "Current Oil Hours"
-    },
     "sampling_method": {
       "type": "string",
       "title": "Sampling Method",
