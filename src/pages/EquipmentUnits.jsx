@@ -54,6 +54,10 @@ export default function EquipmentUnits() {
     queryKey: ['oil-references'],
     queryFn: () => base44.entities.OilReference.list()
   });
+  const { data: thresholdRules = [] } = useQuery({
+    queryKey: ['threshold-rules'],
+    queryFn: () => base44.entities.ThresholdRule.list()
+  });
 
   const filteredAssets = assets.filter(asset => filterClient === 'none' || asset.client_id === filterClient);
   const formAssets = assets.filter(asset => !form.client_id || asset.client_id === form.client_id);
@@ -86,14 +90,33 @@ export default function EquipmentUnits() {
       }
 
       if (clean.use_standard_thresholds === undefined) clean.use_standard_thresholds = true;
-      if (Array.isArray(clean.custom_thresholds)) {
+      if (clean.use_standard_thresholds !== false) {
+        clean.custom_thresholds = [];
+      } else if (Array.isArray(clean.custom_thresholds)) {
         clean.custom_thresholds = clean.custom_thresholds.map(threshold => {
-          const next = { parameter_name: threshold.parameter_name };
-          ['green_min', 'green_max', 'yellow_min', 'yellow_max', 'red_min', 'red_max'].forEach(field => {
+          const next = {
+            parameter_name: threshold.parameter_name,
+            oil_type_id: threshold.oil_type_id || clean.oil_type_id || undefined,
+            custom_ranges_mode: !!threshold.custom_ranges_mode,
+            deviation_mode: !!threshold.deviation_mode,
+            ranges: Array.isArray(threshold.ranges) ? threshold.ranges.map(range => ({
+              ...range,
+              min: range.min === '' || range.min === null || range.min === undefined ? undefined : Number(range.min),
+              max: range.max === '' || range.max === null || range.max === undefined ? undefined : Number(range.max),
+            })).filter(range => range.min !== undefined && range.max !== undefined) : [],
+          };
+
+          [
+            'green_min', 'green_max', 'yellow_min', 'yellow_max', 'red_min', 'red_max',
+            'base_value', 'green_left_pct', 'green_right_pct', 'yellow_left_pct',
+            'yellow_right_pct', 'red_left_pct', 'red_right_pct',
+          ].forEach(field => {
             if (threshold[field] !== '' && threshold[field] !== null && threshold[field] !== undefined) {
               next[field] = Number(threshold[field]);
             }
           });
+
+          Object.keys(next).forEach(field => next[field] === undefined && delete next[field]);
           return next;
         });
       }
@@ -412,6 +435,9 @@ export default function EquipmentUnits() {
                   <UnitThresholdsEditor
                     value={form.custom_thresholds || []}
                     onChange={value => f('custom_thresholds', value)}
+                    oilId={form.oil_type_id}
+                    oils={oils}
+                    standardRules={thresholdRules}
                   />
                 </div>
               )}
