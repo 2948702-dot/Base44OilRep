@@ -144,6 +144,10 @@ export default function OilReferenceDB() {
     setEditData(oil);
     setFormOpen(true);
   };
+  const handleFormOpenChange = nextOpen => {
+    setFormOpen(nextOpen);
+    if (!nextOpen) setEditData(null);
+  };
 
   return (
     <div className="p-6">
@@ -317,7 +321,7 @@ export default function OilReferenceDB() {
 
       <OilFormDialog
         open={formOpen}
-        onOpenChange={setFormOpen}
+        onOpenChange={handleFormOpenChange}
         initialData={editData}
         key={editData?.id || 'new'}
       />

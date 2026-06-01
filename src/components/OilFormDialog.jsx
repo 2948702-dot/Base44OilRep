@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SAE_GRADES } from '@/utils/labels';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -44,6 +44,12 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
   const [form, setForm] = useState(initialData || DEF);
   const qc = useQueryClient();
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  useEffect(() => {
+    if (open) {
+      setForm(initialData ? { ...DEF, ...initialData } : DEF);
+    }
+  }, [open, initialData]);
 
   const save = useMutation({
     mutationFn: d => {
