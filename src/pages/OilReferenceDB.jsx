@@ -45,6 +45,12 @@ function passportCount(oil) {
   return PASSPORT_FIELDS.filter(field => hasValue(oil[field])).length;
 }
 
+function hasCorePassportData(oil) {
+  return hasValue(oil.passport_viscosity_40) &&
+    hasValue(oil.passport_density_15) &&
+    hasValue(oil.passport_dielectric);
+}
+
 function thresholdCount(rules, oilId) {
   return new Set(
     rules
@@ -54,13 +60,12 @@ function thresholdCount(rules, oilId) {
   ).size;
 }
 
-function CountBadge({ count, total, tone = 'blue', title }) {
-  const filled = count > 0;
-  const colorClass = filled
-    ? tone === 'green'
-      ? 'bg-green-100 text-green-700 border-green-200'
-      : 'bg-blue-100 text-blue-700 border-blue-200'
-    : 'bg-slate-100 text-slate-400 border-slate-200';
+function CountBadge({ count, total, status = 'empty', title }) {
+  const colorClass = {
+    green: 'bg-green-100 text-green-700 border-green-200',
+    amber: 'bg-amber-100 text-amber-700 border-amber-200',
+    empty: 'bg-slate-100 text-slate-400 border-slate-200',
+  }[status] || 'bg-slate-100 text-slate-400 border-slate-200';
 
   return (
     <span className="inline-flex items-center gap-1.5" title={title}>
@@ -226,6 +231,8 @@ export default function OilReferenceDB() {
             ) : filtered.map(oil => {
               const passportFilled = passportCount(oil);
               const thresholdsFilled = thresholdCount(thresholdRules, oil.id);
+              const passportStatus = hasCorePassportData(oil) ? 'green' : 'amber';
+              const thresholdStatus = thresholdsFilled === 0 ? 'empty' : thresholdsFilled === 6 ? 'green' : 'amber';
 
               return (
                 <tr key={oil.id} className={`border-b border-slate-50 hover:bg-slate-50 ${selected.has(oil.id) ? 'bg-blue-50' : ''}`}>
@@ -247,15 +254,15 @@ export default function OilReferenceDB() {
                     <CountBadge
                       count={passportFilled}
                       total={PASSPORT_FIELDS.length}
-                      tone="green"
-                      title={`Заполнено паспортных полей: ${passportFilled} из ${PASSPORT_FIELDS.length}`}
+                      status={passportStatus}
+                      title={`Заполнено паспортных полей: ${passportFilled} из ${PASSPORT_FIELDS.length}. Для зелёного статуса нужны вязкость 40°C, плотность и диэлектрика.`}
                     />
                   </td>
                   <td className="px-4 py-2.5">
                     <CountBadge
                       count={thresholdsFilled}
                       total={6}
-                      tone="blue"
+                      status={thresholdStatus}
                       title={`Задано пороговых параметров: ${thresholdsFilled} из 6`}
                     />
                   </td>
