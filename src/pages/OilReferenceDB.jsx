@@ -9,15 +9,8 @@ import OilFormDialog from '@/components/OilFormDialog';
 
 const PASSPORT_FIELDS = [
   'passport_viscosity_40',
-  'passport_viscosity_100',
-  'passport_viscosity_index',
   'passport_density_15',
-  'passport_flash_point',
-  'passport_pour_point',
   'passport_dielectric',
-  'passport_tbn',
-  'passport_tan',
-  'passport_ash_content',
 ];
 
 const THRESHOLD_LIMIT_FIELDS = [
@@ -206,7 +199,6 @@ export default function OilReferenceDB() {
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Категория</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">ISO VG</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Вязк. 40°C</th>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">TBN</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Паспорт</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Пороги</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Лаб. данные</th>
@@ -215,10 +207,10 @@ export default function OilReferenceDB() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={11} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
+              <tr><td colSpan={10} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={11} className="text-center py-12">
+                <td colSpan={10} className="text-center py-12">
                   <p className="text-slate-400 mb-3">Масла не найдены</p>
                   {oils.length === 0 && (
                     <Button size="sm" onClick={openCreate}>
@@ -249,7 +241,6 @@ export default function OilReferenceDB() {
                   <td className="px-4 py-2.5 text-slate-600">{oil.oil_category || '-'}</td>
                   <td className="px-4 py-2.5 text-slate-600">{oil.iso_vg_grade || '-'}</td>
                   <td className="px-4 py-2.5 text-slate-600">{oil.passport_viscosity_40 ?? '-'}</td>
-                  <td className="px-4 py-2.5 text-slate-600">{oil.passport_tbn ?? '-'}</td>
                   <td className="px-4 py-2.5">
                     <CountBadge
                       count={passportFilled}
@@ -311,7 +302,6 @@ export default function OilReferenceDB() {
               </thead>
               <tbody>
                 <DevRow label="Вязкость при 40°C, мм²/с" passport={compareOil?.passport_viscosity_40} lab={compareOil?.lab_viscosity_40} />
-                <DevRow label="Вязкость при 100°C, мм²/с" passport={compareOil?.passport_viscosity_100} lab={compareOil?.lab_viscosity_100} />
                 <DevRow label="Плотность, кг/м³" passport={compareOil?.passport_density_15} lab={compareOil?.lab_density} />
                 <DevRow label="Диэлектр. постоянная" passport={compareOil?.passport_dielectric} lab={compareOil?.lab_dielectric} />
               </tbody>

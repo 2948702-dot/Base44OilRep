@@ -20,9 +20,7 @@ const ISO_VG_GRADES = [
 
 const DEF = {
   oil_name: '', manufacturer: '', oil_category: '', iso_vg_grade: '', sae_grade: '',
-  passport_viscosity_40: '', passport_viscosity_100: '', passport_viscosity_index: '',
-  passport_density_15: '', passport_flash_point: '', passport_pour_point: '',
-  passport_dielectric: '', passport_tbn: '', passport_tan: '', passport_ash_content: '',
+  passport_viscosity_40: '', passport_density_15: '', passport_dielectric: '',
   comments: ''
 };
 
@@ -114,15 +112,8 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
                 </Select>
               </div>
               <NInput label="Вязкость при 40°C" unit="мм²/с" value={form.passport_viscosity_40} onChange={v => f('passport_viscosity_40', v)} />
-              <NInput label="Вязкость при 100°C" unit="мм²/с" value={form.passport_viscosity_100} onChange={v => f('passport_viscosity_100', v)} />
-              <NInput label="Индекс вязкости" value={form.passport_viscosity_index} onChange={v => f('passport_viscosity_index', v)} />
               <NInput label="Плотность при 15°C" unit="кг/м³" value={form.passport_density_15} onChange={v => f('passport_density_15', v)} />
               <NInput label="Диэлектр. постоянная" value={form.passport_dielectric} onChange={v => f('passport_dielectric', v)} />
-              <NInput label="Т. вспышки" unit="°C" value={form.passport_flash_point} onChange={v => f('passport_flash_point', v)} />
-              <NInput label="Т. застывания" unit="°C" value={form.passport_pour_point} onChange={v => f('passport_pour_point', v)} allowNegative />
-              <NInput label="TBN" unit="мг KOH/г" value={form.passport_tbn} onChange={v => f('passport_tbn', v)} />
-              <NInput label="TAN" unit="мг KOH/г" value={form.passport_tan} onChange={v => f('passport_tan', v)} />
-              <NInput label="Зольность" unit="%" value={form.passport_ash_content} onChange={v => f('passport_ash_content', v)} />
               <div className="col-span-3 space-y-1">
                 <Label>Комментарии</Label>
                 <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />

@@ -118,6 +118,24 @@ Client → Asset → EquipmentUnit → SamplingPoint → OilSample
 
 ## Открытые вопросы
 
+### Скрытые в UI поля OilReference
+
+Следующие 7 паспортных параметров присутствуют в схеме `OilReference.jsonc`, но скрыты из всех форм UI и whitelist'ов (`OIL_REFERENCE_FIELDS`):
+
+- `passport_viscosity_100`
+- `passport_viscosity_index`
+- `passport_flash_point`
+- `passport_pour_point`
+- `passport_tbn`
+- `passport_tan`
+- `passport_ash_content`
+
+**Причина:** продукт SmartOil построен вокруг собственной лаборатории, которая измеряет 6 параметров (вязкость 40°C, плотность, диэлектрика, вода ppm, активность воды, железо мг/л). Эти 7 паспортных параметров не используются ни в расчётах, ни в порогах, ни в отчётах.
+
+**Что делать при добавлении новых типов диагностики** (через 6+ месяцев — например, частицы по фракциям): добавлять новые поля, не возвращая скрытые. Это разная физика измерений.
+
+**Если поле нужно восстановить:** добавить обратно в `OIL_REFERENCE_FIELDS` и `OIL_REFERENCE_NUMBER_FIELDS`, в форму `OilFormDialog.jsx`, при необходимости — в таблицу `OilReferenceDB.jsx`. Схема Base44 этого не требует — поля там есть.
+
 ### SamplingSchedule: поведение серверного пересчёта при ручной установке
 
 В форме `SamplingSchedules.jsx` суперинтендант может вручную устанавливать `next_sample_due_date`, `next_sample_due_hours`, `current_stage`, `samples_in_current_stage`. По решению продукта:

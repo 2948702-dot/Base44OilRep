@@ -62,28 +62,14 @@ export const OIL_REFERENCE_FIELDS = [
   'iso_vg_grade',
   'sae_grade',
   'passport_viscosity_40',
-  'passport_viscosity_100',
-  'passport_viscosity_index',
   'passport_density_15',
-  'passport_flash_point',
-  'passport_pour_point',
   'passport_dielectric',
-  'passport_tbn',
-  'passport_tan',
-  'passport_ash_content',
   'comments',
 ];
 export const OIL_REFERENCE_NUMBER_FIELDS = [
   'passport_viscosity_40',
-  'passport_viscosity_100',
-  'passport_viscosity_index',
   'passport_density_15',
-  'passport_flash_point',
-  'passport_pour_point',
   'passport_dielectric',
-  'passport_tbn',
-  'passport_tan',
-  'passport_ash_content',
 ];
 
 export const SAMPLING_POINT_FIELDS = [
