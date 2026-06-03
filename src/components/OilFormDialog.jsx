@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SAE_GRADES } from '@/utils/labels';
 import { base44 } from '@/api/base44Client';
 import { buildPayload } from '@/utils/payload';
@@ -40,6 +40,7 @@ function NInput({ label, value, onChange, unit, required, allowNegative }) {
 
 export default function OilFormDialog({ open, onOpenChange, initialData = null, onCreated }) {
   const [form, setForm] = useState(initialData || DEF);
+  const thresholdsRef = useRef(null);
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   useEffect(() => {
@@ -51,11 +52,22 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
   const save = useSaveMutation({
     mutationFn: async (d) => {
       const payload = buildPayload(d, OIL_REFERENCE_FIELDS, OIL_REFERENCE_NUMBER_FIELDS);
-      return d.id
+      const oilResult = d.id
         ? await base44.entities.OilReference.update(d.id, payload)
         : await base44.entities.OilReference.create(payload);
+
+      const finalOilId = oilResult?.id || d.id;
+      if (thresholdsRef.current && finalOilId) {
+        const errors = await thresholdsRef.current.saveAll();
+        if (errors.length > 0) {
+          const paramNames = errors.map(error => error.param).join(', ');
+          throw new Error(`Масло сохранено, но не удалось сохранить пороги: ${paramNames}`);
+        }
+      }
+
+      return oilResult;
     },
-    invalidateKeys: [['oil-references']],
+    invalidateKeys: [['oil-references'], ['threshold-rules']],
     onSuccess: async (data) => {
       onCreated?.(data);
       onOpenChange(false);
@@ -122,7 +134,7 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
           </TabsContent>
           <TabsContent value="thresholds">
             <div className="py-1 max-h-[65vh] overflow-y-auto pr-1">
-              <OilThresholdsEditor oilId={form.id} />
+              <OilThresholdsEditor ref={thresholdsRef} oilId={form.id} />
             </div>
           </TabsContent>
         </Tabs>

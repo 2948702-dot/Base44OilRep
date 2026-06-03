@@ -76,6 +76,16 @@ Client → Asset → EquipmentUnit → SamplingPoint → OilSample
 **Пример:**
 См. `src/pages/AssetDetail.jsx` (функция `save`).
 
+### Композитные формы (несколько сущностей в одном диалоге)
+
+Если форма редактирует несколько сущностей одновременно (например, `OilReference` + `ThresholdRule`), используется паттерн:
+
+1. Дочерний компонент экспортирует `saveAll()` через `forwardRef` + `useImperativeHandle`.
+2. Родительская мутация сохраняет свою сущность первой, затем вызывает `childRef.current.saveAll()`.
+3. Ошибки дочернего сохранения превращаются в `throw new Error(...)`, чтобы `useSaveMutation` показал их через `errorBlock`.
+
+**Пример:** `OilFormDialog.jsx` + `OilThresholdsEditor.jsx`.
+
 **Список форбидден-полей** (никогда не отправляются в payload):
 `id`, `created_date`, `updated_date`, `created_by`, `updated_by`, а также любые поля с префиксом `current_*` (это snapshot-поля, заполняемые серверными функциями).
 

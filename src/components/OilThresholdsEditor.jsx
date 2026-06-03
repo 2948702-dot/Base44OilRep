@@ -1,10 +1,8 @@
-import { useEffect, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Save } from 'lucide-react';
 import ThresholdRangeBar from '@/components/ThresholdRangeBar';
 
 const ABSOLUTE_PARAMS = ['iron_mg_l', 'water_ppm', 'water_activity'];
@@ -182,7 +180,7 @@ function cleanPayload(payload) {
   return next;
 }
 
-export default function OilThresholdsEditor({ oilId }) {
+const OilThresholdsEditor = forwardRef(function OilThresholdsEditor({ oilId }, ref) {
   const qc = useQueryClient();
   const [drafts, setDrafts] = useState({});
   const [savedParams, setSavedParams] = useState(new Set());
@@ -283,6 +281,21 @@ export default function OilThresholdsEditor({ oilId }) {
         ].every(hasValue);
   };
 
+  const saveAll = async () => {
+    const errors = [];
+    for (const param of PARAMS) {
+      if (!canSave(param)) continue;
+      try {
+        await saveRule.mutateAsync({ param, draft: getDraft(param) });
+      } catch (err) {
+        errors.push({ param, message: err?.message || 'Не удалось сохранить' });
+      }
+    }
+    return errors;
+  };
+
+  useImperativeHandle(ref, () => ({ saveAll }), [drafts, oilId]);
+
   if (!oilId) {
     return (
       <p className="text-sm text-slate-400 italic">
@@ -331,17 +344,7 @@ export default function OilThresholdsEditor({ oilId }) {
                 <NumberCell label="Зелёный до" value={draft.green_end} onChange={value => updateField(param, 'green_end', value)} />
                 <NumberCell label="Жёлтый до" value={draft.yellow_end} onChange={value => updateField(param, 'yellow_end', value)} />
                 <NumberCell label="Красный до" value={draft.red_end} onChange={value => updateField(param, 'red_end', value)} />
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="h-9 w-9"
-                  onClick={() => saveRule.mutate({ param, draft })}
-                  disabled={!canSave(param) || saveRule.isPending}
-                  title="Сохранить параметр"
-                >
-                  <Save className="w-4 h-4 text-blue-500" />
-                </Button>
+                <SaveStatusIndicator isSaved={isSaved} isReady={canSave(param)} />
               </div>
               {preview && (
                 <div className="mt-3">
@@ -394,17 +397,7 @@ export default function OilThresholdsEditor({ oilId }) {
                 <NumberCell label="Жёлт. вправо %" value={draft.yellow_right_pct} onChange={value => updateField(param, 'yellow_right_pct', value)} />
                 <NumberCell label="Красн. влево %" value={draft.red_left_pct} onChange={value => updateField(param, 'red_left_pct', value)} />
                 <NumberCell label="Красн. вправо %" value={draft.red_right_pct} onChange={value => updateField(param, 'red_right_pct', value)} />
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="h-9 w-9"
-                  onClick={() => saveRule.mutate({ param, draft })}
-                  disabled={!canSave(param) || saveRule.isPending}
-                  title="Сохранить параметр"
-                >
-                  <Save className="w-4 h-4 text-blue-500" />
-                </Button>
+                <SaveStatusIndicator isSaved={isSaved} isReady={canSave(param)} />
               </div>
               {preview.green_min !== undefined && (
                 <div className="mt-3">
@@ -424,6 +417,19 @@ export default function OilThresholdsEditor({ oilId }) {
           );
         })}
       </section>
+    </div>
+  );
+});
+
+export default OilThresholdsEditor;
+
+function SaveStatusIndicator({ isSaved, isReady }) {
+  const title = isSaved ? 'Сохранено' : isReady ? 'Изменения не сохранены' : '';
+
+  return (
+    <div className="flex h-9 w-9 items-center justify-center" title={title}>
+      {isSaved && <div className="h-2 w-2 rounded-full bg-emerald-500" />}
+      {!isSaved && isReady && <div className="h-2 w-2 rounded-full bg-slate-300" />}
     </div>
   );
 }
