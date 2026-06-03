@@ -10,6 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Pencil, Trash2, Settings2, X, Search, ExternalLink } from 'lucide-react';
 import { ASSET_TYPES, EQ_TYPES } from '@/utils/labels';
 import { Link } from 'react-router-dom';
+import { buildPayload } from '@/utils/payload';
+import { useSaveMutation } from '@/hooks/useSaveMutation';
+import {
+  ASSET_FIELDS,
+  ASSET_NUMBER_FIELDS,
+  EQUIPMENT_UNIT_FIELDS,
+  EQUIPMENT_UNIT_NUMBER_FIELDS,
+} from '@/utils/entityFields';
 
 const OIL_CHANGE_TYPES = {
   engine_hours: 'По моточасам',
@@ -234,41 +242,29 @@ export default function Assets() {
   const { data: equipUnits = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
   const { data: oilRefs = [] } = useQuery({ queryKey: ['oil-refs'], queryFn: () => base44.entities.OilReference.list() });
 
-  const sanitizeAsset = (asset) => {
-    const out = { ...asset };
-    ['id', 'created_date', 'updated_date', 'created_by'].forEach(k => delete out[k]);
-    return out;
-  };
-
-  const sanitizeUnit = (u) => {
-    const out = { ...u };
-    ['id', 'created_date', 'updated_date', 'created_by'].forEach(k => delete out[k]);
-    ['oil_volume', 'oil_change_interval'].forEach(k => {
-      if (out[k] === '' || out[k] === null || out[k] === undefined) delete out[k];
-      else out[k] = Number(out[k]);
-    });
-    if (!out.oil_type_id) {
-      out.oil_type_id = null;
-      out.current_oil_type_id = null;
-    } else {
-      out.current_oil_type_id = out.oil_type_id;
-    }
-    return out;
-  };
-
-  const save = useMutation({
+  const save = useSaveMutation({
     mutationFn: async (d) => {
+      const assetPayload = buildPayload(d, ASSET_FIELDS, ASSET_NUMBER_FIELDS);
       let asset;
-      const assetPayload = sanitizeAsset(d);
       const changedUnitIds = [];
       if (d.id) {
         asset = await base44.entities.Asset.update(d.id, assetPayload);
         for (const u of units) {
           if (u.id && u.unit_name && u.equipment_type) {
-            await base44.entities.EquipmentUnit.update(u.id, { ...sanitizeUnit(u), client_id: d.client_id, asset_id: d.id });
+            const unitPayload = buildPayload(
+              { ...u, client_id: d.client_id, asset_id: d.id },
+              EQUIPMENT_UNIT_FIELDS,
+              EQUIPMENT_UNIT_NUMBER_FIELDS
+            );
+            await base44.entities.EquipmentUnit.update(u.id, unitPayload);
             changedUnitIds.push(u.id);
           } else if (!u.id && u.unit_name && u.equipment_type) {
-            const createdUnit = await base44.entities.EquipmentUnit.create({ ...sanitizeUnit(u), client_id: d.client_id, asset_id: d.id });
+            const unitPayload = buildPayload(
+              { ...u, client_id: d.client_id, asset_id: d.id },
+              EQUIPMENT_UNIT_FIELDS,
+              EQUIPMENT_UNIT_NUMBER_FIELDS
+            );
+            const createdUnit = await base44.entities.EquipmentUnit.create(unitPayload);
             if (createdUnit?.id) changedUnitIds.push(createdUnit.id);
           }
         }
@@ -276,7 +272,12 @@ export default function Assets() {
         asset = await base44.entities.Asset.create(assetPayload);
         for (const u of units) {
           if (u.unit_name && u.equipment_type) {
-            const createdUnit = await base44.entities.EquipmentUnit.create({ ...sanitizeUnit(u), client_id: d.client_id, asset_id: asset.id });
+            const unitPayload = buildPayload(
+              { ...u, client_id: d.client_id, asset_id: asset.id },
+              EQUIPMENT_UNIT_FIELDS,
+              EQUIPMENT_UNIT_NUMBER_FIELDS
+            );
+            const createdUnit = await base44.entities.EquipmentUnit.create(unitPayload);
             if (createdUnit?.id) changedUnitIds.push(createdUnit.id);
           }
         }
@@ -286,9 +287,11 @@ export default function Assets() {
       }
       return asset;
     },
+    invalidateKeys: [
+      ['assets'],
+      ['equipment-units'],
+    ],
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['assets'] });
-      qc.invalidateQueries({ queryKey: ['equipment-units'] });
       setOpen(false);
       setForm(DEF_ASSET);
       setUnits([]);
@@ -474,11 +477,7 @@ export default function Assets() {
             )}
           </div>
 
-          {save.isError && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              Ошибка сохранения: {save.error?.message || 'Base44 не принял изменения'}
-            </div>
-          )}
+          {save.errorBlock}
 
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>

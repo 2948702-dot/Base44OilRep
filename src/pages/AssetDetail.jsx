@@ -13,42 +13,12 @@ import { EQ_TYPES } from '@/utils/labels';
 import SamplingPointsPanel from '@/components/SamplingPointsPanel';
 import { buildPayload } from '@/utils/payload';
 import { useSaveMutation } from '@/hooks/useSaveMutation';
+import { EQUIPMENT_UNIT_FIELDS, EQUIPMENT_UNIT_NUMBER_FIELDS } from '@/utils/entityFields';
 
 const DEF = {
   unit_name: '', equipment_type: '', manufacturer: '', model: '',
   serial_number: '', total_operating_hours: '', initial_oil_hours: '', comments: ''
 };
-
-const EQUIPMENT_UNIT_FIELDS = [
-  'unit_name',
-  'equipment_type',
-  'manufacturer',
-  'model',
-  'serial_number',
-  'total_operating_hours',
-  'initial_oil_hours',
-  'oil_type_id',
-  'oil_brand',
-  'oil_volume',
-  'oil_change_type',
-  'oil_change_interval',
-  'oil_change_interval_unit',
-  'oil_filter_type',
-  'oil_filter_brand',
-  'oil_filter_article',
-  'use_standard_thresholds',
-  'custom_thresholds',
-  'asset_id',
-  'client_id',
-  'comments',
-];
-
-const EQUIPMENT_UNIT_NUMBER_FIELDS = [
-  'total_operating_hours',
-  'initial_oil_hours',
-  'oil_volume',
-  'oil_change_interval',
-];
 
 export default function AssetDetail() {
   const { assetId } = useParams();

@@ -11,6 +11,9 @@ import { Plus, Pencil, Trash2, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { EQ_TYPES } from '@/utils/labels';
 import UnitThresholdsEditor from '@/components/UnitThresholdsEditor';
+import { buildPayload } from '@/utils/payload';
+import { useSaveMutation } from '@/hooks/useSaveMutation';
+import { EQUIPMENT_UNIT_FIELDS, EQUIPMENT_UNIT_NUMBER_FIELDS } from '@/utils/entityFields';
 
 const DEF = {
   client_id: '',
@@ -69,67 +72,19 @@ export default function EquipmentUnits() {
   const getName = (list, id, field) => list.find(item => item.id === id)?.[field] || '-';
   const f = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
 
-  const save = useMutation({
+  const save = useSaveMutation({
     mutationFn: async data => {
-      const clean = { ...data };
-
-      if (clean.total_operating_hours === '' || clean.total_operating_hours === undefined) delete clean.total_operating_hours;
-      else clean.total_operating_hours = Number(clean.total_operating_hours);
-
-      if (clean.initial_oil_hours === '' || clean.initial_oil_hours === undefined) delete clean.initial_oil_hours;
-      else clean.initial_oil_hours = Number(clean.initial_oil_hours);
-
-      if (clean.oil_volume === '' || clean.oil_volume === undefined) delete clean.oil_volume;
-      else clean.oil_volume = Number(clean.oil_volume);
-
-      if (!clean.oil_type_id) {
-        clean.oil_type_id = null;
-        clean.current_oil_type_id = null;
-      } else {
-        clean.current_oil_type_id = clean.oil_type_id;
+      const payload = buildPayload(data, EQUIPMENT_UNIT_FIELDS, EQUIPMENT_UNIT_NUMBER_FIELDS);
+      const result = data.id
+        ? await base44.entities.EquipmentUnit.update(data.id, payload)
+        : await base44.entities.EquipmentUnit.create(payload);
+      if (result?.id) {
+        await base44.functions.invoke('recalculateEquipmentUnitState', { equipment_unit_id: result.id });
       }
-
-      if (clean.use_standard_thresholds === undefined) clean.use_standard_thresholds = true;
-      if (clean.use_standard_thresholds !== false) {
-        clean.custom_thresholds = [];
-      } else if (Array.isArray(clean.custom_thresholds)) {
-        clean.custom_thresholds = clean.custom_thresholds.map(threshold => {
-          const next = {
-            parameter_name: threshold.parameter_name,
-            oil_type_id: threshold.oil_type_id || clean.oil_type_id || undefined,
-            custom_ranges_mode: !!threshold.custom_ranges_mode,
-            deviation_mode: !!threshold.deviation_mode,
-            ranges: Array.isArray(threshold.ranges) ? threshold.ranges.map(range => ({
-              ...range,
-              min: range.min === '' || range.min === null || range.min === undefined ? undefined : Number(range.min),
-              max: range.max === '' || range.max === null || range.max === undefined ? undefined : Number(range.max),
-            })).filter(range => range.min !== undefined && range.max !== undefined) : [],
-          };
-
-          [
-            'green_min', 'green_max', 'yellow_min', 'yellow_max', 'red_min', 'red_max',
-            'base_value', 'green_left_pct', 'green_right_pct', 'yellow_left_pct',
-            'yellow_right_pct', 'red_left_pct', 'red_right_pct',
-          ].forEach(field => {
-            if (threshold[field] !== '' && threshold[field] !== null && threshold[field] !== undefined) {
-              next[field] = Number(threshold[field]);
-            }
-          });
-
-          Object.keys(next).forEach(field => next[field] === undefined && delete next[field]);
-          return next;
-        });
-      }
-
-      const result = clean.id
-        ? await base44.entities.EquipmentUnit.update(clean.id, clean)
-        : await base44.entities.EquipmentUnit.create(clean);
-
-      await base44.functions.invoke('recalculateEquipmentUnitState', { equipment_unit_id: result.id });
       return result;
     },
+    invalidateKeys: [['equipment-units']],
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['equipment-units'] });
       setOpen(false);
       setForm(DEF);
     }
@@ -447,6 +402,7 @@ export default function EquipmentUnits() {
               <Textarea value={form.comments} onChange={event => f('comments', event.target.value)} rows={2} />
             </div>
           </div>
+          {save.errorBlock}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
             <Button

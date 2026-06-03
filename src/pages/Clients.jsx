@@ -7,6 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { buildPayload } from '@/utils/payload';
+import { useSaveMutation } from '@/hooks/useSaveMutation';
+import { CLIENT_FIELDS, CLIENT_NUMBER_FIELDS } from '@/utils/entityFields';
 
 const DEF = { company_name: '', contact_person: '', phone: '', email: '', address: '', comments: '' };
 
@@ -19,9 +22,15 @@ export default function Clients() {
 
   const { data: clients = [], isLoading } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
 
-  const save = useMutation({
-    mutationFn: d => d.id ? base44.entities.Client.update(d.id, d) : base44.entities.Client.create(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); setOpen(false); setForm(DEF); }
+  const save = useSaveMutation({
+    mutationFn: async d => {
+      const payload = buildPayload(d, CLIENT_FIELDS, CLIENT_NUMBER_FIELDS);
+      return d.id
+        ? await base44.entities.Client.update(d.id, payload)
+        : await base44.entities.Client.create(payload);
+    },
+    invalidateKeys: [['clients']],
+    onSuccess: () => { setOpen(false); setForm(DEF); }
   });
   const del = useMutation({
     mutationFn: id => base44.entities.Client.delete(id),
@@ -129,6 +138,7 @@ export default function Clients() {
               <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
             </div>
           </div>
+          {save.errorBlock}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
             <Button onClick={() => save.mutate(form)} disabled={!form.company_name || save.isPending}>
