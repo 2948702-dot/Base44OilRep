@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { buildPayload } from '@/utils/payload';
+import { useSaveMutation } from '@/hooks/useSaveMutation';
+import { SAMPLING_POINT_FIELDS, SAMPLING_POINT_NUMBER_FIELDS } from '@/utils/entityFields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,19 +28,18 @@ export default function SamplingPoints() {
   const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
 
-  const clean = (d) => {
-    const stripped = { ...d };
-    // SamplingPoint is NOT an oil source — strip any legacy oil/hours fields
-    delete stripped.oil_type_id;
-    delete stripped.oil_volume;
-    delete stripped.current_total_hours;
-    delete stripped.current_oil_hours;
-    return Object.fromEntries(Object.entries(stripped).map(([k, v]) => [k, v === '' ? undefined : v]));
-  };
-
-  const save = useMutation({
-    mutationFn: d => { const c = clean(d); return c.id ? base44.entities.SamplingPoint.update(c.id, c) : base44.entities.SamplingPoint.create(c); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sampling-points'] }); setOpen(false); setForm(DEF); }
+  const save = useSaveMutation({
+    mutationFn: async (d) => {
+      const payload = buildPayload(d, SAMPLING_POINT_FIELDS, SAMPLING_POINT_NUMBER_FIELDS);
+      return d.id
+        ? await base44.entities.SamplingPoint.update(d.id, payload)
+        : await base44.entities.SamplingPoint.create(payload);
+    },
+    invalidateKeys: [['sampling-points']],
+    onSuccess: () => {
+      setOpen(false);
+      setForm(DEF);
+    },
   });
   const del = useMutation({
     mutationFn: id => base44.entities.SamplingPoint.delete(id),
@@ -167,6 +169,7 @@ export default function SamplingPoints() {
               <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
             </div>
           </div>
+          {save.errorBlock}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
             <Button onClick={() => save.mutate(form)} disabled={!form.client_id || !form.point_name || !form.sampling_method || save.isPending}>

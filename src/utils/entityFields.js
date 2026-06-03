@@ -54,3 +54,62 @@ export const EQUIPMENT_UNIT_NUMBER_FIELDS = [
   'oil_volume',
   'oil_change_interval',
 ];
+
+export const OIL_REFERENCE_FIELDS = [
+  'oil_name',
+  'manufacturer',
+  'oil_category',
+  'iso_vg_grade',
+  'sae_grade',
+  'passport_viscosity_40',
+  'passport_viscosity_100',
+  'passport_viscosity_index',
+  'passport_density_15',
+  'passport_flash_point',
+  'passport_pour_point',
+  'passport_dielectric',
+  'passport_tbn',
+  'passport_tan',
+  'passport_ash_content',
+  'comments',
+];
+export const OIL_REFERENCE_NUMBER_FIELDS = [
+  'passport_viscosity_40',
+  'passport_viscosity_100',
+  'passport_viscosity_index',
+  'passport_density_15',
+  'passport_flash_point',
+  'passport_pour_point',
+  'passport_dielectric',
+  'passport_tbn',
+  'passport_tan',
+  'passport_ash_content',
+];
+
+export const SAMPLING_POINT_FIELDS = [
+  'client_id',
+  'asset_id',
+  'equipment_unit_id',
+  'point_name',
+  'qr_code',
+  'sampling_method',
+  'comments',
+];
+export const SAMPLING_POINT_NUMBER_FIELDS = [];
+
+export const SAMPLING_SCHEDULE_FIELDS = [
+  'sampling_point_id',
+  'schedule_name',
+  'is_active',
+  'stages',
+  'next_sample_due_date',
+  'next_sample_due_hours',
+  'current_stage',
+  'samples_in_current_stage',
+  'comments',
+];
+export const SAMPLING_SCHEDULE_NUMBER_FIELDS = [
+  'next_sample_due_hours',
+  'current_stage',
+  'samples_in_current_stage',
+];

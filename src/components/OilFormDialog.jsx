@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { SAE_GRADES } from '@/utils/labels';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { buildPayload } from '@/utils/payload';
+import { useSaveMutation } from '@/hooks/useSaveMutation';
+import { OIL_REFERENCE_FIELDS, OIL_REFERENCE_NUMBER_FIELDS } from '@/utils/entityFields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,20 +26,6 @@ const DEF = {
   comments: ''
 };
 
-const EDITABLE_FIELDS = Object.keys(DEF);
-const NUMBER_FIELDS = [
-  'passport_viscosity_40',
-  'passport_viscosity_100',
-  'passport_viscosity_index',
-  'passport_density_15',
-  'passport_flash_point',
-  'passport_pour_point',
-  'passport_dielectric',
-  'passport_tbn',
-  'passport_tan',
-  'passport_ash_content',
-];
-
 function Req() { return <span className="text-red-500 ml-0.5">*</span>; }
 
 function NInput({ label, value, onChange, unit, required, allowNegative }) {
@@ -52,33 +40,8 @@ function NInput({ label, value, onChange, unit, required, allowNegative }) {
   );
 }
 
-function cleanOilPayload(data) {
-  const payload = {};
-
-  EDITABLE_FIELDS.forEach(field => {
-    const value = data[field];
-    if (NUMBER_FIELDS.includes(field)) {
-      if (value === '' || value === null || value === undefined) {
-        payload[field] = null;
-      } else {
-        const numberValue = Number(value);
-        payload[field] = Number.isFinite(numberValue) ? numberValue : null;
-      }
-      return;
-    }
-    if (field === 'oil_name' || field === 'manufacturer') {
-      payload[field] = value ?? '';
-    } else {
-      payload[field] = value === '' || value === undefined ? null : value;
-    }
-  });
-
-  return payload;
-}
-
 export default function OilFormDialog({ open, onOpenChange, initialData = null, onCreated }) {
   const [form, setForm] = useState(initialData || DEF);
-  const qc = useQueryClient();
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   useEffect(() => {
@@ -87,17 +50,19 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
     }
   }, [open, initialData]);
 
-  const save = useMutation({
-    mutationFn: d => {
-      const payload = cleanOilPayload(d);
-      return d.id ? base44.entities.OilReference.update(d.id, payload) : base44.entities.OilReference.create(payload);
+  const save = useSaveMutation({
+    mutationFn: async (d) => {
+      const payload = buildPayload(d, OIL_REFERENCE_FIELDS, OIL_REFERENCE_NUMBER_FIELDS);
+      return d.id
+        ? await base44.entities.OilReference.update(d.id, payload)
+        : await base44.entities.OilReference.create(payload);
     },
+    invalidateKeys: [['oil-references']],
     onSuccess: async (data) => {
-      await qc.invalidateQueries({ queryKey: ['oil-references'] });
       onCreated?.(data);
       onOpenChange(false);
       setForm(DEF);
-    }
+    },
   });
 
   const handleOpen = (v) => {
@@ -170,11 +135,7 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
             </div>
           </TabsContent>
         </Tabs>
-        {save.isError && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            Ошибка сохранения: {save.error?.message || 'Base44 не принял изменения'}
-          </div>
-        )}
+        {save.errorBlock}
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpen(false)}>Отмена</Button>
           <Button onClick={() => save.mutate(form)} disabled={!form.oil_name || !form.manufacturer || save.isPending}>
