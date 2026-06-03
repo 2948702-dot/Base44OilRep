@@ -234,32 +234,55 @@ export default function Assets() {
   const { data: equipUnits = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
   const { data: oilRefs = [] } = useQuery({ queryKey: ['oil-refs'], queryFn: () => base44.entities.OilReference.list() });
 
+  const sanitizeAsset = (asset) => {
+    const out = { ...asset };
+    ['id', 'created_date', 'updated_date', 'created_by'].forEach(k => delete out[k]);
+    return out;
+  };
+
   const sanitizeUnit = (u) => {
     const out = { ...u };
+    ['id', 'created_date', 'updated_date', 'created_by'].forEach(k => delete out[k]);
     ['oil_volume', 'oil_change_interval'].forEach(k => {
       if (out[k] === '' || out[k] === null || out[k] === undefined) delete out[k];
       else out[k] = Number(out[k]);
     });
+    if (!out.oil_type_id) {
+      out.oil_type_id = null;
+      out.current_oil_type_id = null;
+    } else {
+      out.current_oil_type_id = out.oil_type_id;
+    }
     return out;
   };
 
   const save = useMutation({
     mutationFn: async (d) => {
       let asset;
+      const assetPayload = sanitizeAsset(d);
+      const changedUnitIds = [];
       if (d.id) {
-        asset = await base44.entities.Asset.update(d.id, d);
+        asset = await base44.entities.Asset.update(d.id, assetPayload);
         for (const u of units) {
-          if (!u.id && u.unit_name && u.equipment_type) {
-            await base44.entities.EquipmentUnit.create({ ...sanitizeUnit(u), client_id: d.client_id, asset_id: d.id });
+          if (u.id && u.unit_name && u.equipment_type) {
+            await base44.entities.EquipmentUnit.update(u.id, { ...sanitizeUnit(u), client_id: d.client_id, asset_id: d.id });
+            changedUnitIds.push(u.id);
+          } else if (!u.id && u.unit_name && u.equipment_type) {
+            const createdUnit = await base44.entities.EquipmentUnit.create({ ...sanitizeUnit(u), client_id: d.client_id, asset_id: d.id });
+            if (createdUnit?.id) changedUnitIds.push(createdUnit.id);
           }
         }
       } else {
-        asset = await base44.entities.Asset.create(d);
+        asset = await base44.entities.Asset.create(assetPayload);
         for (const u of units) {
           if (u.unit_name && u.equipment_type) {
-            await base44.entities.EquipmentUnit.create({ ...sanitizeUnit(u), client_id: d.client_id, asset_id: asset.id });
+            const createdUnit = await base44.entities.EquipmentUnit.create({ ...sanitizeUnit(u), client_id: d.client_id, asset_id: asset.id });
+            if (createdUnit?.id) changedUnitIds.push(createdUnit.id);
           }
         }
+      }
+      for (const unitId of changedUnitIds) {
+        await base44.functions.invoke('recalculateEquipmentUnitState', { equipment_unit_id: unitId });
       }
       return asset;
     },
@@ -450,6 +473,12 @@ export default function Assets() {
               </div>
             )}
           </div>
+
+          {save.isError && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              Ошибка сохранения: {save.error?.message || 'Base44 не принял изменения'}
+            </div>
+          )}
 
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
