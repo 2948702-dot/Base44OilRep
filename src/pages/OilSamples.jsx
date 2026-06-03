@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { buildPayload } from '@/utils/payload';
+import { useSaveMutation } from '@/hooks/useSaveMutation';
+import { OIL_SAMPLE_FIELDS, OIL_SAMPLE_NUMBER_FIELDS } from '@/utils/entityFields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,22 +63,14 @@ export default function OilSamples() {
   const { data: lifecycles = [] } = useQuery({ queryKey: ['oil-lifecycles'], queryFn: () => base44.entities.OilLifecycle.list() });
   const { data: results = [] } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
 
-  const cleanForm = (d) => {
-    const c = { ...d };
-    ['total_hours_at_sampling', 'oil_hours_at_sampling'].forEach(k => { if (c[k] === '' || c[k] === null) delete c[k]; });
-    ['asset_id', 'equipment_unit_id', 'sampling_point_id', 'oil_type_id', 'lifecycle_id', 'batch_number', 'production_date', 'storage_type', 'delivery_date', 'supplier', 'operator_user_id', 'comments', 'sample_origin', 'container_type', 'external_sample_label', 'can_qr_code', 'received_date', 'received_by', 'hours_source'].forEach(k => {
-      if (c[k] === '' || c[k] === null || c[k] === undefined) delete c[k];
-    });
-    ['applies_to_equipment_unit_ids', 'applies_to_lifecycle_ids'].forEach(k => {
-      if (!Array.isArray(c[k]) || c[k].length === 0) delete c[k];
-    });
-    if (!Array.isArray(c.attachments) || c.attachments.length === 0) delete c.attachments;
-    return c;
-  };
-
-  const save = useMutation({
-    mutationFn: d => { const c = cleanForm(d); return c.id ? base44.entities.OilSample.update(c.id, c) : base44.entities.OilSample.create(c); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['oil-samples'] }); }
+  const save = useSaveMutation({
+    mutationFn: async (d) => {
+      const payload = buildPayload(d, OIL_SAMPLE_FIELDS, OIL_SAMPLE_NUMBER_FIELDS);
+      return d.id
+        ? await base44.entities.OilSample.update(d.id, payload)
+        : await base44.entities.OilSample.create(payload);
+    },
+    invalidateKeys: [['oil-samples']],
   });
   const saveAnalysis = useMutation({
     mutationFn: async d => {
@@ -620,6 +615,7 @@ export default function OilSamples() {
               <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
             </div>
           </div>
+          {save.errorBlock}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
             <Button onClick={() => {
