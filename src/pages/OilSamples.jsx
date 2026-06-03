@@ -315,7 +315,32 @@ export default function OilSamples() {
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" className="h-7 w-7" title="Добавить результат анализа" onClick={() => navigate(`/analysis-results?sample=${s.id}`)}>                        <FlaskConical className="w-3.5 h-3.5 text-blue-500" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Редактировать пробу и параметры" onClick={() => { const newForm = { ...s }; const existingAnalysis = results.find(r => r.sample_id === s.id); if (existingAnalysis) Object.assign(newForm, existingAnalysis); setForm({ ...DEF, ...newForm, attachments: newForm.attachments || [] }); setOpen(true); }}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        title="Редактировать пробу и параметры"
+                        onClick={() => {
+                          const existingAnalysis = results.find(r => r.sample_id === s.id);
+                          const analysisFields = existingAnalysis
+                            ? {
+                                iron_mg_l: existingAnalysis.iron_mg_l,
+                                water_ppm: existingAnalysis.water_ppm,
+                                water_activity: existingAnalysis.water_activity,
+                                viscosity_40: existingAnalysis.viscosity_40,
+                                density: existingAnalysis.density,
+                                dielectric_constant: existingAnalysis.dielectric_constant,
+                              }
+                            : {};
+                          setForm({
+                            ...DEF,
+                            ...s,
+                            ...analysisFields,
+                            attachments: s.attachments || [],
+                          });
+                          setOpen(true);
+                        }}
+                      >
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить пробу?') && del.mutate(s.id)}>
