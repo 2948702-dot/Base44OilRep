@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, FlaskConical, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, FlaskConical, Search, Upload, X, Image } from 'lucide-react';
 import HierarchyPath from '@/components/HierarchyPath';
 import { useNavigate } from 'react-router-dom';
 import { ENGINE_STATES, SAMPLE_STATUSES } from '@/utils/labels';
@@ -18,11 +18,13 @@ const STORAGE_TYPES = ['Закрытый склад', 'На открытом в�
 const DEF = {
   sample_type: 'in_service',
   sample_number: '', client_id: '', asset_id: '', equipment_unit_id: '', sampling_point_id: '',
+  sample_origin: 'client_delivered', container_type: 'client_container', external_sample_label: '',
+  can_qr_code: '', received_date: '', received_by: '', hours_source: 'reported_by_client',
   oil_type_id: '', lifecycle_id: '', sampling_date: '', total_hours_at_sampling: '',
   oil_hours_at_sampling: '', engine_state: 'warm', sample_status: 'pending',
   applies_to_equipment_unit_ids: [], applies_to_lifecycle_ids: [],
   batch_number: '', production_date: '', storage_type: '', delivery_date: '', supplier: '',
-  operator_user_id: '', comments: ''
+  operator_user_id: '', comments: '', attachments: []
 };
 
 const genSampleNumber = (existing) => {
@@ -45,6 +47,7 @@ export default function OilSamples() {
   const [filterAsset, setFilterAsset] = useState('none');
   const [filterStatus, setFilterStatus] = useState('none');
   const [searchText, setSearchText] = useState('');
+  const [uploading, setUploading] = useState(false);
   const qc = useQueryClient();
   const navigate = useNavigate();
 
@@ -60,12 +63,13 @@ export default function OilSamples() {
   const cleanForm = (d) => {
     const c = { ...d };
     ['total_hours_at_sampling', 'oil_hours_at_sampling'].forEach(k => { if (c[k] === '' || c[k] === null) delete c[k]; });
-    ['asset_id', 'equipment_unit_id', 'sampling_point_id', 'oil_type_id', 'lifecycle_id', 'batch_number', 'production_date', 'storage_type', 'delivery_date', 'supplier', 'operator_user_id', 'comments'].forEach(k => {
+    ['asset_id', 'equipment_unit_id', 'sampling_point_id', 'oil_type_id', 'lifecycle_id', 'batch_number', 'production_date', 'storage_type', 'delivery_date', 'supplier', 'operator_user_id', 'comments', 'sample_origin', 'container_type', 'external_sample_label', 'can_qr_code', 'received_date', 'received_by', 'hours_source'].forEach(k => {
       if (c[k] === '' || c[k] === null || c[k] === undefined) delete c[k];
     });
     ['applies_to_equipment_unit_ids', 'applies_to_lifecycle_ids'].forEach(k => {
       if (!Array.isArray(c[k]) || c[k].length === 0) delete c[k];
     });
+    if (!Array.isArray(c.attachments) || c.attachments.length === 0) delete c.attachments;
     return c;
   };
 
@@ -102,6 +106,25 @@ export default function OilSamples() {
   const toggle = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => setSelected(s => s.size === filtered.length ? new Set() : new Set(filtered.slice(0,100).map(x => x.id)));
 
+  const handleUpload = async (files) => {
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      const urls = [];
+      for (const file of Array.from(files)) {
+        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        urls.push(file_url);
+      }
+      setForm(p => ({ ...p, attachments: [...(p.attachments || []), ...urls] }));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeAttachment = (url) => {
+    setForm(p => ({ ...p, attachments: (p.attachments || []).filter(item => item !== url) }));
+  };
+
   const filtAssets = assets.filter(a => !form.client_id || a.client_id === form.client_id);
   const filtUnits = units.filter(u => !form.asset_id || u.asset_id === form.asset_id);
   const filtPoints = points.filter(p => !form.equipment_unit_id || p.equipment_unit_id === form.equipment_unit_id);
@@ -113,7 +136,7 @@ export default function OilSamples() {
     return true;
   });
 
-  const filteredAssetOptions = assets.filter(a => !filterClient || a.client_id === filterClient);
+  const filteredAssetOptions = assets.filter(a => filterClient === 'none' || a.client_id === filterClient);
   const currentAnalysis = results.find(r => r.sample_id === form.id);
   const baselineUnitOptions = filtUnits.filter(unit => {
     const unitOilId = unit.current_oil_type_id || unit.oil_type_id;
@@ -168,7 +191,7 @@ export default function OilSamples() {
     (filterClient === 'none' || s.client_id === filterClient) &&
     (filterAsset === 'none' || s.asset_id === filterAsset) &&
     (filterStatus === 'none' || s.sample_status === filterStatus) &&
-    (!searchText || s.sample_number?.toLowerCase().includes(searchText.toLowerCase()))
+    (!searchText || [s.sample_number, s.external_sample_label, s.can_qr_code].some(v => v?.toLowerCase().includes(searchText.toLowerCase())))
   );
 
   const getName = (list, id, field) => list.find(x => x.id === id)?.[field] || '—';
@@ -187,7 +210,7 @@ export default function OilSamples() {
               <Trash2 className="w-4 h-4 mr-1.5" />Удалить выбранные ({selected.size})
             </Button>
           )}
-          <Button size="sm" onClick={() => { setForm({ ...DEF, sampling_date: new Date().toISOString().split('T')[0], sample_number: genSampleNumber(samples) }); setOpen(true); }}>
+          <Button size="sm" onClick={() => { setForm({ ...DEF, sampling_date: new Date().toISOString().split('T')[0], received_date: new Date().toISOString().split('T')[0], sample_number: genSampleNumber(samples) }); setOpen(true); }}>
             <Plus className="w-4 h-4 mr-1.5" />Добавить пробу
           </Button>
         </div>
@@ -242,15 +265,16 @@ export default function OilSamples() {
               <th className="text-center px-2 py-2.5 font-medium text-slate-600 w-20">Железо<br/>мг/л</th>
               <th className="text-center px-2 py-2.5 font-medium text-slate-600 w-20">Износ</th>
               <th className="text-center px-2 py-2.5 font-medium text-slate-600 w-20">OHI</th>
+              <th className="text-center px-2 py-2.5 font-medium text-slate-600 w-16">Фото</th>
               <th className="text-left px-3 py-2.5 font-medium text-slate-600 w-24">Статус</th>
               <th className="w-20 px-3 py-2.5"></th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={12} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
+              <tr><td colSpan={14} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={12} className="text-center py-10 text-slate-400">Пробы не найдены</td></tr>
+              <tr><td colSpan={14} className="text-center py-10 text-slate-400">Пробы не найдены</td></tr>
             ) : filtered.slice(0, 100).map(s => {
               const res = results.find(r => r.sample_id === s.id);
               const cell = (val, dec = 1) => val != null ? <span className="font-medium text-slate-800">{typeof val === 'number' ? val.toFixed(dec) : val}</span> : <span className="text-slate-300">—</span>;
@@ -261,6 +285,11 @@ export default function OilSamples() {
                   <td className="px-3 py-2">
                     <div className="font-mono text-slate-900 font-medium">{s.sample_number}</div>
                     <div className="text-slate-400 text-xs">{s.sampling_date ? s.sampling_date.split('-').reverse().join('.') : '—'}</div>
+                    {(s.external_sample_label || s.can_qr_code || s.container_type === 'client_container') && (
+                      <div className="text-[11px] text-amber-700 truncate max-w-[120px]">
+                        {s.external_sample_label || s.can_qr_code || 'клиентская тара'}
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     <div className="font-medium text-slate-700 truncate max-w-[130px]">{getName(assets, s.asset_id, 'asset_name')}</div>
@@ -278,12 +307,20 @@ export default function OilSamples() {
                       ? <span className={`font-bold ${ohiColor(res.oil_health_index)}`}>{Math.round(res.oil_health_index)}</span>
                       : <span className="text-slate-300">—</span>}
                   </td>
+                  <td className="px-2 py-2 text-center">
+                    {s.attachments?.length > 0 ? (
+                      <span className="inline-flex items-center justify-center gap-1 text-slate-500">
+                        <Image className="w-3.5 h-3.5" />
+                        <span>{s.attachments.length}</span>
+                      </span>
+                    ) : <span className="text-slate-300">—</span>}
+                  </td>
                   <td className="px-3 py-2"><StatusBadge status={s.sample_status} /></td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" className="h-7 w-7" title="Добавить результат анализа" onClick={() => navigate(`/analysis-results?sample=${s.id}`)}>                        <FlaskConical className="w-3.5 h-3.5 text-blue-500" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Редактировать пробу и параметры" onClick={() => { const newForm = { ...s }; const existingAnalysis = results.find(r => r.sample_id === s.id); if (existingAnalysis) Object.assign(newForm, existingAnalysis); setForm(newForm); setOpen(true); }}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Редактировать пробу и параметры" onClick={() => { const newForm = { ...s }; const existingAnalysis = results.find(r => r.sample_id === s.id); if (existingAnalysis) Object.assign(newForm, existingAnalysis); setForm({ ...DEF, ...newForm, attachments: newForm.attachments || [] }); setOpen(true); }}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.confirm('Удалить пробу?') && del.mutate(s.id)}>
@@ -295,7 +332,7 @@ export default function OilSamples() {
               );
             })}
             {!isLoading && filtered.length > 100 && (
-              <tr><td colSpan={12} className="text-center py-3 text-slate-400">Показано 100 из {filtered.length}. Используйте поиск или фильтры для уточнения.</td></tr>
+              <tr><td colSpan={14} className="text-center py-3 text-slate-400">Показано 100 из {filtered.length}. Используйте поиск или фильтры для уточнения.</td></tr>
             )}
           </tbody>
         </table>
@@ -322,6 +359,81 @@ export default function OilSamples() {
             <div className="space-y-1">
               <Label>Дата отбора <span className="text-red-500">*</span></Label>
               <Input type="date" value={form.sampling_date} onChange={e => f('sampling_date', e.target.value)} />
+            </div>
+
+            <div className="col-span-3 rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
+              <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Поступление и тара</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Источник</Label>
+                  <Select value={form.sample_origin} onValueChange={v => f('sample_origin', v)}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="own_sampling">Наш отбор</SelectItem>
+                      <SelectItem value="client_delivered">Клиент привёз</SelectItem>
+                      <SelectItem value="historical_import">Исторический импорт</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Тара</Label>
+                  <Select value={form.container_type} onValueChange={v => f('container_type', v)}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="smartoil_can">Наша банка с QR</SelectItem>
+                      <SelectItem value="client_container">Клиентская тара</SelectItem>
+                      <SelectItem value="unknown">Не указано</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Дата поступления</Label>
+                  <Input className="h-8 text-sm" type="date" value={form.received_date} onChange={e => f('received_date', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">QR нашей банки</Label>
+                  <Input className="h-8 text-sm" value={form.can_qr_code} onChange={e => f('can_qr_code', e.target.value)} placeholder="если есть" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Надпись клиента / внешний №</Label>
+                  <Input className="h-8 text-sm" value={form.external_sample_label} onChange={e => f('external_sample_label', e.target.value)} placeholder="например: банка 3" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Кто принял</Label>
+                  <Input className="h-8 text-sm" value={form.received_by} onChange={e => f('received_by', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Источник моточасов</Label>
+                  <Select value={form.hours_source} onValueChange={v => f('hours_source', v)}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="reported_by_client">Со слов клиента</SelectItem>
+                      <SelectItem value="current_unit_state">Текущее состояние агрегата</SelectItem>
+                      <SelectItem value="unknown">Неизвестно</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label className="text-xs">Фото банки / маркировки</Label>
+                  <label className="flex h-8 items-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-3 cursor-pointer hover:border-slate-500">
+                    <Upload className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-xs text-slate-500">{uploading ? 'Загрузка...' : 'Прикрепить фото'}</span>
+                    <input type="file" accept="image/*" multiple className="hidden" disabled={uploading} onChange={e => handleUpload(e.target.files)} />
+                  </label>
+                </div>
+              </div>
+              {(form.attachments || []).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {(form.attachments || []).map((url, i) => (
+                    <div key={i} className="relative group">
+                      <img src={url} alt="" className="w-16 h-16 object-cover rounded-md border border-slate-200" />
+                      <button type="button" onClick={() => removeAttachment(url)} className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {(form.sample_type === 'in_service' || form.sample_type === 'fresh_oil') && (

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckCircle2, QrCode, Droplets, ChevronRight, ChevronLeft, Search, Camera, Wrench, Plus, FlaskConical, AlertCircle } from 'lucide-react';
+import { CheckCircle2, QrCode, Droplets, ChevronRight, ChevronLeft, Search, Camera, Wrench, Plus, FlaskConical, AlertCircle, Upload, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import QRScanner from '@/components/mobile/QRScanner';
 import { format } from 'date-fns';
@@ -44,15 +44,20 @@ export default function MobileSampling() {
   // After save result
   const [saveResult, setSaveResult] = useState(null);
   const [showHoursPrompt, setShowHoursPrompt] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const [sampleForm, setSampleForm] = useState({
     sample_number: genSampleNumber(),
     sampling_date: format(new Date(), 'yyyy-MM-dd'),
     sample_type: 'in_service',
     engine_state: 'warm',
+    sample_origin: 'own_sampling',
+    container_type: 'smartoil_can',
+    external_sample_label: '',
     total_hours_at_sampling: '',
     oil_hours_at_sampling: '',
     comments: '',
+    attachments: [],
   });
 
   const [eventForm, setEventForm] = useState({
@@ -61,6 +66,7 @@ export default function MobileSampling() {
     filter_changed: false,
     total_operating_hours: '',
     comments: '',
+    attachments: [],
   });
 
   const { data: samplingPoints = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
@@ -74,6 +80,7 @@ export default function MobileSampling() {
       return base44.entities.OilSample.create({
         ...sampleForm,
         can_qr_code: canQR,
+        container_type: canQR ? 'smartoil_can' : sampleForm.container_type,
         sampling_point_id: samplingPoint.id,
         equipment_unit_id: samplingPoint.equipment_unit_id,
         asset_id: samplingPoint.asset_id,
@@ -98,6 +105,7 @@ export default function MobileSampling() {
         equipment_unit_id: unit.id,
         total_operating_hours: eventForm.total_operating_hours ? Number(eventForm.total_operating_hours) : undefined,
         comment: eventForm.comments || undefined,
+        attachments: eventForm.attachments || [],
       },
       oil_type_id: eventForm.oil_type_id || null,
       volume: eventForm.volume || null,
@@ -164,7 +172,39 @@ export default function MobileSampling() {
     else alert('Точка отбора не найдена. Попробуйте выбрать вручную.');
   };
 
-  const handleCanQR = (data) => { setScanner(null); setCanQR(data); setStep(2); };
+  const handleCanQR = (data) => {
+    setScanner(null);
+    setCanQR(data);
+    setSampleForm(p => ({ ...p, container_type: 'smartoil_can' }));
+    setStep(2);
+  };
+
+  const handleUpload = async (files, target) => {
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      const urls = [];
+      for (const file of Array.from(files)) {
+        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        urls.push(file_url);
+      }
+      if (target === 'sample') {
+        setSampleForm(p => ({ ...p, attachments: [...(p.attachments || []), ...urls] }));
+      } else {
+        setEventForm(p => ({ ...p, attachments: [...(p.attachments || []), ...urls] }));
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeAttachment = (url, target) => {
+    if (target === 'sample') {
+      setSampleForm(p => ({ ...p, attachments: (p.attachments || []).filter(item => item !== url) }));
+    } else {
+      setEventForm(p => ({ ...p, attachments: (p.attachments || []).filter(item => item !== url) }));
+    }
+  };
 
   const filteredPoints = samplingPoints.filter(p => p.point_name?.toLowerCase().includes(searchPoint.toLowerCase()));
   const getUnitName = (id) => equipmentUnits.find(u => u.id === id)?.unit_name || '';
@@ -180,8 +220,8 @@ export default function MobileSampling() {
     setSelectedAsset(null); setSelectedUnit(null);
     setSearchAsset(''); setSearchUnit(''); setUnitSelectStep('asset');
     setSaveResult(null); setShowHoursPrompt(false);
-    setSampleForm({ sample_number: genSampleNumber(), sampling_date: format(new Date(), 'yyyy-MM-dd'), sample_type: 'in_service', engine_state: 'warm', total_hours_at_sampling: '', oil_hours_at_sampling: '', comments: '' });
-    setEventForm({ oil_type_id: '', volume: '', filter_changed: false, total_operating_hours: '', comments: '' });
+    setSampleForm({ sample_number: genSampleNumber(), sampling_date: format(new Date(), 'yyyy-MM-dd'), sample_type: 'in_service', engine_state: 'warm', sample_origin: 'own_sampling', container_type: 'smartoil_can', external_sample_label: '', total_hours_at_sampling: '', oil_hours_at_sampling: '', comments: '', attachments: [] });
+    setEventForm({ oil_type_id: '', volume: '', filter_changed: false, total_operating_hours: '', comments: '', attachments: [] });
   };
 
   const currentSteps = mode ? MODE_CONFIG[mode].steps : [];
@@ -411,7 +451,7 @@ export default function MobileSampling() {
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-300" /></div>
               <div className="relative flex justify-center text-sm"><span className="bg-slate-50 px-3 text-slate-500">или без привязки банки</span></div>
             </div>
-            <Button variant="outline" className="w-full h-12" onClick={() => setStep(2)}>Продолжить без банки</Button>
+            <Button variant="outline" className="w-full h-12" onClick={() => { setSampleForm(p => ({ ...p, container_type: 'client_container' })); setStep(2); }}>Продолжить без банки</Button>
             <Button variant="ghost" className="w-full" onClick={() => setStep(0)}><ChevronLeft className="w-4 h-4 mr-1" />Назад</Button>
           </div>
         )}
@@ -426,6 +466,23 @@ export default function MobileSampling() {
               </div>
             )}
             <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-sm font-semibold">Тара</Label>
+                  <Select value={sampleForm.container_type} onValueChange={v => setSampleForm(p => ({ ...p, container_type: v }))}>
+                    <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="smartoil_can">Наша банка</SelectItem>
+                      <SelectItem value="client_container">Клиентская тара</SelectItem>
+                      <SelectItem value="unknown">Не указано</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-sm font-semibold">Маркировка</Label>
+                  <Input className="h-12 text-base" value={sampleForm.external_sample_label} onChange={e => setSampleForm(p => ({ ...p, external_sample_label: e.target.value }))} placeholder="на банке" />
+                </div>
+              </div>
               <div className="space-y-1">
                 <Label className="text-sm font-semibold">Номер пробы</Label>
                 <Input className="h-12 text-base" value={sampleForm.sample_number} onChange={e => setSampleForm(p => ({ ...p, sample_number: e.target.value }))} />
@@ -465,6 +522,26 @@ export default function MobileSampling() {
               <div className="space-y-1">
                 <Label className="text-sm font-semibold">Комментарий</Label>
                 <Textarea rows={3} value={sampleForm.comments} onChange={e => setSampleForm(p => ({ ...p, comments: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Фото банки / маркировки</Label>
+                <label className="flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 cursor-pointer active:bg-slate-50">
+                  <Upload className="w-5 h-5 text-slate-400" />
+                  <span className="text-sm text-slate-500">{uploading ? 'Загрузка...' : 'Прикрепить фото'}</span>
+                  <input type="file" accept="image/*" multiple className="hidden" disabled={uploading} onChange={e => handleUpload(e.target.files, 'sample')} />
+                </label>
+                {(sampleForm.attachments || []).length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {(sampleForm.attachments || []).map((url, i) => (
+                      <div key={i} className="relative">
+                        <img src={url} alt="" className="w-16 h-16 object-cover rounded-lg border border-slate-200" />
+                        <button type="button" onClick={() => removeAttachment(url, 'sample')} className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <Button className="w-full h-14 text-base" onClick={() => saveSample.mutate()} disabled={saveSample.isPending}>
@@ -526,6 +603,26 @@ export default function MobileSampling() {
               <div className="space-y-1">
                 <Label className="text-sm font-semibold">Комментарий</Label>
                 <Textarea rows={2} value={eventForm.comments} onChange={e => setEventForm(p => ({ ...p, comments: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Фото события</Label>
+                <label className="flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 cursor-pointer active:bg-slate-50">
+                  <Upload className="w-5 h-5 text-slate-400" />
+                  <span className="text-sm text-slate-500">{uploading ? 'Загрузка...' : 'Прикрепить фото'}</span>
+                  <input type="file" accept="image/*" multiple className="hidden" disabled={uploading} onChange={e => handleUpload(e.target.files, 'event')} />
+                </label>
+                {(eventForm.attachments || []).length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {(eventForm.attachments || []).map((url, i) => (
+                      <div key={i} className="relative">
+                        <img src={url} alt="" className="w-16 h-16 object-cover rounded-lg border border-slate-200" />
+                        <button type="button" onClick={() => removeAttachment(url, 'event')} className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             {saveEvent.isError && (

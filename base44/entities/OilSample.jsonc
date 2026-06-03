@@ -14,6 +14,28 @@
       "type": "string",
       "title": "Sample Number"
     },
+    "sample_origin": {
+      "type": "string",
+      "title": "Sample Origin",
+      "enum": [
+        "own_sampling",
+        "client_delivered",
+        "historical_import"
+      ]
+    },
+    "container_type": {
+      "type": "string",
+      "title": "Container Type",
+      "enum": [
+        "smartoil_can",
+        "client_container",
+        "unknown"
+      ]
+    },
+    "external_sample_label": {
+      "type": "string",
+      "title": "External Sample Label"
+    },
     "can_qr_code": {
       "type": "string",
       "title": "Can QR Code"
@@ -60,6 +82,24 @@
       "type": "string",
       "title": "Sampling Date",
       "format": "date"
+    },
+    "received_date": {
+      "type": "string",
+      "title": "Received Date",
+      "format": "date"
+    },
+    "received_by": {
+      "type": "string",
+      "title": "Received By"
+    },
+    "hours_source": {
+      "type": "string",
+      "title": "Hours Source",
+      "enum": [
+        "reported_by_client",
+        "current_unit_state",
+        "unknown"
+      ]
     },
     "total_hours_at_sampling": {
       "type": "number",
