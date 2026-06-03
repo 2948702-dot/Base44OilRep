@@ -11,11 +11,44 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, Plus, Pencil, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { EQ_TYPES } from '@/utils/labels';
 import SamplingPointsPanel from '@/components/SamplingPointsPanel';
+import { buildPayload } from '@/utils/payload';
+import { useSaveMutation } from '@/hooks/useSaveMutation';
 
 const DEF = {
   unit_name: '', equipment_type: '', manufacturer: '', model: '',
   serial_number: '', total_operating_hours: '', initial_oil_hours: '', comments: ''
 };
+
+const EQUIPMENT_UNIT_FIELDS = [
+  'unit_name',
+  'equipment_type',
+  'manufacturer',
+  'model',
+  'serial_number',
+  'total_operating_hours',
+  'initial_oil_hours',
+  'oil_type_id',
+  'oil_brand',
+  'oil_volume',
+  'oil_change_type',
+  'oil_change_interval',
+  'oil_change_interval_unit',
+  'oil_filter_type',
+  'oil_filter_brand',
+  'oil_filter_article',
+  'use_standard_thresholds',
+  'custom_thresholds',
+  'asset_id',
+  'client_id',
+  'comments',
+];
+
+const EQUIPMENT_UNIT_NUMBER_FIELDS = [
+  'total_operating_hours',
+  'initial_oil_hours',
+  'oil_volume',
+  'oil_change_interval',
+];
 
 export default function AssetDetail() {
   const { assetId } = useParams();
@@ -44,31 +77,27 @@ export default function AssetDetail() {
     queryFn: () => base44.entities.OilReference.list()
   });
 
-  const save = useMutation({
+  const save = useSaveMutation({
     mutationFn: async d => {
-      const clean = { ...d };
-      if (clean.total_operating_hours === '' || clean.total_operating_hours === undefined) delete clean.total_operating_hours;
-      else clean.total_operating_hours = Number(clean.total_operating_hours);
-      if (clean.initial_oil_hours === '' || clean.initial_oil_hours === undefined) delete clean.initial_oil_hours;
-      else clean.initial_oil_hours = Number(clean.initial_oil_hours);
-      // Never allow direct edit of current_* snapshot fields
-      delete clean.current_total_hours;
-      delete clean.current_oil_hours;
-      delete clean.current_oil_type_id;
-      delete clean.last_hours_update_date;
-      const payload = { ...clean, asset_id: assetId, client_id: asset?.client_id };
-      const result = clean.id
-        ? await base44.entities.EquipmentUnit.update(clean.id, payload)
+      const payload = buildPayload(
+        { ...d, asset_id: assetId, client_id: asset?.client_id },
+        EQUIPMENT_UNIT_FIELDS,
+        EQUIPMENT_UNIT_NUMBER_FIELDS
+      );
+      const result = d.id
+        ? await base44.entities.EquipmentUnit.update(d.id, payload)
         : await base44.entities.EquipmentUnit.create(payload);
-      const unitId = result?.id || clean.id;
+      const unitId = result?.id || d.id;
       if (unitId) {
         await base44.functions.invoke('recalculateEquipmentUnitState', { equipment_unit_id: unitId });
       }
       return result;
     },
+    invalidateKeys: [
+      ['equipment-units', assetId],
+      ['equipment-units'],
+    ],
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['equipment-units', assetId] });
-      qc.invalidateQueries({ queryKey: ['equipment-units'] });
       setOpen(false);
       setForm(DEF);
     }
@@ -216,6 +245,7 @@ export default function AssetDetail() {
               <SamplingPointsPanel unit={form} oils={oils} />
             </div>
           )}
+          {save.errorBlock}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Закрыть</Button>
             <Button

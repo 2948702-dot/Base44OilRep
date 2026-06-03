@@ -62,6 +62,25 @@ Client → Asset → EquipmentUnit → SamplingPoint → OilSample
 
 ---
 
+## Сохранение форм — обязательный паттерн
+
+Все формы, выполняющие `update`/`create` сущностей Base44, ДОЛЖНЫ использовать:
+
+1. **`buildPayload`** из `src/utils/payload.js` — для очистки payload от запрещённых системных полей.
+2. **`useSaveMutation`** из `src/hooks/useSaveMutation.jsx` — для отображения ошибок сохранения.
+
+**Запрещено:**
+- Передавать `form` или `data` напрямую в `entity.update()` или `entity.create()`.
+- Использовать сырой `useMutation` без `errorBlock` для сохранения форм.
+
+**Пример:**
+См. `src/pages/AssetDetail.jsx` (функция `save`).
+
+**Список форбидден-полей** (никогда не отправляются в payload):
+`id`, `created_date`, `updated_date`, `created_by`, `updated_by`, а также любые поля с префиксом `current_*` (это snapshot-поля, заполняемые серверными функциями).
+
+---
+
 ## Workflow разработки
 
 1. Владелец → Claude (CTO) — обсуждение на естественном языке
