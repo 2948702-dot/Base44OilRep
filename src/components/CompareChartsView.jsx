@@ -35,7 +35,7 @@ export default function CompareChartsView({ enriched, thresholdRules }) {
 
   return (
     <div className="space-y-4">
-      <Card className="rounded-lg p-4 shadow-sm">
+      <Card className="no-print rounded-lg p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="mb-2 text-sm font-medium text-slate-700">Параметры для отображения</p>
@@ -48,9 +48,9 @@ export default function CompareChartsView({ enriched, thresholdRules }) {
               ))}
             </div>
           </div>
-          <Button className="no-print" variant="outline" size="sm" onClick={() => exportToPdf(exportRef.current, enriched)}>
+          <Button variant="outline" size="sm" onClick={() => exportToPdf(exportRef.current, enriched)}>
             <Download className="mr-2 h-4 w-4" />
-            Экспорт в PDF
+            Печать / PDF
           </Button>
         </div>
       </Card>

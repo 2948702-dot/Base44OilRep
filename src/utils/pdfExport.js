@@ -1,4 +1,3 @@
-import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { findFreshOilBaseline } from '@/utils/oilBaselines';
 
@@ -333,44 +332,10 @@ export function exportEquipmentReportPDF({ results, samples, oilRefs, clients, a
 }
 
 // ─────────────────────────────────────────────
-// Export compare dashboard DOM
+// Print compare dashboard
 // ─────────────────────────────────────────────
-export async function exportToPdf(element, enriched) {
-  if (!element) return;
-
-  const canvas = await html2canvas(element, {
-    scale: 2,
-    backgroundColor: '#ffffff',
-    useCORS: true,
-    foreignObjectRendering: true,
-  });
-
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pdfWidth = 210;
-  const pdfHeight = 297;
-  const pagePadding = 10;
-  const imgWidth = pdfWidth - pagePadding * 2;
-  const pageContentHeight = pdfHeight - pagePadding * 2;
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-  if (imgHeight <= pageContentHeight) {
-    pdf.addImage(canvas, 'PNG', pagePadding, pagePadding, imgWidth, imgHeight);
-  } else {
-    let heightLeft = imgHeight;
-    let position = pagePadding;
-
-    pdf.addImage(canvas, 'PNG', pagePadding, position, imgWidth, imgHeight);
-    heightLeft -= pageContentHeight;
-
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight + pagePadding;
-      pdf.addPage();
-      pdf.addImage(canvas, 'PNG', pagePadding, position, imgWidth, imgHeight);
-      heightLeft -= pageContentHeight;
-    }
-  }
-
-  const date = new Date().toISOString().split('T')[0];
-  const sampleCount = enriched?.length ?? 0;
-  pdf.save(`Сравнение_проб_${sampleCount}_${date}.pdf`);
+export function exportToPdf(_element, _enriched) {
+  void _element;
+  void _enriched;
+  window.print();
 }

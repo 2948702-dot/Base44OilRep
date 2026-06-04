@@ -64,7 +64,7 @@ export default function CompareSamples() {
 
   return (
     <div className="mx-auto max-w-7xl p-6">
-      <div className="mb-6 flex items-center gap-3">
+      <div className="no-print mb-6 flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -82,7 +82,7 @@ export default function CompareSamples() {
         </div>
       ) : (
         <Tabs value={view} onValueChange={setView} className="space-y-5">
-          <TabsList>
+          <TabsList className="no-print">
             <TabsTrigger value="rankings">Рейтинги</TabsTrigger>
             <TabsTrigger value="charts">Диаграммы</TabsTrigger>
           </TabsList>

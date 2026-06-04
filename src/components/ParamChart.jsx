@@ -49,7 +49,7 @@ export default function ParamChart({ paramConfig, enriched, thresholdRules }) {
   const commonRule = ruleIds.length === 1 ? data.find(item => item.ruleId === ruleIds[0])?.rule : null;
   const showLines = Boolean(commonRule && data.length > 0 && data.every(item => item.ruleId === ruleIds[0]));
   const noRules = data.length > 0 && ruleIds.length === 0;
-  const thresholdLines = commonRule ? collectThresholdLines(commonRule) : [];
+  const thresholdLines = showLines ? collectThresholdLines(commonRule) : [];
   const yDomain = computeYDomain(data, thresholdLines);
 
   return (
@@ -172,7 +172,13 @@ function computeYDomain(data, thresholdLines) {
   const values = data.map(item => item.value).filter(hasNumber).map(Number);
   if (values.length === 0) return [0, 1];
 
-  const thresholdValues = (thresholdLines || []).map(line => line.y).filter(hasNumber).map(Number);
+  const valuesMax = Math.max(...values.map(value => Math.abs(value)));
+  const sanityLimit = valuesMax > 0 ? valuesMax * 10 : Number.POSITIVE_INFINITY;
+  const thresholdValues = (thresholdLines || [])
+    .map(line => line.y)
+    .filter(hasNumber)
+    .map(Number)
+    .filter(value => Math.abs(value) <= sanityLimit);
   const all = [...values, ...thresholdValues];
   const min = Math.min(...all);
   const max = Math.max(...all);

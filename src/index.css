@@ -106,11 +106,30 @@ main {
 }
 
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
   body {
     background: white;
   }
 
-  .no-print {
+  .no-print,
+  nav,
+  header,
+  aside,
+  button {
     display: none !important;
+  }
+
+  .recharts-responsive-container {
+    width: 100% !important;
+    height: 250px !important;
+  }
+
+  .recharts-wrapper,
+  [class*="grid"] > * {
+    page-break-inside: avoid;
   }
 }
