@@ -200,6 +200,15 @@ export default function OilSamples() {
           <p className="text-slate-500 text-sm mt-0.5">{samples.length} проб</p>
         </div>
         <div className="flex gap-2">
+          {selected.size >= 2 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate(`/compare-samples?ids=${Array.from(selected).join(',')}`)}
+            >
+              Сравнить выбранное ({selected.size})
+            </Button>
+          )}
           {selected.size > 0 && (
             <Button size="sm" variant="destructive" onClick={() => window.confirm(`Удалить ${selected.size} проб?`) && bulkDel.mutate([...selected])} disabled={bulkDel.isPending}>
               <Trash2 className="w-4 h-4 mr-1.5" />Удалить выбранные ({selected.size})

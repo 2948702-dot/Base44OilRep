@@ -12,6 +12,7 @@ import Assets from './pages/Assets';
 import EquipmentUnits from './pages/EquipmentUnits';
 import SamplingPoints from './pages/SamplingPoints';
 import OilSamples from './pages/OilSamples';
+import CompareSamples from './pages/CompareSamples';
 import AnalysisResults from './pages/AnalysisResults';
 import OilReferenceDB from './pages/OilReferenceDB';
 import ThresholdRules from './pages/ThresholdRules';
@@ -61,6 +62,7 @@ const AuthenticatedApp = () => {
         <Route path="/equipment-units" element={<EquipmentUnits />} />
         <Route path="/sampling-points" element={<SamplingPoints />} />
         <Route path="/oil-samples" element={<OilSamples />} />
+        <Route path="/compare-samples" element={<CompareSamples />} />
         <Route path="/analysis-results" element={<AnalysisResults />} />
         <Route path="/oil-reference" element={<OilReferenceDB />} />
         <Route path="/threshold-rules" element={<ThresholdRules />} />
