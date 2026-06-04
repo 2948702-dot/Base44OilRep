@@ -1,14 +1,17 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CompareDashboard from '@/components/CompareDashboard';
+import CompareChartsView from '@/components/CompareChartsView';
 
 export default function CompareSamples() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const [view, setView] = useState('rankings');
   const ids = useMemo(() => (params.get('ids') || '').split(',').filter(Boolean), [params]);
 
   const { data: samples = [], isLoading: samplesLoading } = useQuery({
@@ -78,7 +81,18 @@ export default function CompareSamples() {
           Нет проб для сравнения. Вернитесь к списку и выберите пробы чекбоксами.
         </div>
       ) : (
-        <CompareDashboard enriched={enriched} thresholdRules={thresholdRules} />
+        <Tabs value={view} onValueChange={setView} className="space-y-5">
+          <TabsList>
+            <TabsTrigger value="rankings">Рейтинги</TabsTrigger>
+            <TabsTrigger value="charts">Диаграммы</TabsTrigger>
+          </TabsList>
+          <TabsContent value="rankings" className="mt-0">
+            <CompareDashboard enriched={enriched} thresholdRules={thresholdRules} />
+          </TabsContent>
+          <TabsContent value="charts" className="mt-0">
+            <CompareChartsView enriched={enriched} thresholdRules={thresholdRules} />
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );
