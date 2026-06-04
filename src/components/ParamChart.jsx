@@ -1,4 +1,4 @@
-import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, Cell, LabelList, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card } from '@/components/ui/card';
 import { getThresholdSeverity, resolveThresholdRule } from '@/utils/thresholdRules';
 
@@ -49,6 +49,8 @@ export default function ParamChart({ paramConfig, enriched, thresholdRules }) {
   const commonRule = ruleIds.length === 1 ? data.find(item => item.ruleId === ruleIds[0])?.rule : null;
   const showLines = Boolean(commonRule && data.length > 0 && data.every(item => item.ruleId === ruleIds[0]));
   const noRules = data.length > 0 && ruleIds.length === 0;
+  const thresholdLines = commonRule ? collectThresholdLines(commonRule) : [];
+  const yDomain = computeYDomain(data, thresholdLines);
 
   return (
     <Card className="rounded-lg p-4 shadow-sm">
@@ -65,7 +67,7 @@ export default function ParamChart({ paramConfig, enriched, thresholdRules }) {
         <>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 46 }}>
+              <BarChart data={data} margin={{ top: 24, right: 8, left: -18, bottom: 46 }}>
                 <XAxis
                   dataKey="name"
                   angle={-35}
@@ -74,7 +76,7 @@ export default function ParamChart({ paramConfig, enriched, thresholdRules }) {
                   tick={{ fontSize: 11 }}
                   height={58}
                 />
-                <YAxis tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} domain={yDomain} allowDataOverflow={false} />
                 <Tooltip
                   formatter={value => [format(value), title]}
                   labelFormatter={(label, payload) => {
@@ -86,8 +88,14 @@ export default function ParamChart({ paramConfig, enriched, thresholdRules }) {
                   {data.map((item, index) => (
                     <Cell key={`${item.sampleNumber}-${index}`} fill={STATUS_COLORS[item.status] || STATUS_COLORS.gray} />
                   ))}
+                  <LabelList
+                    dataKey="value"
+                    position="top"
+                    formatter={format}
+                    style={{ fontSize: 11, fill: '#334155' }}
+                  />
                 </Bar>
-                {showLines && renderThresholdLines(commonRule)}
+                {showLines && renderThresholdLines(thresholdLines)}
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -110,11 +118,7 @@ function getParamValue(item, param) {
   return item.analysis?.[param] ?? null;
 }
 
-function renderThresholdLines(rule) {
-  const lines = rule.custom_ranges_mode && Array.isArray(rule.ranges)
-    ? collectCustomRangeLines(rule.ranges)
-    : collectFixedRangeLines(rule);
-
+function renderThresholdLines(lines) {
   return lines.map(line => (
     <ReferenceLine
       key={`${line.y}-${line.color}`}
@@ -124,6 +128,13 @@ function renderThresholdLines(rule) {
       ifOverflow="extendDomain"
     />
   ));
+}
+
+function collectThresholdLines(rule) {
+  if (!rule) return [];
+  return rule.custom_ranges_mode && Array.isArray(rule.ranges)
+    ? collectCustomRangeLines(rule.ranges)
+    : collectFixedRangeLines(rule);
 }
 
 function collectFixedRangeLines(rule) {
@@ -155,6 +166,25 @@ function collectCustomRangeLines(ranges) {
   });
 
   return [...byValue.values()].sort((a, b) => a.y - b.y);
+}
+
+function computeYDomain(data, thresholdLines) {
+  const values = data.map(item => item.value).filter(hasNumber).map(Number);
+  if (values.length === 0) return [0, 1];
+
+  const thresholdValues = (thresholdLines || []).map(line => line.y).filter(hasNumber).map(Number);
+  const all = [...values, ...thresholdValues];
+  const min = Math.min(...all);
+  const max = Math.max(...all);
+  const range = max - min;
+
+  if (range === 0) {
+    const padding = Math.max(Math.abs(min) * 0.1, 1);
+    return [min - padding, max + padding];
+  }
+
+  const padding = range * 0.05;
+  return [min - padding, max + padding];
 }
 
 function hasNumber(value) {

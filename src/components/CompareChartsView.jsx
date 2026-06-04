@@ -29,7 +29,9 @@ export default function CompareChartsView({ enriched, thresholdRules }) {
     });
   };
 
-  const visibleParams = PARAMS.filter(param => selected.has(param.key));
+  const visibleParams = PARAMS
+    .filter(param => selected.has(param.key))
+    .filter(param => hasAnyValue(param.key, enriched));
 
   return (
     <div className="space-y-4">
@@ -56,8 +58,8 @@ export default function CompareChartsView({ enriched, thresholdRules }) {
       <div ref={exportRef} className="bg-white p-1">
         <PdfHeader enriched={enriched} />
         {visibleParams.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-200 py-10 text-center text-sm text-slate-400">
-            Выберите хотя бы один параметр для отображения.
+          <div className="rounded-lg border border-dashed border-slate-200 p-12 text-center text-sm text-slate-500">
+            Нет данных для отображения. Выберите больше параметров или пробы с проведённым анализом.
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -74,6 +76,15 @@ export default function CompareChartsView({ enriched, thresholdRules }) {
       </div>
     </div>
   );
+}
+
+function hasAnyValue(param, enriched) {
+  return enriched.some(item => {
+    const value = param === 'oil_health_index'
+      ? item.analysis?.oil_health_index
+      : item.analysis?.[param];
+    return value !== null && value !== undefined;
+  });
 }
 
 function PdfHeader({ enriched }) {
