@@ -58,7 +58,7 @@ export default function RankingCard({
               <div className="flex shrink-0 items-center gap-2">
                 {info && <span className="text-xs text-slate-400">{info}</span>}
                 <span className="min-w-14 text-right font-medium tabular-nums text-slate-900">{format(item.value)}</span>
-                {status && <StatusDot status={status} />}
+                <StatusDot status={status} />
               </div>
             </div>
           );
@@ -78,13 +78,19 @@ function getStatus(item, param, thresholdRules, getStatusValue) {
 }
 
 function StatusDot({ status }) {
-  const color = status === 'green'
-    ? 'bg-emerald-500'
-    : status === 'yellow'
-      ? 'bg-amber-500'
-      : status === 'red'
-        ? 'bg-rose-500'
-        : 'bg-slate-300';
-
-  return <div className={`h-2 w-2 rounded-full ${color}`} />;
+  if (status === 'green') {
+    return <div className="h-2 w-2 rounded-full bg-emerald-500" title="В пределах нормы" />;
+  }
+  if (status === 'yellow') {
+    return <div className="h-2 w-2 rounded-full bg-amber-500" title="Внимание — приближается к пределу" />;
+  }
+  if (status === 'red') {
+    return <div className="h-2 w-2 rounded-full bg-rose-500" title="Превышен допустимый предел" />;
+  }
+  return (
+    <div
+      className="h-2 w-2 rounded-full border border-slate-300 bg-slate-200"
+      title="Не задан порог для этой пробы — задайте правила в справочнике масла или индивидуальные пороги агрегата"
+    />
+  );
 }

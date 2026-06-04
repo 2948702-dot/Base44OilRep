@@ -74,7 +74,11 @@ export default function EquipmentUnits() {
 
   const save = useSaveMutation({
     mutationFn: async data => {
-      const payload = buildPayload(data, EQUIPMENT_UNIT_FIELDS, EQUIPMENT_UNIT_NUMBER_FIELDS);
+      const dataWithSync = {
+        ...data,
+        current_oil_type_id: data.oil_type_id || null,
+      };
+      const payload = buildPayload(dataWithSync, EQUIPMENT_UNIT_FIELDS, EQUIPMENT_UNIT_NUMBER_FIELDS);
       const result = data.id
         ? await base44.entities.EquipmentUnit.update(data.id, payload)
         : await base44.entities.EquipmentUnit.create(payload);

@@ -86,8 +86,28 @@ Client → Asset → EquipmentUnit → SamplingPoint → OilSample
 
 **Пример:** `OilFormDialog.jsx` + `OilThresholdsEditor.jsx`.
 
+### Snapshot-поля и ручное редактирование
+
+Некоторые snapshot-поля (например, `EquipmentUnit.current_oil_type_id`) могут заполняться **двумя путями**:
+1. Серверной функцией пересчёта (при создании MaintenanceEvent "смена масла")
+2. Фронтом при ручном редактировании справочника агрегата
+
+Для сценария (2) фронт должен **явно** синхронизировать snapshot с источником в payload:
+
+```javascript
+const dataWithSync = {
+  ...d,
+  current_oil_type_id: d.oil_type_id || null,
+};
+const payload = buildPayload(dataWithSync, FIELDS, NUMBER_FIELDS);
+```
+
+Это нужно, потому что серверная функция при пересчёте даёт приоритет snapshot-значению — без явной синхронизации она "проглотит" изменение фронта.
+
+**Где это применяется сегодня:** `EquipmentUnits.jsx`, `AssetDetail.jsx`, `Assets.jsx` — синхронизация `oil_type_id` ↔ `current_oil_type_id`.
+
 **Список форбидден-полей** (никогда не отправляются в payload):
-`id`, `created_date`, `updated_date`, `created_by`, `updated_by`, а также любые поля с префиксом `current_*` (это snapshot-поля, заполняемые серверными функциями).
+`id`, `created_date`, `updated_date`, `created_by`, `updated_by`, а также поля с префиксом `current_*`, кроме явно документированных исключений вроде `EquipmentUnit.current_oil_type_id`.
 
 ---
 

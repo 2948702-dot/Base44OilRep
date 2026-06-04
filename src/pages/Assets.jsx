@@ -252,7 +252,7 @@ export default function Assets() {
         for (const u of units) {
           if (u.id && u.unit_name && u.equipment_type) {
             const unitPayload = buildPayload(
-              { ...u, client_id: d.client_id, asset_id: d.id },
+              { ...u, client_id: d.client_id, asset_id: d.id, current_oil_type_id: u.oil_type_id || null },
               EQUIPMENT_UNIT_FIELDS,
               EQUIPMENT_UNIT_NUMBER_FIELDS
             );
@@ -260,7 +260,7 @@ export default function Assets() {
             changedUnitIds.push(u.id);
           } else if (!u.id && u.unit_name && u.equipment_type) {
             const unitPayload = buildPayload(
-              { ...u, client_id: d.client_id, asset_id: d.id },
+              { ...u, client_id: d.client_id, asset_id: d.id, current_oil_type_id: u.oil_type_id || null },
               EQUIPMENT_UNIT_FIELDS,
               EQUIPMENT_UNIT_NUMBER_FIELDS
             );
@@ -273,7 +273,7 @@ export default function Assets() {
         for (const u of units) {
           if (u.unit_name && u.equipment_type) {
             const unitPayload = buildPayload(
-              { ...u, client_id: d.client_id, asset_id: asset.id },
+              { ...u, client_id: d.client_id, asset_id: asset.id, current_oil_type_id: u.oil_type_id || null },
               EQUIPMENT_UNIT_FIELDS,
               EQUIPMENT_UNIT_NUMBER_FIELDS
             );

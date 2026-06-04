@@ -49,8 +49,14 @@ export default function AssetDetail() {
 
   const save = useSaveMutation({
     mutationFn: async d => {
+      const dataWithSync = {
+        ...d,
+        asset_id: assetId,
+        client_id: asset?.client_id,
+        current_oil_type_id: d.oil_type_id || null,
+      };
       const payload = buildPayload(
-        { ...d, asset_id: assetId, client_id: asset?.client_id },
+        dataWithSync,
         EQUIPMENT_UNIT_FIELDS,
         EQUIPMENT_UNIT_NUMBER_FIELDS
       );

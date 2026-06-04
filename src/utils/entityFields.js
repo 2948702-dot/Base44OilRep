@@ -2,7 +2,8 @@
  * Whitelist'ы полей для buildPayload, сверенные со схемами base44/entities/*.jsonc.
  *
  * При добавлении нового поля в схему — обязательно добавлять и сюда.
- * Snapshot и системные поля (current_*, last_*_date, id, created_*, updated_*) НЕ включать.
+ * Snapshot и системные поля (current_*, last_*_date, id, created_*, updated_*) НЕ включать,
+ * кроме явно документированных исключений для ручной синхронизации.
  */
 
 export const CLIENT_FIELDS = [
@@ -36,6 +37,7 @@ export const EQUIPMENT_UNIT_FIELDS = [
   'total_operating_hours',
   'initial_oil_hours',
   'oil_type_id',
+  'current_oil_type_id',
   'oil_brand',
   'oil_volume',
   'oil_change_type',
