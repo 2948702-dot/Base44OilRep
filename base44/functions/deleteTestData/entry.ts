@@ -33,28 +33,26 @@ Deno.serve(async (req) => {
     const maintenanceEvents = await deleteChunk(e.MaintenanceEvent, 50);
     const oilLifecycles     = await deleteChunk(e.OilLifecycle, 50);
     const oilSamples        = await deleteChunk(e.OilSample, 50);
-    const samplingPoints    = await deleteChunk(e.SamplingPoint, 50);
     const equipmentUnits    = await deleteChunk(e.EquipmentUnit, 50);
     const assets            = await deleteChunk(e.Asset, 50);
 
     const totalRemaining =
       analysisResults.remaining + maintenanceEvents.remaining + oilLifecycles.remaining +
-      oilSamples.remaining + samplingPoints.remaining + equipmentUnits.remaining + assets.remaining;
+      oilSamples.remaining + equipmentUnits.remaining + assets.remaining;
 
     // Проверяем полный остаток в базе
-    const [arLeft, meLeft, olLeft, osLeft, spLeft, euLeft, asLeft] = await Promise.all([
+    const [arLeft, meLeft, olLeft, osLeft, euLeft, asLeft] = await Promise.all([
       e.AnalysisResult.list('id', 1),
       e.MaintenanceEvent.list('id', 1),
       e.OilLifecycle.list('id', 1),
       e.OilSample.list('id', 1),
-      e.SamplingPoint.list('id', 1),
       e.EquipmentUnit.list('id', 1),
       e.Asset.list('id', 1),
     ]);
 
     const doneCompletely =
       !arLeft.length && !meLeft.length && !olLeft.length &&
-      !osLeft.length && !spLeft.length && !euLeft.length && !asLeft.length;
+      !osLeft.length && !euLeft.length && !asLeft.length;
 
     return Response.json({
       success: true,
@@ -66,7 +64,6 @@ Deno.serve(async (req) => {
         maintenanceEvents: maintenanceEvents.deleted,
         oilLifecycles: oilLifecycles.deleted,
         oilSamples: oilSamples.deleted,
-        samplingPoints: samplingPoints.deleted,
         equipmentUnits: equipmentUnits.deleted,
         assets: assets.deleted,
       },
@@ -75,7 +72,6 @@ Deno.serve(async (req) => {
         maintenanceEvents: meLeft.length ? 'есть' : '0',
         oilLifecycles: olLeft.length ? 'есть' : '0',
         oilSamples: osLeft.length ? 'есть' : '0',
-        samplingPoints: spLeft.length ? 'есть' : '0',
         equipmentUnits: euLeft.length ? 'есть' : '0',
         assets: asLeft.length ? 'есть' : '0',
       },

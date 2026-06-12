@@ -20,7 +20,7 @@ const STORAGE_TYPES = ['Закрытый склад', 'На открытом в�
 
 const DEF = {
   sample_type: 'in_service',
-  sample_number: '', client_id: '', asset_id: '', equipment_unit_id: '', sampling_point_id: '',
+  sample_number: '', client_id: '', asset_id: '', equipment_unit_id: '',
   sample_origin: 'client_delivered', container_type: 'client_container', external_sample_label: '',
   can_qr_code: '', received_date: '', received_by: '', hours_source: 'reported_by_client',
   oil_type_id: '', lifecycle_id: '', sampling_date: '', total_hours_at_sampling: '',
@@ -58,7 +58,6 @@ export default function OilSamples() {
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
-  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
   const { data: lifecycles = [] } = useQuery({ queryKey: ['oil-lifecycles'], queryFn: () => base44.entities.OilLifecycle.list() });
   const { data: results = [] } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
@@ -122,12 +121,9 @@ export default function OilSamples() {
 
   const filtAssets = assets.filter(a => !form.client_id || a.client_id === form.client_id);
   const filtUnits = units.filter(u => !form.asset_id || u.asset_id === form.asset_id);
-  const filtPoints = points.filter(p => !form.equipment_unit_id || p.equipment_unit_id === form.equipment_unit_id);
-  const unitPointIds = points.filter(p => p.equipment_unit_id === form.equipment_unit_id).map(p => p.id);
   const activeLC = lifecycles.filter(l => {
     if (l.status !== 'active') return false;
-    if (form.sampling_point_id) return l.sampling_point_id === form.sampling_point_id;
-    if (form.equipment_unit_id) return unitPointIds.includes(l.sampling_point_id);
+    if (form.equipment_unit_id) return l.equipment_unit_id === form.equipment_unit_id;
     return true;
   });
 
@@ -139,9 +135,8 @@ export default function OilSamples() {
   });
 
   const lifecycleIdsForUnit = (unitId) => {
-    const pointIds = points.filter(p => p.equipment_unit_id === unitId).map(p => p.id);
     return lifecycles
-      .filter(l => l.status === 'active' && pointIds.includes(l.sampling_point_id))
+      .filter(l => l.status === 'active' && l.equipment_unit_id === unitId)
       .map(l => l.id);
   };
 
@@ -481,21 +476,21 @@ export default function OilSamples() {
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
                       <Label className="text-xs">Клиент *</Label>
-                      <Select value={form.client_id} onValueChange={v => setForm(p => ({ ...p, client_id: v, asset_id: '', equipment_unit_id: '', sampling_point_id: '', lifecycle_id: '' }))}>
+                      <Select value={form.client_id} onValueChange={v => setForm(p => ({ ...p, client_id: v, asset_id: '', equipment_unit_id: '', lifecycle_id: '' }))}>
                         <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Клиент" /></SelectTrigger>
                         <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Актив</Label>
-                      <Select value={form.asset_id} onValueChange={v => setForm(p => ({ ...p, asset_id: v, equipment_unit_id: '', sampling_point_id: '', lifecycle_id: '' }))} disabled={!form.client_id}>
+                      <Select value={form.asset_id} onValueChange={v => setForm(p => ({ ...p, asset_id: v, equipment_unit_id: '', lifecycle_id: '' }))} disabled={!form.client_id}>
                         <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.client_id ? 'Актив' : '← сначала клиент'} /></SelectTrigger>
                         <SelectContent>{filtAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Оборудование</Label>
-                      <Select value={form.equipment_unit_id} onValueChange={v => { const unit = units.find(u => u.id === v); setForm(p => ({ ...p, equipment_unit_id: v, sampling_point_id: '', lifecycle_id: '', oil_type_id: unit?.current_oil_type_id || unit?.oil_type_id || p.oil_type_id })); }} disabled={!form.asset_id}>
+                      <Select value={form.equipment_unit_id} onValueChange={v => { const unit = units.find(u => u.id === v); setForm(p => ({ ...p, equipment_unit_id: v, lifecycle_id: '', oil_type_id: unit?.current_oil_type_id || unit?.oil_type_id || p.oil_type_id })); }} disabled={!form.asset_id}>
                         <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.asset_id ? 'Оборудование' : '← сначала актив'} /></SelectTrigger>
                         <SelectContent>{filtUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}</SelectContent>
                       </Select>

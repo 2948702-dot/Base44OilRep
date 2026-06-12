@@ -18,7 +18,6 @@ export default function Reports() {
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
-  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
   const { data: lifecycles = [] } = useQuery({ queryKey: ['oil-lifecycles'], queryFn: () => base44.entities.OilLifecycle.list() });
 
@@ -32,7 +31,6 @@ export default function Reports() {
   const client = clients.find(c => c.id === sample?.client_id);
   const asset = assets.find(a => a.id === sample?.asset_id);
   const unit = units.find(u => u.id === sample?.equipment_unit_id);
-  const point = points.find(p => p.id === sample?.sampling_point_id);
   const oil = oils.find(o => o.id === (sample?.oil_type_id || unit?.current_oil_type_id || unit?.oil_type_id));
   const lifecycle = lifecycles.find(l => l.id === sample?.lifecycle_id);
   const baseline = findFreshOilBaseline(sample, samples, results, units);
@@ -72,9 +70,8 @@ export default function Reports() {
     infoBlock('АКТИВ', asset?.asset_name, 70, y);
     infoBlock('ОБОРУДОВАНИЕ', unit?.unit_name, 125, y);
     y += 14;
-    infoBlock('ТОЧКА ОТБОРА', point?.point_name, margin, y);
-    infoBlock('МАСЛО', oil?.oil_name, 70, y);
-    infoBlock('СОСТОЯНИЕ АГРЕГАТА', sample.engine_state === 'warm' ? 'Прогретый' : 'Холодный', 125, y);
+    infoBlock('МАСЛО', oil?.oil_name, margin, y);
+    infoBlock('СОСТОЯНИЕ АГРЕГАТА', sample.engine_state === 'warm' ? 'Прогретый' : 'Холодный', 90, y);
     y += 14;
     infoBlock('М/Ч ВСЕГО', String(sample.total_hours_at_sampling || '—'), margin, y);
     infoBlock('М/Ч МАСЛА', String(sample.oil_hours_at_sampling || '—'), 70, y);
@@ -272,10 +269,6 @@ export default function Reports() {
                   <div>
                     <p className="text-xs text-slate-500 mb-1">Оборудование</p>
                     <p className="text-sm font-medium">{unit?.unit_name || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Точка отбора</p>
-                    <p className="text-sm font-medium">{point?.point_name || '—'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 mb-1">Масло</p>

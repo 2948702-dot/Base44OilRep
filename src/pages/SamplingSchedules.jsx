@@ -15,7 +15,7 @@ import { Plus, Pencil, Trash2, PlusCircle, MinusCircle } from 'lucide-react';
 import { FREQ_TYPES } from '@/utils/labels';
 
 const DEF_STAGE = { stage_number: 1, trigger_type: 'always', trigger_value: 0, frequency_type: 'days', frequency_value: 30, frequency_value_hours: 0 };
-const DEF = { sampling_point_id: '', schedule_name: '', is_active: true, stages: [{ ...DEF_STAGE }], next_sample_due_date: '', next_sample_due_hours: '', current_stage: 1, samples_in_current_stage: 0, comments: '' };
+const DEF = { client_id: '', asset_id: '', equipment_unit_id: '', schedule_name: '', is_active: true, stages: [{ ...DEF_STAGE }], next_sample_due_date: '', next_sample_due_hours: '', current_stage: 1, samples_in_current_stage: 0, comments: '' };
 
 const TRIGGER_LABELS = { always: 'Всегда (этот этап постоянный)', after_n_samples: 'После N проб переходит на следующий этап' };
 
@@ -25,13 +25,21 @@ export default function SamplingSchedules() {
   const qc = useQueryClient();
 
   const { data: schedules = [], isLoading } = useQuery({ queryKey: ['sampling-schedules'], queryFn: () => base44.entities.SamplingSchedule.list() });
-  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
 
   const save = useSaveMutation({
     mutationFn: async (d) => {
-      const payload = buildPayload(d, SAMPLING_SCHEDULE_FIELDS, SAMPLING_SCHEDULE_NUMBER_FIELDS);
+      const unit = units.find(item => item.id === d.equipment_unit_id);
+      const payload = buildPayload(
+        {
+          ...d,
+          asset_id: unit?.asset_id || d.asset_id,
+          client_id: unit?.client_id || d.client_id,
+        },
+        SAMPLING_SCHEDULE_FIELDS,
+        SAMPLING_SCHEDULE_NUMBER_FIELDS,
+      );
       return d.id
         ? await base44.entities.SamplingSchedule.update(d.id, payload)
         : await base44.entities.SamplingSchedule.create(payload);
@@ -48,9 +56,9 @@ export default function SamplingSchedules() {
   });
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
-  const getPoint = id => points.find(p => p.id === id);
   const getUnit = id => units.find(u => u.id === id);
   const getAsset = id => assets.find(a => a.id === id);
+  const filteredUnits = units.filter(unit => !form.asset_id || unit.asset_id === form.asset_id);
 
   const addStage = () => {
     const n = form.stages.length + 1;
@@ -85,9 +93,8 @@ export default function SamplingSchedules() {
         ) : schedules.length === 0 ? (
           <div className="text-center py-10 text-slate-400 bg-white rounded-lg border border-slate-200">Графики не созданы</div>
         ) : schedules.map(sch => {
-          const pt = getPoint(sch.sampling_point_id);
-          const unit = pt ? getUnit(pt.equipment_unit_id) : null;
-          const asset = unit ? getAsset(unit.asset_id) : null;
+          const unit = getUnit(sch.equipment_unit_id);
+          const asset = getAsset(sch.asset_id || unit?.asset_id);
           return (
             <div key={sch.id} className="bg-white rounded-lg border border-slate-200 p-4">
               <div className="flex items-start justify-between">
@@ -99,7 +106,7 @@ export default function SamplingSchedules() {
                     </span>
                   </div>
                   <p className="text-sm text-slate-500 mt-0.5">
-                    {pt?.point_name || '—'} · {unit?.unit_name || '—'} · {asset?.asset_name || '—'}
+                    {asset?.asset_name || '—'} · {unit?.unit_name || '—'}
                   </p>
                   {sch.next_sample_due_date && (
                     <p className="text-xs text-blue-600 mt-1">Следующая проба: {sch.next_sample_due_date}</p>
@@ -136,11 +143,18 @@ export default function SamplingSchedules() {
                 <Label>Название графика *</Label>
                 <Input value={form.schedule_name} onChange={e => f('schedule_name', e.target.value)} placeholder="Плановый мониторинг ГД" />
               </div>
-              <div className="col-span-2 space-y-1">
-                <Label>Точка отбора</Label>
-                <Select value={form.sampling_point_id} onValueChange={v => f('sampling_point_id', v)}>
-                  <SelectTrigger><SelectValue placeholder="Выберите точку отбора" /></SelectTrigger>
-                  <SelectContent>{points.map(p => <SelectItem key={p.id} value={p.id}>{p.point_name}</SelectItem>)}</SelectContent>
+              <div className="space-y-1">
+                <Label>Актив *</Label>
+                <Select value={form.asset_id} onValueChange={v => setForm(p => ({ ...p, asset_id: v, equipment_unit_id: '' }))}>
+                  <SelectTrigger><SelectValue placeholder="Выберите актив" /></SelectTrigger>
+                  <SelectContent>{assets.map(asset => <SelectItem key={asset.id} value={asset.id}>{asset.asset_name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Агрегат *</Label>
+                <Select value={form.equipment_unit_id} onValueChange={v => f('equipment_unit_id', v)} disabled={!form.asset_id}>
+                  <SelectTrigger><SelectValue placeholder="Выберите агрегат" /></SelectTrigger>
+                  <SelectContent>{filteredUnits.map(unit => <SelectItem key={unit.id} value={unit.id}>{unit.unit_name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
@@ -221,7 +235,7 @@ export default function SamplingSchedules() {
           {save.errorBlock}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
-            <Button onClick={() => save.mutate(form)} disabled={!form.schedule_name || save.isPending}>
+            <Button onClick={() => save.mutate(form)} disabled={!form.schedule_name || !form.equipment_unit_id || save.isPending}>
               {save.isPending ? 'Сохранение...' : 'Сохранить'}
             </Button>
           </DialogFooter>

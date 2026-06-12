@@ -28,14 +28,12 @@ export default function EquipmentDetailPage() {
     queryKey: ['equipment', equipmentId], 
     queryFn: () => base44.entities.EquipmentUnit.list().then(e => e.find(x => x.id === equipmentId))
   });
-  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
   const { data: samples = [] } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list() });
   const { data: results = [] } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
 
   const N = parseInt(probeCount);
-  const equipPoints = points.filter(p => p.equipment_unit_id === equipmentId);
   const equipSamples = samples.filter(s => 
-    equipPoints.some(p => p.id === s.sampling_point_id) && s.sample_status === 'completed'
+    s.equipment_unit_id === equipmentId && s.sample_status === 'completed'
   ).sort((a, b) => new Date(b.sampling_date) - new Date(a.sampling_date));
 
   // Get last N samples with results

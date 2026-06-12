@@ -45,10 +45,6 @@ export default function MobileLab() {
     queryKey: ['threshold-rules'],
     queryFn: () => base44.entities.ThresholdRule.list()
   });
-  const { data: samplingPoints = [] } = useQuery({
-    queryKey: ['sampling-points'],
-    queryFn: () => base44.entities.SamplingPoint.list()
-  });
   const { data: equipmentUnits = [] } = useQuery({
     queryKey: ['equipment-units'],
     queryFn: () => base44.entities.EquipmentUnit.list()
@@ -105,7 +101,6 @@ export default function MobileLab() {
     onSuccess: () => setStep(2),
   });
 
-  const getPointName = (id) => samplingPoints.find(p => p.id === id)?.point_name || '';
   const getUnitName = (id) => equipmentUnits.find(u => u.id === id)?.unit_name || '';
   const selectedUnit = sample ? equipmentUnits.find(u => u.id === sample.equipment_unit_id) : null;
   const selectedOilTypeId = sample?.oil_type_id || selectedUnit?.current_oil_type_id || selectedUnit?.oil_type_id;
@@ -159,7 +154,7 @@ export default function MobileLab() {
                         {s.sample_status === 'in_analysis' ? 'В анализе' : 'Ожидает'}
                       </span>
                     </div>
-                    <p className="text-sm text-slate-500 mt-1">{getPointName(s.sampling_point_id)} · {s.sampling_date}</p>
+                    <p className="text-sm text-slate-500 mt-1">{getUnitName(s.equipment_unit_id)} · {s.sampling_date}</p>
                     {s.can_qr_code && <p className="text-xs text-slate-400 mt-0.5">QR: {s.can_qr_code.slice(0, 20)}…</p>}
                   </button>
                 ))}
@@ -174,8 +169,8 @@ export default function MobileLab() {
             <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
               <p className="text-xs text-purple-600 font-medium uppercase tracking-wide mb-1">Проба</p>
               <p className="font-bold text-purple-900 font-mono text-lg">{sample.sample_number}</p>
-              <p className="text-sm text-purple-700">{getPointName(sample.sampling_point_id)}</p>
-              <p className="text-xs text-purple-500">{getUnitName(sample.equipment_unit_id)} · {sample.sampling_date}</p>
+              <p className="text-sm text-purple-700">{getUnitName(sample.equipment_unit_id)}</p>
+              <p className="text-xs text-purple-500">{sample.sampling_date}</p>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">

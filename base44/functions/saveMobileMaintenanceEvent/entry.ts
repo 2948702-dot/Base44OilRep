@@ -37,20 +37,99 @@ async function recalcUnit(base44, unitId) {
   });
 }
 
+function unique(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function getAllowedAssetIds(user) {
+  return unique([
+    user.asset_id,
+    ...(Array.isArray(user.asset_ids) ? user.asset_ids : []),
+  ]);
+}
+
+async function rebuildLifecycles(base44, equipmentUnitId) {
+  const unit = await base44.asServiceRole.entities.EquipmentUnit.get(equipmentUnitId);
+  if (!unit) return;
+  const events = await base44.asServiceRole.entities.MaintenanceEvent.filter({
+    equipment_unit_id: equipmentUnitId,
+  });
+  const oilChanges = events
+    .filter(event => event.event_type === 'oil_change')
+    .sort((a, b) => {
+      const dateCompare = (a.event_date || '').localeCompare(b.event_date || '');
+      return dateCompare !== 0
+        ? dateCompare
+        : (a.created_date || '').localeCompare(b.created_date || '');
+    });
+
+  const existing = await base44.asServiceRole.entities.OilLifecycle.filter({
+    equipment_unit_id: equipmentUnitId,
+  });
+  for (const lifecycle of existing) {
+    await base44.asServiceRole.entities.OilLifecycle.delete(lifecycle.id);
+  }
+
+  const rebuilt = [];
+  for (let index = 0; index < oilChanges.length; index += 1) {
+    const event = oilChanges[index];
+    if (!event.new_oil_type_id) continue;
+    const nextEvent = oilChanges[index + 1];
+    const created = await base44.asServiceRole.entities.OilLifecycle.create({
+      client_id: unit.client_id,
+      asset_id: unit.asset_id,
+      equipment_unit_id: equipmentUnitId,
+      oil_type_id: event.new_oil_type_id,
+      start_date: event.event_date,
+      start_operating_hours: event.total_operating_hours,
+      start_reason: 'Замена масла',
+      status: nextEvent ? 'closed' : 'active',
+      ...(nextEvent ? {
+        end_date: nextEvent.event_date,
+        end_operating_hours: nextEvent.total_operating_hours,
+        end_reason: 'Замена масла',
+      } : {}),
+    });
+    rebuilt.push({
+      id: created.id,
+      start_date: event.event_date,
+      end_date: nextEvent?.event_date || null,
+    });
+  }
+
+  const samples = await base44.asServiceRole.entities.OilSample.filter({
+    equipment_unit_id: equipmentUnitId,
+  });
+  for (const sample of samples) {
+    const matched = sample.sampling_date
+      ? rebuilt.find(lifecycle => (
+          sample.sampling_date >= lifecycle.start_date
+          && (!lifecycle.end_date || sample.sampling_date < lifecycle.end_date)
+        ))
+      : null;
+    const lifecycleId = matched?.id || null;
+    if ((sample.lifecycle_id || null) !== lifecycleId) {
+      await base44.asServiceRole.entities.OilSample.update(sample.id, {
+        lifecycle_id: lifecycleId,
+      });
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { mode, base: baseData, oil_type_id, volume, filter_changed, sampling_point_id } = await req.json();
+    const { mode, base: baseData, oil_type_id, volume, filter_changed } = await req.json();
 
     if (!mode || !baseData) return Response.json({ error: 'Missing required fields' }, { status: 400 });
 
     // Role-based authorization: verify user has access to the submitted asset/client.
     // This prevents privilege escalation via asServiceRole by accepting arbitrary IDs from the frontend.
     if (user.role === 'captain') {
-      const allowedAssetIds = user.asset_id ? [user.asset_id] : user.asset_ids?.[0] ? [user.asset_ids[0]] : [];
+      const allowedAssetIds = getAllowedAssetIds(user);
       if (!baseData.asset_id || !allowedAssetIds.includes(baseData.asset_id)) {
         return Response.json({ error: 'Forbidden: asset mismatch' }, { status: 403 });
       }
@@ -65,9 +144,10 @@ Deno.serve(async (req) => {
     const today = baseData.event_date;
     const unitId = baseData.equipment_unit_id;
 
-    // 1. Create MaintenanceEvent (user-scoped — captains have RLS permission)
+    // 1. Create MaintenanceEvent through service role after explicit RBAC above.
+    // This also supports responsible users assigned through user.asset_ids.
     if (mode === 'topup') {
-      await base44.entities.MaintenanceEvent.create({
+      await base44.asServiceRole.entities.MaintenanceEvent.create({
         ...baseData,
         event_type: 'oil_topup',
         new_oil_type_id: oil_type_id || undefined,
@@ -81,7 +161,7 @@ Deno.serve(async (req) => {
         oldOilTypeId = unit?.current_oil_type_id || unit?.oil_type_id;
       } catch (_) {}
 
-      await base44.entities.MaintenanceEvent.create({
+      await base44.asServiceRole.entities.MaintenanceEvent.create({
         ...baseData,
         event_type: 'oil_change',
         old_oil_type_id: oldOilTypeId || undefined,
@@ -90,36 +170,14 @@ Deno.serve(async (req) => {
       });
 
       if (filter_changed) {
-        await base44.entities.MaintenanceEvent.create({ ...baseData, event_type: 'oil_filter' });
+        await base44.asServiceRole.entities.MaintenanceEvent.create({
+          ...baseData,
+          event_type: 'oil_filter',
+        });
       }
 
-      // 2. OilLifecycle ops via service role (captain has no RLS to OilLifecycle)
-      if (sampling_point_id) {
-        const existingLCs = await base44.asServiceRole.entities.OilLifecycle.filter({
-          sampling_point_id,
-          status: 'active',
-        });
-        // Close all active lifecycles for this point (idempotent — may be 0 or 1)
-        for (const lc of existingLCs) {
-          await base44.asServiceRole.entities.OilLifecycle.update(lc.id, {
-            status: 'closed',
-            end_date: today,
-            end_operating_hours: baseData.total_operating_hours,
-            end_reason: 'Замена масла',
-          });
-        }
-        // Create new lifecycle only if oil type specified
-        if (oil_type_id) {
-          await base44.asServiceRole.entities.OilLifecycle.create({
-            sampling_point_id,
-            oil_type_id,
-            start_date: today,
-            start_operating_hours: baseData.total_operating_hours,
-            status: 'active',
-            start_reason: 'Замена масла',
-          });
-        }
-      }
+      // 2. One equipment unit has one oil lifecycle.
+      await rebuildLifecycles(base44, unitId);
     }
 
     // 3. Recalculate equipment unit state (inlined — function-to-function calls not supported)

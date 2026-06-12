@@ -29,11 +29,10 @@ Deno.serve(async (req) => {
 
       await base44.asServiceRole.entities.MaintenanceEvent.delete(event_id);
 
-      if (existing.sampling_point_id) {
-        await rebuildLifecycles(base44, existing.sampling_point_id);
-      }
       if (existing.equipment_unit_id) {
+        await rebuildLifecycles(base44, existing.equipment_unit_id);
         await recalcUnit(base44, existing.equipment_unit_id);
+        await rebuildMaintenanceSchedules(base44, existing.equipment_unit_id);
       }
 
       return Response.json({ success: true });
@@ -75,22 +74,16 @@ Deno.serve(async (req) => {
       savedEvent = await base44.asServiceRole.entities.MaintenanceEvent.create(payload);
     }
 
-    // Collect ALL affected sampling_point_ids and equipment_unit_ids
-    // (covers the case where sampling_point or unit changed on update)
-    const affectedPointIds = unique([
-      existing?.sampling_point_id,
-      event_data.sampling_point_id,
-    ]);
+    // Rebuild both units when an event is moved during update.
     const affectedUnitIds = unique([
       existing?.equipment_unit_id,
       event_data.equipment_unit_id,
     ]);
 
-    for (const ptId of affectedPointIds) {
-      await rebuildLifecycles(base44, ptId);
-    }
     for (const unitId of affectedUnitIds) {
+      await rebuildLifecycles(base44, unitId);
       await recalcUnit(base44, unitId);
+      await rebuildMaintenanceSchedules(base44, unitId);
     }
 
     return Response.json({ success: true, event: savedEvent });
@@ -107,7 +100,7 @@ function unique(arr) {
 
 function checkAccess(user, event) {
   if (user.role === 'captain') {
-    const allowedAssetIds = user.asset_id ? [user.asset_id] : user.asset_ids?.[0] ? [user.asset_ids[0]] : [];
+    const allowedAssetIds = getAllowedAssetIds(user);
     if (!event.asset_id || !allowedAssetIds.includes(event.asset_id)) {
       return Response.json({ error: 'Forbidden: asset mismatch' }, { status: 403 });
     }
@@ -121,18 +114,29 @@ function checkAccess(user, event) {
   return null;
 }
 
+function getAllowedAssetIds(user) {
+  return unique([
+    user.asset_id,
+    ...(Array.isArray(user.asset_ids) ? user.asset_ids : []),
+  ]);
+}
+
 /**
- * Rebuilds OilLifecycle records for a sampling point by replaying all oil_change
+ * Rebuilds OilLifecycle records for an equipment unit by replaying all oil_change
  * MaintenanceEvents in chronological order.
  *
  * Safe strategy: delete old records, create new ones, then re-link OilSample.lifecycle_id
  * so that existing samples still point to the correct (new) lifecycle by date.
  */
-async function rebuildLifecycles(base44, sampling_point_id) {
-  if (!sampling_point_id) return;
+async function rebuildLifecycles(base44, equipment_unit_id) {
+  if (!equipment_unit_id) return;
 
   // 1. Build ordered oil_change events
-  const allEvents = await base44.asServiceRole.entities.MaintenanceEvent.filter({ sampling_point_id });
+  const unit = await base44.asServiceRole.entities.EquipmentUnit.get(equipment_unit_id);
+  if (!unit) return;
+  const allEvents = await base44.asServiceRole.entities.MaintenanceEvent.filter({
+    equipment_unit_id,
+  });
   const oilChanges = allEvents
     .filter(e => e.event_type === 'oil_change')
     .sort((a, b) => {
@@ -140,8 +144,10 @@ async function rebuildLifecycles(base44, sampling_point_id) {
       return d !== 0 ? d : (a.created_date || '').localeCompare(b.created_date || '');
     });
 
-  // 2. Delete existing lifecycle records for this point
-  const existingLCs = await base44.asServiceRole.entities.OilLifecycle.filter({ sampling_point_id });
+  // 2. Delete existing lifecycle records for this unit
+  const existingLCs = await base44.asServiceRole.entities.OilLifecycle.filter({
+    equipment_unit_id,
+  });
   for (const lc of existingLCs) {
     await base44.asServiceRole.entities.OilLifecycle.delete(lc.id);
   }
@@ -157,7 +163,9 @@ async function rebuildLifecycles(base44, sampling_point_id) {
     const isLast = !nextEv;
 
     const created = await base44.asServiceRole.entities.OilLifecycle.create({
-      sampling_point_id,
+      client_id: unit.client_id,
+      asset_id: unit.asset_id,
+      equipment_unit_id,
       oil_type_id: ev.new_oil_type_id,
       start_date: ev.event_date,
       start_operating_hours: ev.total_operating_hours,
@@ -177,9 +185,11 @@ async function rebuildLifecycles(base44, sampling_point_id) {
     });
   }
 
-  // 4. Re-link OilSample.lifecycle_id for all samples of this point.
+  // 4. Re-link OilSample.lifecycle_id for all samples of this unit.
   // Always fetch samples — even if no lifecycles exist, stale refs must be cleared.
-  const samples = await base44.asServiceRole.entities.OilSample.filter({ sampling_point_id });
+  const samples = await base44.asServiceRole.entities.OilSample.filter({
+    equipment_unit_id,
+  });
   for (const sample of samples) {
     if (newLifecycles.length === 0) {
       // No lifecycles at all — clear any stale reference
@@ -255,4 +265,146 @@ async function recalcUnit(base44, equipment_unit_id) {
     current_oil_type_id: currentOilType,
     last_hours_update_date: lastDate,
   });
+}
+
+function daysBetween(actualDate, plannedDate) {
+  if (!actualDate || !plannedDate) return null;
+  const actual = new Date(`${actualDate}T00:00:00Z`);
+  const planned = new Date(`${plannedDate}T00:00:00Z`);
+  if (Number.isNaN(actual.getTime()) || Number.isNaN(planned.getTime())) return null;
+  return Math.round((actual - planned) / 86400000);
+}
+
+function addDays(date, days) {
+  if (!date || !Number.isFinite(days)) return null;
+  const result = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(result.getTime())) return null;
+  result.setUTCDate(result.getUTCDate() + days);
+  return result.toISOString().slice(0, 10);
+}
+
+function isOilChangeSchedule(schedule) {
+  if (schedule.event_type) return schedule.event_type === 'oil_change';
+  return /oil|масл/i.test(schedule.maintenance_type || '');
+}
+
+function calculateScheduleStatus(schedule, currentHours) {
+  const updates = {};
+  let status = 'normal';
+
+  if (
+    (schedule.planning_method === 'hours' || schedule.planning_method === 'whichever_first')
+    && schedule.target_hours != null
+    && currentHours != null
+  ) {
+    updates.current_hours = currentHours;
+    updates.remaining_hours = Number(schedule.target_hours) - Number(currentHours);
+    if (updates.remaining_hours < 0) status = 'overdue';
+    else if (updates.remaining_hours < 100) status = 'due_soon';
+  }
+
+  if (
+    (schedule.planning_method === 'date' || schedule.planning_method === 'whichever_first')
+    && schedule.target_date
+  ) {
+    updates.remaining_days = daysBetween(schedule.target_date, new Date().toISOString().slice(0, 10));
+    if (updates.remaining_days < 0) status = 'overdue';
+    else if (updates.remaining_days < 14 && status !== 'overdue') status = 'due_soon';
+  }
+
+  updates.status = status;
+  return updates;
+}
+
+async function rebuildMaintenanceSchedules(base44, equipment_unit_id) {
+  if (!equipment_unit_id) return;
+
+  const unit = await base44.asServiceRole.entities.EquipmentUnit.get(equipment_unit_id);
+  if (!unit) return;
+
+  const schedules = await base44.asServiceRole.entities.MaintenanceSchedule.filter({
+    equipment_unit_id,
+  });
+  if (schedules.length === 0) return;
+
+  const events = await base44.asServiceRole.entities.MaintenanceEvent.filter({
+    equipment_unit_id,
+  });
+  const oilChanges = events
+    .filter(event => event.event_type === 'oil_change')
+    .sort((a, b) => {
+      const dateCompare = (a.event_date || '').localeCompare(b.event_date || '');
+      return dateCompare !== 0
+        ? dateCompare
+        : (a.created_date || '').localeCompare(b.created_date || '');
+    });
+
+  for (const schedule of schedules) {
+    if (!isOilChangeSchedule(schedule)) {
+      await base44.asServiceRole.entities.MaintenanceSchedule.update(
+        schedule.id,
+        calculateScheduleStatus(schedule, unit.current_total_hours),
+      );
+      continue;
+    }
+
+    let targetHours = schedule.initial_target_hours ?? schedule.target_hours ?? null;
+    let targetDate = schedule.initial_target_date ?? schedule.target_date ?? null;
+    let latest = null;
+    let completedCount = 0;
+
+    for (const event of oilChanges) {
+      const hoursVariance = targetHours != null && event.total_operating_hours != null
+        ? Number(event.total_operating_hours) - Number(targetHours)
+        : null;
+      const dateVariance = daysBetween(event.event_date, targetDate);
+
+      latest = {
+        event,
+        plannedHours: targetHours,
+        plannedDate: targetDate,
+        hoursVariance,
+        dateVariance,
+      };
+      completedCount += 1;
+
+      if (schedule.interval_hours != null && event.total_operating_hours != null) {
+        targetHours = Number(event.total_operating_hours) + Number(schedule.interval_hours);
+      }
+      if (schedule.interval_days != null && event.event_date) {
+        targetDate = addDays(event.event_date, Number(schedule.interval_days));
+      }
+    }
+
+    const updates = {
+      initial_target_hours: schedule.initial_target_hours ?? schedule.target_hours ?? null,
+      initial_target_date: schedule.initial_target_date ?? schedule.target_date ?? null,
+      target_hours: targetHours,
+      target_date: targetDate,
+      completed_count: completedCount,
+      last_completed_event_id: latest?.event.id ?? null,
+      last_completed_date: latest?.event.event_date ?? null,
+      last_completed_hours: latest?.event.total_operating_hours ?? null,
+      last_planned_date: latest?.plannedDate ?? null,
+      last_planned_hours: latest?.plannedHours ?? null,
+      last_date_variance_days: latest?.dateVariance ?? null,
+      last_hours_variance: latest?.hoursVariance ?? null,
+      last_completion_status: latest
+        ? (
+            (latest.dateVariance ?? latest.hoursVariance ?? 0) > 0
+              ? 'late'
+              : (latest.dateVariance ?? latest.hoursVariance ?? 0) < 0
+                ? 'early'
+                : 'on_time'
+          )
+        : null,
+    };
+
+    Object.assign(updates, calculateScheduleStatus(
+      { ...schedule, target_hours: targetHours, target_date: targetDate },
+      unit.current_total_hours,
+    ));
+
+    await base44.asServiceRole.entities.MaintenanceSchedule.update(schedule.id, updates);
+  }
 }

@@ -2,9 +2,17 @@
   "name": "OilLifecycle",
   "type": "object",
   "properties": {
-    "sampling_point_id": {
+    "client_id": {
       "type": "string",
-      "title": "Sampling Point"
+      "title": "Client"
+    },
+    "asset_id": {
+      "type": "string",
+      "title": "Asset"
+    },
+    "equipment_unit_id": {
+      "type": "string",
+      "title": "Equipment Unit"
     },
     "oil_type_id": {
       "type": "string",
@@ -50,7 +58,9 @@
     }
   },
   "required": [
-    "sampling_point_id",
+    "client_id",
+    "asset_id",
+    "equipment_unit_id",
     "oil_type_id",
     "start_date",
     "status"
@@ -64,9 +74,16 @@
           }
         },
         {
-          "user_condition": {
-            "role": "superintendent"
-          }
+          "$and": [
+            {
+              "user_condition": {
+                "role": "superintendent"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
         }
       ]
     },
@@ -78,9 +95,28 @@
           }
         },
         {
-          "user_condition": {
-            "role": "superintendent"
-          }
+          "$and": [
+            {
+              "user_condition": {
+                "role": "superintendent"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "captain"
+              }
+            },
+            {
+              "data.asset_id": "{{user.asset_id}}"
+            }
+          ]
         }
       ]
     },
@@ -92,9 +128,16 @@
           }
         },
         {
-          "user_condition": {
-            "role": "superintendent"
-          }
+          "$and": [
+            {
+              "user_condition": {
+                "role": "superintendent"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
         }
       ]
     },
@@ -106,9 +149,16 @@
           }
         },
         {
-          "user_condition": {
-            "role": "superintendent"
-          }
+          "$and": [
+            {
+              "user_condition": {
+                "role": "superintendent"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
         }
       ]
     }

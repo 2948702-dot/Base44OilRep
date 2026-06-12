@@ -15,25 +15,25 @@ export default function CriticalVessels() {
 
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
-  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
+  const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
   const { data: samples = [] } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list() });
   const { data: results = [] } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
   const { data: schedules = [] } = useQuery({ queryKey: ['maintenance-schedules'], queryFn: () => base44.entities.MaintenanceSchedule.list() });
 
   const vesselHealth = assets.map(asset => {
-    const assetPoints = points.filter(p => p.asset_id === asset.id);
+    const assetUnits = units.filter(unit => unit.asset_id === asset.id);
     const assetSamples = samples.filter(s => s.asset_id === asset.id && s.sample_status === 'completed');
-    
-    const pointOHIs = assetPoints.map(point => {
+
+    const unitOHIs = assetUnits.map(unit => {
       const latestSample = assetSamples
-        .filter(s => s.sampling_point_id === point.id)
+        .filter(s => s.equipment_unit_id === unit.id)
         .sort((a, b) => new Date(b.sampling_date) - new Date(a.sampling_date))[0];
       
       const result = latestSample ? results.find(r => r.sample_id === latestSample.id) : null;
       return result?.oil_health_index ?? null;
     });
 
-    const validOHIs = pointOHIs.filter(ohi => ohi !== null);
+    const validOHIs = unitOHIs.filter(ohi => ohi !== null);
     const worstOHI = validOHIs.length > 0 ? Math.min(...validOHIs) : null;
     const avgOHI = validOHIs.length > 0 ? Math.round(validOHIs.reduce((a, b) => a + b) / validOHIs.length) : null;
 
@@ -43,7 +43,7 @@ export default function CriticalVessels() {
       asset,
       worstOHI,
       avgOHI,
-      pointCount: assetPoints.length,
+      unitCount: assetUnits.length,
       sampleCount: assetSamples.length,
       hasOverdueSchedules: overdueSchedules.length > 0,
       overdueCount: overdueSchedules.length,
@@ -95,7 +95,7 @@ export default function CriticalVessels() {
       </div>
 
       <div className="grid gap-4">
-        {filtered.map(({ asset, worstOHI, avgOHI, pointCount, sampleCount, hasOverdueSchedules, overdueCount, isCritical }) => {
+        {filtered.map(({ asset, worstOHI, avgOHI, unitCount, sampleCount, hasOverdueSchedules, overdueCount, isCritical }) => {
           const client = clients.find(c => c.id === asset.client_id);
           return (
             <div key={asset.id} className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md transition-shadow">
@@ -108,7 +108,7 @@ export default function CriticalVessels() {
                       <h3 className="font-bold text-slate-900 text-lg">{asset.asset_name}</h3>
                       <p className="text-sm text-slate-500">{client?.company_name}</p>
                       <p className="text-xs text-slate-400 mt-2">
-                        {pointCount} точек отбора · {sampleCount} проб
+                        {unitCount} агрегатов · {sampleCount} проб
                       </p>
                     </div>
                     <div className="text-right">

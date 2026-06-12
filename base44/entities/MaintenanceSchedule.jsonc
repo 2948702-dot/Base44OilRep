@@ -14,13 +14,23 @@
       "type": "string",
       "title": "Equipment Unit"
     },
-    "sampling_point_id": {
-      "type": "string",
-      "title": "Sampling Point"
-    },
     "maintenance_type": {
       "type": "string",
       "title": "Maintenance Type"
+    },
+    "event_type": {
+      "type": "string",
+      "title": "Linked Event Type",
+      "enum": [
+        "oil_change",
+        "oil_topup",
+        "hour_reading",
+        "oil_filter",
+        "air_filter",
+        "repair",
+        "component_replacement",
+        "other"
+      ]
     },
     "planning_method": {
       "type": "string",
@@ -35,6 +45,10 @@
       "type": "number",
       "title": "Interval (hours)"
     },
+    "interval_days": {
+      "type": "number",
+      "title": "Interval (days)"
+    },
     "target_hours": {
       "type": "number",
       "title": "Target Total Hours"
@@ -42,6 +56,15 @@
     "target_date": {
       "type": "string",
       "title": "Target Date",
+      "format": "date"
+    },
+    "initial_target_hours": {
+      "type": "number",
+      "title": "Initial Target Hours"
+    },
+    "initial_target_date": {
+      "type": "string",
+      "title": "Initial Target Date",
       "format": "date"
     },
     "current_hours": {
@@ -68,6 +91,49 @@
     "notification_enabled": {
       "type": "boolean",
       "title": "Enable Notifications"
+    },
+    "completed_count": {
+      "type": "number",
+      "title": "Completed Events Count"
+    },
+    "last_completed_event_id": {
+      "type": "string",
+      "title": "Last Completed Event"
+    },
+    "last_completed_date": {
+      "type": "string",
+      "title": "Last Completed Date",
+      "format": "date"
+    },
+    "last_completed_hours": {
+      "type": "number",
+      "title": "Last Completed Hours"
+    },
+    "last_planned_date": {
+      "type": "string",
+      "title": "Last Planned Date",
+      "format": "date"
+    },
+    "last_planned_hours": {
+      "type": "number",
+      "title": "Last Planned Hours"
+    },
+    "last_date_variance_days": {
+      "type": "number",
+      "title": "Last Date Variance (days)"
+    },
+    "last_hours_variance": {
+      "type": "number",
+      "title": "Last Hours Variance"
+    },
+    "last_completion_status": {
+      "type": "string",
+      "title": "Last Completion Status",
+      "enum": [
+        "early",
+        "on_time",
+        "late"
+      ]
     },
     "comments": {
       "type": "string",

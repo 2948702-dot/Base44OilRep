@@ -15,7 +15,7 @@ const PARAMS = ['iron_mg_l', 'water_activity', 'water_ppm', 'density', 'viscosit
 
 const NONE_VALUE = '__none__';
 
-const OPTIONAL_STRING_FIELDS = ['client_id', 'asset_id', 'equipment_unit_id', 'sampling_point_id', 'oil_type_id', 'unit', 'comments'];
+const OPTIONAL_STRING_FIELDS = ['client_id', 'asset_id', 'equipment_unit_id', 'oil_type_id', 'unit', 'comments'];
 const NUMBER_FIELDS = [
   'green_min', 'green_max', 'yellow_min', 'yellow_max', 'red_min', 'red_max',
   'base_value', 'green_left_pct', 'green_right_pct', 'yellow_left_pct', 'yellow_right_pct',
@@ -138,7 +138,6 @@ export default function ThresholdRules() {
     let data = form.deviation_mode ? { ...form, ...devZones } : { ...form };
     delete data.equipment_type;
     delete data.equipment_unit_id;
-    delete data.sampling_point_id;
     if (!data.custom_ranges_mode) {
       // strip ranges with empty min/max to avoid validation errors
       data.ranges = [];

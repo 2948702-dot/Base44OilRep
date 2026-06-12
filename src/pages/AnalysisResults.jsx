@@ -87,7 +87,6 @@ export default function AnalysisResults() {
   const { data: results = [], isLoading } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
   const { data: samples = [] } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
-  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
@@ -176,17 +175,16 @@ export default function AnalysisResults() {
 
   const handleExportSample = (r) => {
     const s = getSample(r.sample_id);
-    const pt = points.find(p => p.id === s?.sampling_point_id);
     const oilRef = getOilForSample(r.sample_id);
     const baseline = findFreshOilBaseline(s, samples, results, units);
     const client = clients.find(c => c.id === s?.client_id);
     const asset = assets.find(a => a.id === s?.asset_id);
     const unit = units.find(u => u.id === s?.equipment_unit_id);
-    exportSamplePDF({ result: r, sample: s, oilRef, baseline: baseline?.result, client, asset, unit, point: pt });
+    exportSamplePDF({ result: r, sample: s, oilRef, baseline: baseline?.result, client, asset, unit });
   };
 
   const handleExportAll = () => {
-    exportEquipmentReportPDF({ results: filtered, samples, oilRefs: oils, clients, assets, units, points });
+    exportEquipmentReportPDF({ results: filtered, samples, oilRefs: oils, clients, assets, units });
   };
 
   const ohiColor = (ohi) => {

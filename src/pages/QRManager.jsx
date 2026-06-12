@@ -5,20 +5,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { QRCodeSVG } from 'qrcode.react';
-import { Printer, Plus, QrCode, MapPin, Package } from 'lucide-react';
+import { Printer, Plus, QrCode, Wrench, Package } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 function generateCanId() {
   return 'CAN-' + crypto.randomUUID().split('-')[0].toUpperCase() + '-' + crypto.randomUUID().split('-')[1].toUpperCase();
 }
 
-function QRCard({ value, pointName, clientName, assetName, unitName, size = 120 }) {
+function QRCard({ value, clientName, assetName, unitName, size = 120 }) {
   return (
     <div className="flex flex-col items-center bg-white border border-slate-200 rounded-xl p-3 gap-2 print-card">
       <QRCodeSVG value={value} size={size} level="M" includeMargin />
       <div className="w-full text-center space-y-0.5">
-        <p className="text-sm font-bold text-slate-900 leading-tight">{pointName}</p>
-        {unitName && <p className="text-xs text-slate-600">{unitName}</p>}
+        <p className="text-sm font-bold text-slate-900 leading-tight">{unitName}</p>
         {assetName && <p className="text-xs text-slate-500">{assetName}</p>}
         {clientName && <p className="text-xs text-slate-400">{clientName}</p>}
         <p className="text-[9px] text-slate-300 font-mono mt-1">{value.slice(0, 24)}…</p>
@@ -41,17 +40,13 @@ function CanQRCard({ value, index }) {
 }
 
 export default function QRManager() {
-  const [tab, setTab] = useState('points');
+  const [tab, setTab] = useState('units');
   const [selectedClient, setSelectedClient] = useState('all');
   const [selectedAsset, setSelectedAsset] = useState('all');
   const [selectedUnit, setSelectedUnit] = useState('all');
   const [canCount, setCanCount] = useState(10);
   const [generatedCans, setGeneratedCans] = useState([]);
 
-  const { data: samplingPoints = [] } = useQuery({
-    queryKey: ['sampling-points'],
-    queryFn: () => base44.entities.SamplingPoint.list()
-  });
   const { data: clients = [] } = useQuery({
     queryKey: ['clients'],
     queryFn: () => base44.entities.Client.list()
@@ -66,7 +61,6 @@ export default function QRManager() {
   });
 
   const getAssetName = (id) => assets.find(a => a.id === id)?.asset_name || '';
-  const getUnitName = (id) => equipmentUnits.find(u => u.id === id)?.unit_name || '';
   const getClientName = (id) => clients.find(c => c.id === id)?.company_name || '';
 
   // Cascading filter options
@@ -78,10 +72,10 @@ export default function QRManager() {
     ? equipmentUnits.filter(u => selectedClient === 'all' || u.client_id === selectedClient)
     : equipmentUnits.filter(u => u.asset_id === selectedAsset);
 
-  const filteredPoints = samplingPoints.filter(p => {
-    if (selectedClient !== 'all' && p.client_id !== selectedClient) return false;
-    if (selectedAsset !== 'all' && p.asset_id !== selectedAsset) return false;
-    if (selectedUnit !== 'all' && p.equipment_unit_id !== selectedUnit) return false;
+  const printableUnits = equipmentUnits.filter(unit => {
+    if (selectedClient !== 'all' && unit.client_id !== selectedClient) return false;
+    if (selectedAsset !== 'all' && unit.asset_id !== selectedAsset) return false;
+    if (selectedUnit !== 'all' && unit.id !== selectedUnit) return false;
     return true;
   });
 
@@ -116,7 +110,7 @@ export default function QRManager() {
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <QrCode className="w-5 h-5" />Менеджер QR-кодов
           </h1>
-          <p className="text-slate-500 text-sm mt-0.5">Генерация и печать QR-кодов для точек отбора и банок</p>
+          <p className="text-slate-500 text-sm mt-0.5">Печать QR-кодов агрегатов и банок для проб</p>
         </div>
         <Button onClick={() => window.print()} className="gap-2">
           <Printer className="w-4 h-4" />Печать
@@ -126,10 +120,10 @@ export default function QRManager() {
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-lg mb-6 no-print w-fit">
         <button
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'points' ? 'bg-white shadow text-slate-900' : 'text-slate-600 hover:text-slate-900'}`}
-          onClick={() => setTab('points')}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'units' ? 'bg-white shadow text-slate-900' : 'text-slate-600 hover:text-slate-900'}`}
+          onClick={() => setTab('units')}
         >
-          <MapPin className="w-4 h-4 inline mr-1.5 -mt-0.5" />Точки отбора
+          <Wrench className="w-4 h-4 inline mr-1.5 -mt-0.5" />Агрегаты
         </button>
         <button
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'cans' ? 'bg-white shadow text-slate-900' : 'text-slate-600 hover:text-slate-900'}`}
@@ -139,8 +133,8 @@ export default function QRManager() {
         </button>
       </div>
 
-      {/* Tab: Sampling Points */}
-      {tab === 'points' && (
+      {/* Tab: Equipment units */}
+      {tab === 'units' && (
         <div>
           {/* Hierarchical filters */}
           <div className="flex flex-wrap gap-3 mb-4 no-print">
@@ -185,31 +179,30 @@ export default function QRManager() {
           </div>
 
           <div className="text-xs text-slate-400 mb-3 no-print">
-            Найдено точек отбора: <span className="font-semibold text-slate-600">{filteredPoints.length}</span>
-            {samplingPoints.length > 0 && ` (всего в системе: ${samplingPoints.length})`}
+            Найдено агрегатов: <span className="font-semibold text-slate-600">{printableUnits.length}</span>
+            {equipmentUnits.length > 0 && ` (всего в системе: ${equipmentUnits.length})`}
           </div>
 
           <div id="print-area">
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {filteredPoints.map(p => (
+              {printableUnits.map(unit => (
                 <QRCard
-                  key={p.id}
-                  value={p.id}
-                  pointName={p.point_name}
-                  unitName={getUnitName(p.equipment_unit_id)}
-                  assetName={getAssetName(p.asset_id)}
-                  clientName={getClientName(p.client_id)}
+                  key={unit.id}
+                  value={unit.sampling_qr_code || unit.id}
+                  unitName={unit.unit_name}
+                  assetName={getAssetName(unit.asset_id)}
+                  clientName={getClientName(unit.client_id)}
                 />
               ))}
-              {filteredPoints.length === 0 && (
+              {printableUnits.length === 0 && (
                 <div className="col-span-4 text-center py-12 text-slate-400">
-                  <MapPin className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">Точек отбора не найдено</p>
-                  {samplingPoints.length === 0 && (
-                    <p className="text-xs mt-1 text-slate-300">В системе ещё нет ни одной точки отбора. Создайте их на странице «Точки отбора».</p>
+                  <Wrench className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">Агрегаты не найдены</p>
+                  {equipmentUnits.length === 0 && (
+                    <p className="text-xs mt-1 text-slate-300">Сначала добавьте агрегаты в выбранный актив.</p>
                   )}
-                  {samplingPoints.length > 0 && selectedClient !== 'all' && (
-                    <p className="text-xs mt-1 text-slate-300">Для выбранного клиента / судна / агрегата точек не найдено.</p>
+                  {equipmentUnits.length > 0 && selectedClient !== 'all' && (
+                    <p className="text-xs mt-1 text-slate-300">Для выбранного клиента / актива агрегатов не найдено.</p>
                   )}
                 </div>
               )}

@@ -48,14 +48,27 @@ const GAUGES = [
   },
 ];
 
-function computeOilChangeInfo(eq, lastChangeEvent) {
+function computeOilChangeInfo(eq, lastChangeEvent, schedule) {
+  if (schedule) {
+    if (
+      (schedule.planning_method === 'hours' || schedule.planning_method === 'whichever_first')
+      && schedule.remaining_hours != null
+    ) {
+      return { remaining: Math.round(schedule.remaining_hours), unit: 'м/ч', warningAt: 100 };
+    }
+    if (
+      (schedule.planning_method === 'date' || schedule.planning_method === 'whichever_first')
+      && schedule.remaining_days != null
+    ) {
+      return { remaining: Math.round(schedule.remaining_days), unit: 'дней', warningAt: 14 };
+    }
+  }
+
   if (!eq?.oil_change_interval) return null;
   if (eq.oil_change_type === 'engine_hours') {
-    const lastHours = lastChangeEvent?.total_operating_hours || 0;
-    const currentHours = eq.current_total_hours ?? eq.total_operating_hours ?? 0;
-    const usedHours = currentHours - lastHours;
+    const usedHours = eq.current_oil_hours ?? eq.initial_oil_hours ?? 0;
     const remaining = Math.round(eq.oil_change_interval - usedHours);
-    return { remaining, unit: 'м/ч' };
+    return { remaining, unit: 'м/ч', warningAt: 100 };
   }
   if (eq.oil_change_type === 'calendar' && lastChangeEvent) {
     const lastDate = new Date(lastChangeEvent.event_date);
@@ -64,7 +77,7 @@ function computeOilChangeInfo(eq, lastChangeEvent) {
     if (eq.oil_change_interval_unit === 'months') intervalDays *= 30;
     const nextDate = new Date(lastDate.getTime() + intervalDays * 86400000);
     const remaining = Math.floor((nextDate - Date.now()) / 86400000);
-    return { remaining, unit: 'дней' };
+    return { remaining, unit: 'дней', warningAt: 14 };
   }
   return null;
 }
@@ -87,7 +100,6 @@ export default function VesselDashboard() {
     queryFn: () => base44.entities.Client.list().then(a => a.find(x => x.id === asset?.client_id)),
     enabled: !!asset?.client_id
   });
-  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
   const { data: equipment = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
   const { data: samples = [] } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list() });
   const { data: results = [] } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
@@ -98,20 +110,19 @@ export default function VesselDashboard() {
 
   const N = parseInt(probeCount);
 
-  const assetPoints = points.filter(p => p.asset_id === assetId);
+  const assetEquipment = equipment.filter(unit => unit.asset_id === assetId);
   const assetSamples = samples.filter(s => s.asset_id === assetId && s.sample_status === 'completed');
   const assetSchedules = schedules.filter(s => s.asset_id === assetId);
   const assetMaintenanceEvents = maintenanceEvents.filter(e => e.asset_id === assetId);
 
-  // Build per-point data
-  const pointData = assetPoints.map(point => {
-    const eq = equipment.find(e => e.id === point.equipment_unit_id);
-    const ptSamples = assetSamples
-      .filter(s => s.sampling_point_id === point.id)
+  // Build per-unit data directly from the equipment unit relation.
+  const unitData = assetEquipment.map(eq => {
+    const unitSamples = assetSamples
+      .filter(sample => sample.equipment_unit_id === eq.id)
       .sort((a, b) => new Date(b.sampling_date) - new Date(a.sampling_date));
 
-    const lastN = ptSamples.slice(0, N);
-    const latestSample = ptSamples[0];
+    const lastN = unitSamples.slice(0, N);
+    const latestSample = unitSamples[0];
     const latestResult = latestSample ? results.find(r => r.sample_id === latestSample.id) : null;
 
     // Trend data (chronological) - include only samples with results
@@ -135,14 +146,32 @@ export default function VesselDashboard() {
     const oilName = eq?.oil_brand || oil?.oil_name || null;
 
     const lastOilChangeEvent = assetMaintenanceEvents
-      .filter(e => e.equipment_unit_id === eq?.id && e.event_type === 'oil_change')
+      .filter(e => e.equipment_unit_id === eq.id && e.event_type === 'oil_change')
       .sort((a, b) => new Date(b.event_date) - new Date(a.event_date))[0] || null;
+    const oilChangeSchedule = assetSchedules.find(schedule => (
+      schedule.equipment_unit_id === eq.id
+      && (
+        schedule.event_type === 'oil_change'
+        || (!schedule.event_type && /oil|масл/i.test(schedule.maintenance_type || ''))
+      )
+    ));
     const daysAgoLastSample = latestSample
       ? Math.floor((Date.now() - new Date(latestSample.sampling_date)) / 86400000)
       : null;
-    const oilChangeInfo = computeOilChangeInfo(eq, lastOilChangeEvent);
+    const oilChangeInfo = computeOilChangeInfo(eq, lastOilChangeEvent, oilChangeSchedule);
 
-    return { point, eq, latestResult, latestSample, trendData, sampleCount: ptSamples.length, oil, oilName, lastOilChangeEvent, daysAgoLastSample, oilChangeInfo };
+    return {
+      eq,
+      latestResult,
+      latestSample,
+      trendData,
+      sampleCount: unitSamples.length,
+      oil,
+      oilName,
+      lastOilChangeEvent,
+      daysAgoLastSample,
+      oilChangeInfo,
+    };
   });
 
   return (
@@ -154,7 +183,7 @@ export default function VesselDashboard() {
         </Button>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-slate-900">{asset?.asset_name || '...'}</h1>
-          <p className="text-slate-500 text-sm">{client?.company_name} · {asset?.registration_number} · {assetPoints.length} точек отбора</p>
+          <p className="text-slate-500 text-sm">{client?.company_name} · {asset?.registration_number} · {assetEquipment.length} агрегатов</p>
           <MaintenanceOverdueIndicator schedules={assetSchedules} />
           </div>
         <div className="flex items-center gap-2">
@@ -168,18 +197,18 @@ export default function VesselDashboard() {
         </div>
       </div>
 
-      {pointData.length === 0 ? (
-        <div className="text-center py-20 text-slate-400">Нет точек отбора для этого судна</div>
+      {unitData.length === 0 ? (
+        <div className="text-center py-20 text-slate-400">Нет агрегатов для этого актива</div>
       ) : (
         <div className="space-y-6">
-          {pointData.map(({ point, eq, latestResult: res, latestSample, trendData, sampleCount, oil, oilName, lastOilChangeEvent, daysAgoLastSample, oilChangeInfo }) => (
-            <div key={point.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              {/* Point header */}
+          {unitData.map(({ eq, latestResult: res, latestSample, trendData, sampleCount, oil, oilName, lastOilChangeEvent, daysAgoLastSample, oilChangeInfo }) => (
+            <div key={eq.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              {/* Unit header */}
               <div className="flex items-center gap-4 px-5 py-3 border-b border-slate-100 bg-slate-50">
                 <OHIGauge value={res?.oil_health_index} size={80} />
                 <div className="flex-1">
-                  <p className="font-semibold text-slate-900 text-base">{eq?.unit_name || point.point_name}</p>
-                  <p className="text-xs text-slate-500">{EQ_TYPES[eq?.equipment_type] || eq?.equipment_type} · {oilName || 'Масло не задано'}</p>
+                  <p className="font-semibold text-slate-900 text-base">{eq.unit_name}</p>
+                  <p className="text-xs text-slate-500">{EQ_TYPES[eq.equipment_type] || eq.equipment_type} · {oilName || 'Масло не задано'}</p>
                 </div>
                 {eq && (
                   <Button 
@@ -211,7 +240,7 @@ export default function VesselDashboard() {
                   </span>
                 )}
                 {oilChangeInfo && (
-                  <span className={oilChangeInfo.remaining < 0 ? 'text-red-600 font-semibold' : oilChangeInfo.remaining < 100 ? 'text-yellow-600 font-medium' : 'text-green-600 font-medium'}>
+                  <span className={oilChangeInfo.remaining < 0 ? 'text-red-600 font-semibold' : oilChangeInfo.remaining < oilChangeInfo.warningAt ? 'text-yellow-600 font-medium' : 'text-green-600 font-medium'}>
                     До замены: {oilChangeInfo.remaining > 0 ? `~${oilChangeInfo.remaining} ${oilChangeInfo.unit}` : `Просрочено на ${Math.abs(oilChangeInfo.remaining)} ${oilChangeInfo.unit}`}
                   </span>
                 )}
@@ -291,7 +320,7 @@ export default function VesselDashboard() {
                   )}
                 </div>
               ) : (
-                <div className="px-5 py-6 text-sm text-slate-400">Нет результатов анализа для этой точки отбора</div>
+                <div className="px-5 py-6 text-sm text-slate-400">Нет результатов анализа для этого агрегата</div>
               )}
             </div>
           ))}

@@ -24,7 +24,6 @@ export default function OilForecast() {
 
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
-  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
   const { data: schedules = [] } = useQuery({ queryKey: ['maintenance-schedules'], queryFn: () => base44.entities.MaintenanceSchedule.list() });
   const { data: events = [] } = useQuery({ queryKey: ['maintenance-events'], queryFn: () => base44.entities.MaintenanceEvent.list() });
@@ -46,37 +45,63 @@ export default function OilForecast() {
     const rows = {};
     const key = (assetId, oilId) => `${assetId}__${oilId}`;
 
-    // From maintenance schedules (planned oil changes)
+    // From maintenance schedules: only oil changes that fall into the forecast
+    // window. Hour-only plans are counted once only when already due/overdue.
     schedules.forEach(s => {
       if (!assetIds.includes(s.asset_id)) return;
+      const isOilChange = s.event_type
+        ? s.event_type === 'oil_change'
+        : /oil|масл/i.test(s.maintenance_type || '');
+      if (!isOilChange) return;
+
       const unit = units.find(u => u.id === s.equipment_unit_id);
       const oilId = unit?.current_oil_type_id || unit?.oil_type_id;
       const volume = unit?.oil_volume;
       if (!oilId || !volume) return;
+
+      let plannedChanges = 0;
+      if (s.target_date) {
+        const targetDate = new Date(`${s.target_date}T00:00:00`);
+        if (targetDate >= now && targetDate <= endDate) {
+          plannedChanges = 1;
+          if (Number(s.interval_days) > 0) {
+            const intervalMs = Number(s.interval_days) * 86400000;
+            plannedChanges += Math.floor((endDate - targetDate) / intervalMs);
+          }
+        }
+      } else if (
+        (s.planning_method === 'hours' || s.planning_method === 'whichever_first')
+        && (s.status === 'due_soon' || s.status === 'overdue')
+      ) {
+        plannedChanges = 1;
+      }
+      if (plannedChanges === 0) return;
+
       const k = key(s.asset_id, oilId);
       if (!rows[k]) rows[k] = { asset_id: s.asset_id, oil_id: oilId, changes: 0, volume: 0 };
-      rows[k].changes += 1;
-      rows[k].volume += volume;
+      rows[k].changes += plannedChanges;
+      rows[k].volume += volume * plannedChanges;
     });
 
-    // Estimate topups from historical events (average per month × period)
+    // Estimate topups from the last 12 months, then project the monthly volume.
     const topups = {};
+    const historyStart = new Date(now);
+    historyStart.setFullYear(historyStart.getFullYear() - 1);
     events.forEach(e => {
       if (e.event_type !== 'oil_topup' || !assetIds.includes(e.asset_id)) return;
+      const eventDate = e.event_date ? new Date(`${e.event_date}T00:00:00`) : null;
+      if (!eventDate || eventDate < historyStart || eventDate > now) return;
       const unit2 = units.find(u => u.id === e.equipment_unit_id);
       const oilId = e.new_oil_type_id || e.old_oil_type_id || unit2?.current_oil_type_id || unit2?.oil_type_id;
       if (!oilId) return;
       const k = key(e.asset_id, oilId);
-      if (!topups[k]) topups[k] = { asset_id: e.asset_id, oil_id: oilId, total: 0, count: 0 };
+      if (!topups[k]) topups[k] = { asset_id: e.asset_id, oil_id: oilId, total: 0 };
       topups[k].total += (e.added_oil_volume || 0);
-      topups[k].count++;
     });
 
     Object.entries(topups).forEach(([k, t]) => {
-      const avgPerEvent = t.count > 0 ? t.total / t.count : 0;
-      const projectedEvents = Math.ceil(t.count / 12 * period);
       if (!rows[k]) rows[k] = { asset_id: t.asset_id, oil_id: t.oil_id, changes: 0, volume: 0 };
-      rows[k].volume += avgPerEvent * projectedEvents;
+      rows[k].volume += (t.total / 12) * period;
     });
 
     return Object.values(rows).map(r => ({
@@ -86,7 +111,7 @@ export default function OilForecast() {
       oil_name: oils.find(o => o.id === r.oil_id)?.oil_name || '—',
       oil_manufacturer: oils.find(o => o.id === r.oil_id)?.manufacturer || '—',
     })).sort((a, b) => b.volume - a.volume);
-  }, [showForecast, period, selectedAssets, assets, units, points, oils, schedules, events]);
+  }, [showForecast, period, selectedAssets, assets, units, oils, schedules, events]);
 
   const totalByOil = useMemo(() => {
     const map = {};

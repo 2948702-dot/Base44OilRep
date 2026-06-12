@@ -9,10 +9,9 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
-    // Получить все суда, узлы, точки отбора
+    // Получить все активы и агрегаты
     const assets = await base44.asServiceRole.entities.Asset.list();
     const equipmentUnits = await base44.asServiceRole.entities.EquipmentUnit.list();
-    const samplingPoints = await base44.asServiceRole.entities.SamplingPoint.list();
     const oilReferences = await base44.asServiceRole.entities.OilReference.list();
 
     let stats = {
@@ -31,13 +30,13 @@ Deno.serve(async (req) => {
     for (const asset of assets) {
       try {
         const assetEquipment = equipmentUnits.filter(e => e.asset_id === asset.id);
-        const assetSamplingPoints = samplingPoints.filter(sp => sp.asset_id === asset.id);
 
-        if (!assetEquipment.length || !assetSamplingPoints.length) continue;
+        if (!assetEquipment.length) continue;
 
-        // Для каждой точки отбора создать пробы за последний год
-        for (const point of assetSamplingPoints) {
-          const oil = oilReferences[Math.floor(Math.random() * oilReferences.length)];
+        // Для каждого агрегата создать пробы за последний год
+        for (const unit of assetEquipment) {
+          const oil = oilReferences.find(item => item.id === (unit.current_oil_type_id || unit.oil_type_id))
+            || oilReferences[Math.floor(Math.random() * oilReferences.length)];
           
           // Создать 12-14 проб за год (раз в месяц + немного разброса)
           const now = new Date();
@@ -52,11 +51,10 @@ Deno.serve(async (req) => {
             // Создать пробу
             const sample = await base44.asServiceRole.entities.OilSample.create({
               sample_type: 'in_service',
-              sample_number: `${asset.asset_name}-${point.point_name}-${currentDate.toISOString().split('T')[0]}`,
+              sample_number: `${asset.asset_name}-${unit.unit_name}-${currentDate.toISOString().split('T')[0]}`,
               client_id: asset.client_id,
               asset_id: asset.id,
-              equipment_unit_id: assetEquipment[0].id,
-              sampling_point_id: point.id,
+              equipment_unit_id: unit.id,
               oil_type_id: oil.id,
               sampling_date: currentDate.toISOString().split('T')[0],
               total_hours_at_sampling: totalHours,
@@ -99,12 +97,11 @@ Deno.serve(async (req) => {
                 event_date: currentDate.toISOString().split('T')[0],
                 client_id: asset.client_id,
                 asset_id: asset.id,
-                equipment_unit_id: assetEquipment[0].id,
-                sampling_point_id: point.id,
+                equipment_unit_id: unit.id,
                 total_operating_hours: totalHours,
                 old_oil_type_id: oil.id,
                 new_oil_type_id: oil.id,
-                replaced_oil_volume: point.oil_volume || 100,
+                replaced_oil_volume: unit.oil_volume || 100,
                 added_oil_volume: 0,
                 comment: 'Плановая смена масла'
               });
@@ -124,13 +121,15 @@ Deno.serve(async (req) => {
 
           // Создать или обновить Oil Lifecycle
           const existingLifecycle = await base44.asServiceRole.entities.OilLifecycle.filter({
-            sampling_point_id: point.id,
+            equipment_unit_id: unit.id,
             status: 'active'
           });
           
           if (!existingLifecycle.length) {
             await base44.asServiceRole.entities.OilLifecycle.create({
-              sampling_point_id: point.id,
+              client_id: unit.client_id,
+              asset_id: unit.asset_id,
+              equipment_unit_id: unit.id,
               oil_type_id: oil.id,
               start_date: oneYearAgo.toISOString().split('T')[0],
               start_operating_hours: Math.floor(Math.random() * 50000) + 10000,

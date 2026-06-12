@@ -28,39 +28,37 @@ export default function FleetDashboard() {
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
   const { data: samples = [] } = useQuery({ queryKey: ['oil-samples'], queryFn: () => base44.entities.OilSample.list() });
   const { data: results = [] } = useQuery({ queryKey: ['analysis-results'], queryFn: () => base44.entities.AnalysisResult.list() });
-  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
   const { data: schedules = [] } = useQuery({ queryKey: ['maintenance-schedules'], queryFn: () => base44.entities.MaintenanceSchedule.list() });
 
-  // For each asset, find latest OHI across all its sampling points
+  // For each asset, find the latest analysed sample for every equipment unit.
+  // EquipmentUnit is the direct owner of samples and current state.
   const assetOHI = assets.map(asset => {
-    const assetPoints = points.filter(p => p.asset_id === asset.id);
-    const assetSamples = samples.filter(s => s.asset_id === asset.id && s.sample_status === 'completed');
+    const assetSamples = samples
+      .filter(s => s.asset_id === asset.id && s.sample_status === 'completed')
+      .sort((a, b) => new Date(b.sampling_date) - new Date(a.sampling_date));
+    const latestByUnit = new Map();
 
-    let latestOHI = null;
-    let latestDate = null;
-    let sampleCount = 0;
-
-    for (const point of assetPoints) {
-      const pointSamples = assetSamples
-        .filter(s => s.sampling_point_id === point.id)
-        .sort((a, b) => new Date(b.sampling_date) - new Date(a.sampling_date));
-      sampleCount += pointSamples.length;
-
-      for (const s of pointSamples) {
-        const res = results.find(r => r.sample_id === s.id);
-        if (res?.oil_health_index != null) {
-          if (!latestDate || new Date(s.sampling_date) > new Date(latestDate)) {
-            latestOHI = res.oil_health_index;
-            latestDate = s.sampling_date;
-          }
-          break;
-        }
+    for (const sample of assetSamples) {
+      const groupId = sample.equipment_unit_id || sample.id;
+      if (latestByUnit.has(groupId)) continue;
+      const result = results.find(item => item.sample_id === sample.id);
+      if (result?.oil_health_index != null) {
+        latestByUnit.set(groupId, { sample, result });
       }
     }
 
+    const latestAnalysed = [...latestByUnit.values()]
+      .sort((a, b) => new Date(b.sample.sampling_date) - new Date(a.sample.sampling_date))[0];
     const client = clients.find(c => c.id === asset.client_id);
     const assetSchedules = schedules.filter(s => s.asset_id === asset.id && s.status === 'overdue');
-    return { ...asset, ohi: latestOHI, latestDate, sampleCount, clientName: client?.company_name, overdueCount: assetSchedules.length };
+    return {
+      ...asset,
+      ohi: latestAnalysed?.result.oil_health_index ?? null,
+      latestDate: latestAnalysed?.sample.sampling_date ?? null,
+      sampleCount: assetSamples.length,
+      clientName: client?.company_name,
+      overdueCount: assetSchedules.length,
+    };
   });
 
   // Filter by selected client and asset
@@ -117,14 +115,14 @@ export default function FleetDashboard() {
       </div>
 
       {/* Fleet grid */}
-      {assetOHI.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="text-center py-20 text-slate-400">
           <p className="text-lg font-medium mb-1">Суда не найдены</p>
           <p className="text-sm">Добавьте активы в разделе «Активы»</p>
         </div>
       ) : (
         <div className="flex flex-wrap gap-4">
-          {assetOHI.map(asset => {
+          {filtered.map(asset => {
             const sl = statusLabel(asset.ohi);
             return (
               <button

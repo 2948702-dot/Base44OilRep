@@ -16,7 +16,7 @@ function genSampleNumber() {
 }
 
 const MODE_CONFIG = {
-  sample: { label: 'Отбор пробы', steps: ['Точка', 'Банка', 'Данные', 'Готово'] },
+  sample: { label: 'Отбор пробы', steps: ['Агрегат', 'Банка', 'Данные', 'Готово'] },
   topup:  { label: 'Долив масла',  steps: ['Агрегат', 'Данные', 'Готово'] },
   change: { label: 'Замена масла', steps: ['Агрегат', 'Данные', 'Готово'] },
 };
@@ -30,9 +30,8 @@ export default function MobileSampling() {
   const [scanner, setScanner] = useState(null);
 
   // For sample mode
-  const [samplingPoint, setSamplingPoint] = useState(null);
   const [canQR, setCanQR] = useState('');
-  const [searchPoint, setSearchPoint] = useState('');
+  const [searchSampleUnit, setSearchSampleUnit] = useState('');
 
   // For topup/change mode
   const [selectedAsset, setSelectedAsset] = useState(null);
@@ -69,22 +68,20 @@ export default function MobileSampling() {
     attachments: [],
   });
 
-  const { data: samplingPoints = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
   const { data: equipmentUnits = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
 
   const saveSample = useMutation({
     mutationFn: () => {
-      const unit = equipmentUnits.find(u => u.id === samplingPoint.equipment_unit_id);
+      const unit = selectedUnit;
       return base44.entities.OilSample.create({
         ...sampleForm,
         can_qr_code: canQR,
         container_type: canQR ? 'smartoil_can' : sampleForm.container_type,
-        sampling_point_id: samplingPoint.id,
-        equipment_unit_id: samplingPoint.equipment_unit_id,
-        asset_id: samplingPoint.asset_id,
-        client_id: samplingPoint.client_id,
+        equipment_unit_id: unit.id,
+        asset_id: unit.asset_id,
+        client_id: unit.client_id,
         sample_status: 'pending',
         oil_type_id: unit?.current_oil_type_id || unit?.oil_type_id || undefined,
         total_hours_at_sampling: sampleForm.total_hours_at_sampling ? Number(sampleForm.total_hours_at_sampling) : undefined,
@@ -144,6 +141,13 @@ export default function MobileSampling() {
 
   const selectUnit = (unit) => {
     setSelectedUnit(unit);
+    if (mode === 'sample') {
+      const currentTotal = unit.current_total_hours ?? unit.total_operating_hours ?? '';
+      const currentOil = unit.current_oil_hours ?? '';
+      setSampleForm(p => ({ ...p, total_hours_at_sampling: currentTotal, oil_hours_at_sampling: currentOil }));
+      setStep(1);
+      return;
+    }
     const unitOilId = unit.current_oil_type_id || unit.oil_type_id || '';
     const currentTotal = unit.current_total_hours ?? unit.total_operating_hours ?? '';
     setEventForm(p => ({
@@ -154,22 +158,11 @@ export default function MobileSampling() {
     setStep(1);
   };
 
-  const selectPoint = (point) => {
-    setSamplingPoint(point);
-    const unit = equipmentUnits.find(u => u.id === point.equipment_unit_id);
-    if (unit) {
-      const currentTotal = unit.current_total_hours ?? unit.total_operating_hours ?? '';
-      const currentOil = unit.current_oil_hours ?? '';
-      setSampleForm(p => ({ ...p, total_hours_at_sampling: currentTotal, oil_hours_at_sampling: currentOil }));
-    }
-    setStep(1);
-  };
-
-  const handlePointQR = (data) => {
+  const handleUnitQR = (data) => {
     setScanner(null);
-    const point = samplingPoints.find(p => p.id === data || p.qr_code === data);
-    if (point) selectPoint(point);
-    else alert('Точка отбора не найдена. Попробуйте выбрать вручную.');
+    const unit = equipmentUnits.find(item => item.id === data || item.sampling_qr_code === data);
+    if (unit) selectUnit(unit);
+    else alert('Агрегат не найден. Попробуйте выбрать вручную.');
   };
 
   const handleCanQR = (data) => {
@@ -206,8 +199,11 @@ export default function MobileSampling() {
     }
   };
 
-  const filteredPoints = samplingPoints.filter(p => p.point_name?.toLowerCase().includes(searchPoint.toLowerCase()));
-  const getUnitName = (id) => equipmentUnits.find(u => u.id === id)?.unit_name || '';
+  const filteredSampleUnits = equipmentUnits.filter(unit => {
+    const assetName = assets.find(asset => asset.id === unit.asset_id)?.asset_name || '';
+    const query = searchSampleUnit.toLowerCase();
+    return unit.unit_name?.toLowerCase().includes(query) || assetName.toLowerCase().includes(query);
+  });
 
   const filteredAssets = assets.filter(a => a.asset_name?.toLowerCase().includes(searchAsset.toLowerCase()));
   const unitsForAsset = selectedAsset
@@ -216,7 +212,7 @@ export default function MobileSampling() {
 
   const reset = () => {
     setMode(null); setStep(0);
-    setSamplingPoint(null); setCanQR(''); setSearchPoint('');
+    setCanQR(''); setSearchSampleUnit('');
     setSelectedAsset(null); setSelectedUnit(null);
     setSearchAsset(''); setSearchUnit(''); setUnitSelectStep('asset');
     setSaveResult(null); setShowHoursPrompt(false);
@@ -230,8 +226,8 @@ export default function MobileSampling() {
     <div className="min-h-screen bg-slate-50 flex flex-col max-w-md mx-auto">
       {scanner && (
         <QRScanner
-          label={scanner === 'point' ? 'Сканируйте QR точки отбора' : 'Сканируйте QR банки'}
-          onScan={scanner === 'point' ? handlePointQR : handleCanQR}
+          label={scanner === 'unit' ? 'Сканируйте QR агрегата' : 'Сканируйте QR банки'}
+          onScan={scanner === 'unit' ? handleUnitQR : handleCanQR}
           onClose={() => setScanner(null)}
         />
       )}
@@ -407,12 +403,12 @@ export default function MobileSampling() {
           </div>
         )}
 
-        {/* Sample: Step 0 — Point selection */}
+        {/* Sample: Step 0 — Unit selection */}
         {mode === 'sample' && step === 0 && (
           <div className="space-y-4">
-            <Button className="w-full h-16 text-base gap-3" onClick={() => setScanner('point')}>
+            <Button className="w-full h-16 text-base gap-3" onClick={() => setScanner('unit')}>
               <Camera className="w-6 h-6" />
-              Сканировать QR точки отбора
+              Сканировать QR агрегата
             </Button>
             <div className="relative">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-300" /></div>
@@ -420,14 +416,14 @@ export default function MobileSampling() {
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input className="pl-9 h-12" placeholder="Поиск точки..." value={searchPoint} onChange={e => setSearchPoint(e.target.value)} />
+              <Input className="pl-9 h-12" placeholder="Поиск агрегата или актива..." value={searchSampleUnit} onChange={e => setSearchSampleUnit(e.target.value)} />
             </div>
             <div className="space-y-2">
-              {filteredPoints.map(p => (
-                <button key={p.id} className="w-full text-left bg-white rounded-xl p-4 border border-slate-200 hover:border-blue-300 active:bg-blue-50"
-                  onClick={() => selectPoint(p)}>
-                  <p className="font-semibold text-slate-900">{p.point_name}</p>
-                  <p className="text-sm text-slate-500 mt-0.5">{getUnitName(p.equipment_unit_id)}</p>
+              {filteredSampleUnits.map(unit => (
+                <button key={unit.id} className="w-full text-left bg-white rounded-xl p-4 border border-slate-200 hover:border-blue-300 active:bg-blue-50"
+                  onClick={() => selectUnit(unit)}>
+                  <p className="font-semibold text-slate-900">{unit.unit_name}</p>
+                  <p className="text-sm text-slate-500 mt-0.5">{assets.find(asset => asset.id === unit.asset_id)?.asset_name || '—'}</p>
                 </button>
               ))}
             </div>
@@ -439,9 +435,9 @@ export default function MobileSampling() {
         {mode === 'sample' && step === 1 && (
           <div className="space-y-4">
             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-              <p className="text-xs text-green-600 font-medium uppercase tracking-wide mb-1">Точка отбора</p>
-              <p className="font-bold text-green-900">{samplingPoint?.point_name}</p>
-              <p className="text-sm text-green-700">{getUnitName(samplingPoint?.equipment_unit_id)}</p>
+              <p className="text-xs text-green-600 font-medium uppercase tracking-wide mb-1">Агрегат</p>
+              <p className="font-bold text-green-900">{selectedUnit?.unit_name}</p>
+              <p className="text-sm text-green-700">{assets.find(asset => asset.id === selectedUnit?.asset_id)?.asset_name || '—'}</p>
             </div>
             <Button className="w-full h-16 text-base gap-3" onClick={() => setScanner('can')}>
               <Camera className="w-6 h-6" />
@@ -648,7 +644,7 @@ export default function MobileSampling() {
             <CheckCircle2 className="w-20 h-20 text-green-500" />
             <h2 className="text-2xl font-bold text-slate-900">Проба записана!</h2>
             <p className="text-slate-500">Номер: <span className="font-mono font-bold text-slate-800">{sampleForm.sample_number}</span></p>
-            <p className="text-slate-500">Точка: <span className="font-semibold">{samplingPoint?.point_name}</span></p>
+            <p className="text-slate-500">Агрегат: <span className="font-semibold">{selectedUnit?.unit_name}</span></p>
             <Button className="w-full h-14 text-base mt-4" onClick={reset}>Записать ещё</Button>
           </div>
         )}

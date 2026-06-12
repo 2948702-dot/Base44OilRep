@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
 
     // RBAC: check user has access to this unit
     if (user.role === 'captain') {
-      const allowedAssetIds = user.asset_id ? [user.asset_id] : user.asset_ids?.[0] ? [user.asset_ids[0]] : [];
+      const allowedAssetIds = getAllowedAssetIds(user);
       if (!unit.asset_id || !allowedAssetIds.includes(unit.asset_id)) {
         return Response.json({ error: 'Forbidden: asset mismatch' }, { status: 403 });
       }
@@ -110,3 +110,10 @@ Deno.serve(async (req) => {
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
+
+function getAllowedAssetIds(user) {
+  return [...new Set([
+    user.asset_id,
+    ...(Array.isArray(user.asset_ids) ? user.asset_ids : []),
+  ].filter(Boolean))];
+}

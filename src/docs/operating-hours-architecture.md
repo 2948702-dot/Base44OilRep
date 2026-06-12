@@ -37,10 +37,14 @@ current_oil_hours = lastResetOilHours + (currentTotal - lastResetTotal)
 
 ---
 
-## SamplingPoint — legacy-поля удалены
+## Место отбора — сам агрегат
 
-`SamplingPoint.current_total_hours` и `current_oil_hours` удалены из схемы как устаревшие поля.
-Актуальные значения м/ч берутся только из `EquipmentUnit.current_*`.
+Отдельная сущность `SamplingPoint` удалена. По продуктовой модели один агрегат имеет одно место отбора:
+
+- `OilSample`, `SamplingSchedule`, `MaintenanceEvent` и `OilLifecycle` ссылаются на `equipment_unit_id`;
+- QR-код хранится в `EquipmentUnit.sampling_qr_code`;
+- способ отбора хранится в `EquipmentUnit.sampling_method`;
+- актуальные моточасы и масло берутся только из `EquipmentUnit.current_*`.
 
 ---
 

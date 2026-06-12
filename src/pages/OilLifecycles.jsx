@@ -15,9 +15,17 @@ import StatusBadge from '@/components/StatusBadge';
 
 function Req() { return <span className="text-red-500 ml-0.5">*</span>; }
 
-const DEF = { sampling_point_id: '', oil_type_id: '', start_date: '', start_operating_hours: '', end_date: '', end_operating_hours: '', status: 'active', start_reason: '', end_reason: '', comments: '' };
+const DEF = { client_id: '', asset_id: '', equipment_unit_id: '', oil_type_id: '', start_date: '', start_operating_hours: '', end_date: '', end_operating_hours: '', status: 'active', start_reason: '', end_reason: '', comments: '' };
 
-const clean = (d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v === '' ? undefined : v]));
+const LIFECYCLE_FIELDS = [
+  'client_id', 'asset_id', 'equipment_unit_id', 'oil_type_id',
+  'start_date', 'start_operating_hours', 'end_date', 'end_operating_hours',
+  'status', 'start_reason', 'end_reason', 'comments',
+];
+
+const clean = (data) => Object.fromEntries(
+  LIFECYCLE_FIELDS.map(key => [key, data[key] === '' ? null : data[key]]),
+);
 
 export default function OilLifecycles() {
   const { user } = useAuth();
@@ -31,7 +39,6 @@ export default function OilLifecycles() {
   const qc = useQueryClient();
 
   const { data: lifecycles = [], isLoading } = useQuery({ queryKey: ['oil-lifecycles'], queryFn: () => base44.entities.OilLifecycle.list(undefined, 1000) });
-  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list(undefined, 500) });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
   const { data: maintenanceEvents = [] } = useQuery({ queryKey: ['maintenance-events'], queryFn: () => base44.entities.MaintenanceEvent.list(undefined, 2000) });
   const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list(undefined, 500) });
@@ -48,33 +55,41 @@ export default function OilLifecycles() {
 
   // Enrich lifecycles with computed fields
   const enriched = useMemo(() => {
-    const pointMap = Object.fromEntries(points.map(p => [p.id, p]));
     const unitMap = Object.fromEntries(units.map(u => [u.id, u]));
     const assetMap = Object.fromEntries(assets.map(a => [a.id, a]));
     const INTERVALS_H = { main_engine: 1000, aux_engine: 500, generator: 500, hydraulic: 2000, gearbox: 2000, compressor: 1000, pump: 2000, other: 1000 };
     return lifecycles.map(l => {
-      const pt = pointMap[l.sampling_point_id];
-      const unit = pt ? unitMap[pt.equipment_unit_id] : null;
-      const asset = pt ? assetMap[pt.asset_id] : null;
+      const unit = unitMap[l.equipment_unit_id];
+      const asset = assetMap[l.asset_id || unit?.asset_id];
       const typInterval = unit ? (INTERVALS_H[unit.equipment_type] || 1000) : 1000;
       const currentH = unit?.current_total_hours ?? unit?.total_operating_hours ?? l.start_operating_hours ?? 0;
       const usedH = l.start_operating_hours != null ? currentH - l.start_operating_hours : null;
       const durationH = l.end_operating_hours && l.start_operating_hours ? l.end_operating_hours - l.start_operating_hours : usedH;
       const remainH = l.status === 'active' && usedH != null ? typInterval - usedH : null;
       const pctUsed = durationH != null ? Math.min(100, Math.round((durationH / typInterval) * 100)) : null;
-      return { ...l, _pt: pt, _unit: unit, _asset: asset, _usedH: usedH, _durationH: durationH, _remainH: remainH, _pctUsed: pctUsed };
+      return { ...l, _unit: unit, _asset: asset, _usedH: usedH, _durationH: durationH, _remainH: remainH, _pctUsed: pctUsed };
     });
-  }, [lifecycles, points, units, assets]);
+  }, [lifecycles, units, assets]);
 
   const filtered = useMemo(() => enriched.filter(l =>
     (filterAsset === 'none' || l._asset?.id === filterAsset) &&
     (filterStatus === 'none' || l.status === filterStatus)
   ), [enriched, filterAsset, filterStatus]);
 
-  const chartLCs = filterAsset || filterStatus ? filtered : lifecycles;
+  const chartLCs = filterAsset || filterStatus ? filtered : enriched;
 
   const save = useMutation({
-    mutationFn: d => { const c = clean(d); return c.id ? base44.entities.OilLifecycle.update(c.id, c) : base44.entities.OilLifecycle.create(c); },
+    mutationFn: d => {
+      const unit = units.find(item => item.id === d.equipment_unit_id);
+      const payload = clean({
+        ...d,
+        client_id: unit?.client_id || d.client_id,
+        asset_id: unit?.asset_id || d.asset_id,
+      });
+      return d.id
+        ? base44.entities.OilLifecycle.update(d.id, payload)
+        : base44.entities.OilLifecycle.create(payload);
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['oil-lifecycles'] }); setOpen(false); setForm(DEF); }
   });
   const del = useMutation({
@@ -121,7 +136,6 @@ export default function OilLifecycles() {
       <LifecycleKPICards
         lifecycles={lifecycles}
         maintenanceEvents={maintenanceEvents}
-        points={points}
         units={units}
       />
 
@@ -130,7 +144,7 @@ export default function OilLifecycles() {
           <LifecycleChart
             lifecycles={chartLCs}
             maintenanceEvents={maintenanceEvents}
-            points={points}
+            units={units}
             oils={oils}
           />
         </div>
@@ -159,7 +173,7 @@ export default function OilLifecycles() {
         <table className="w-full text-sm min-w-max">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Судно / Точка отбора</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Актив / Агрегат</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Масло</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Начало</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Наработка / Ресурс</th>
@@ -181,7 +195,7 @@ export default function OilLifecycles() {
                 <tr key={l.id} className="border-b border-slate-50 hover:bg-slate-50">
                   <td className="px-4 py-2.5">
                     <div className="font-medium text-slate-900 text-xs">{l._asset?.asset_name || '—'}</div>
-                    <div className="text-slate-400 text-xs">{l._pt?.point_name || getName([], l.sampling_point_id, 'point_name')}</div>
+                    <div className="text-slate-400 text-xs">{l._unit?.unit_name || '—'}</div>
                   </td>
                   <td className="px-4 py-2.5 text-slate-600 text-xs max-w-[140px] truncate">{getName(oils, l.oil_type_id, 'oil_name')}</td>
                   <td className="px-4 py-2.5 text-slate-600 text-xs">{l.start_date || '—'}</td>
@@ -237,10 +251,10 @@ export default function OilLifecycles() {
           </div>
           <div className="grid grid-cols-2 gap-3 py-2 max-h-[70vh] overflow-y-auto pr-1">
             <div className="col-span-2 space-y-1">
-              <Label>Точка отбора <Req /></Label>
-              <Select value={form.sampling_point_id} onValueChange={v => f('sampling_point_id', v)}>
-                <SelectTrigger><SelectValue placeholder="Выберите точку" /></SelectTrigger>
-                <SelectContent>{points.map(p => <SelectItem key={p.id} value={p.id}>{p.point_name}</SelectItem>)}</SelectContent>
+              <Label>Агрегат <Req /></Label>
+              <Select value={form.equipment_unit_id} onValueChange={v => f('equipment_unit_id', v)}>
+                <SelectTrigger><SelectValue placeholder="Выберите агрегат" /></SelectTrigger>
+                <SelectContent>{units.map(unit => <SelectItem key={unit.id} value={unit.id}>{unit.unit_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="col-span-2 space-y-1">
@@ -293,7 +307,7 @@ export default function OilLifecycles() {
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
             <Button
               onClick={() => save.mutate(form)}
-              disabled={!form.sampling_point_id || !form.oil_type_id || !form.start_date || save.isPending}
+              disabled={!form.equipment_unit_id || !form.oil_type_id || !form.start_date || save.isPending}
             >
               {save.isPending ? 'Сохранение...' : 'Сохранить'}
             </Button>

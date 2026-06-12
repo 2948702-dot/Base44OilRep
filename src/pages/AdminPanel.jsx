@@ -8,7 +8,6 @@ const ENTITY_LABELS = {
   MaintenanceEvent: 'События обслуживания',
   OilLifecycle: 'Жизненные циклы масла',
   OilSample: 'Пробы масла',
-  SamplingPoint: 'Точки отбора',
   EquipmentUnit: 'Узлы оборудования',
   Asset: 'Активы (суда)',
 };
@@ -22,7 +21,7 @@ const FUNCTIONS = [
   {
     name: 'deleteTestData',
     label: 'Удалить все тестовые данные',
-    desc: 'Удаляет активы, узлы, точки отбора, пробы, анализы и пр. (50 записей за запуск)',
+    desc: 'Удаляет активы, агрегаты, пробы, анализы и события (50 записей за запуск)',
   },
 ];
 
@@ -37,12 +36,11 @@ export default function AdminPanel() {
   const fetchCounts = async () => {
     setCountsLoading(true);
     try {
-      const [ar, me, ol, os, sp, eu, a] = await Promise.all([
+      const [ar, me, ol, os, eu, a] = await Promise.all([
         base44.entities.AnalysisResult.list('id', 1000),
         base44.entities.MaintenanceEvent.list('id', 1000),
         base44.entities.OilLifecycle.list('id', 1000),
         base44.entities.OilSample.list('id', 1000),
-        base44.entities.SamplingPoint.list('id', 1000),
         base44.entities.EquipmentUnit.list('id', 1000),
         base44.entities.Asset.list('id', 1000),
       ]);
@@ -51,7 +49,6 @@ export default function AdminPanel() {
         MaintenanceEvent: me.length,
         OilLifecycle: ol.length,
         OilSample: os.length,
-        SamplingPoint: sp.length,
         EquipmentUnit: eu.length,
         Asset: a.length,
       });

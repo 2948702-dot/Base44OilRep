@@ -6,7 +6,7 @@ const INTERVALS_H = {
   hydraulic: 2000, gearbox: 2000, compressor: 1000, pump: 2000, other: 1000,
 };
 
-export default function LifecycleKPICards({ lifecycles, maintenanceEvents, points, units }) {
+export default function LifecycleKPICards({ lifecycles, maintenanceEvents, units }) {
   const kpi = useMemo(() => {
     const active = lifecycles.filter(l => l.status === 'active');
     const closed = lifecycles.filter(l => l.status === 'closed' && l.start_operating_hours && l.end_operating_hours);
@@ -24,7 +24,6 @@ export default function LifecycleKPICards({ lifecycles, maintenanceEvents, point
     const topupRatio = totalChangeVol > 0 ? Math.round((totalTopupVol / totalChangeVol) * 100) : null;
 
     // Estimate hours remaining for active cycles
-    const pointMap = Object.fromEntries(points.map(p => [p.id, p]));
     const unitMap = Object.fromEntries(units.map(u => [u.id, u]));
 
     let urgentCount = 0;
@@ -32,8 +31,7 @@ export default function LifecycleKPICards({ lifecycles, maintenanceEvents, point
     const remainingArr = [];
 
     active.forEach(lc => {
-      const pt = pointMap[lc.sampling_point_id];
-      const unit = pt ? unitMap[pt.equipment_unit_id] : null;
+      const unit = unitMap[lc.equipment_unit_id];
       const typInterval = unit ? (INTERVALS_H[unit.equipment_type] || 1000) : 1000;
       const currentH = unit?.current_total_hours ?? unit?.total_operating_hours ?? lc.start_operating_hours ?? 0;
       const usedH = currentH - (lc.start_operating_hours || 0);
@@ -56,7 +54,7 @@ export default function LifecycleKPICards({ lifecycles, maintenanceEvents, point
       avgRemaining,
       changeCount: changeEvents.length,
     };
-  }, [lifecycles, maintenanceEvents, points, units]);
+  }, [lifecycles, maintenanceEvents, units]);
 
   const cards = [
     {
@@ -86,7 +84,7 @@ export default function LifecycleKPICards({ lifecycles, maintenanceEvents, point
     {
       label: 'Среднее остаток до замены',
       value: kpi.avgRemaining != null ? `${kpi.avgRemaining > 0 ? '+' : ''}${kpi.avgRemaining} м/ч` : '—',
-      sub: kpi.urgentCount > 0 ? `⚠️ ${kpi.urgentCount} точек — <20% ресурса` : 'Все в норме',
+      sub: kpi.urgentCount > 0 ? `${kpi.urgentCount} агрегатов — <20% ресурса` : 'Все в норме',
       icon: kpi.urgentCount > 0 ? AlertTriangle : Clock,
       color: kpi.urgentCount > 0 ? 'text-amber-600' : 'text-slate-600',
       bg: kpi.urgentCount > 0 ? 'bg-amber-50' : 'bg-slate-50',

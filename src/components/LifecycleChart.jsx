@@ -13,7 +13,7 @@ const TYPE_COLORS = {
 
 const LC_COLORS = ['#0ea5e9','#8b5cf6','#f59e0b','#10b981','#f97316','#ec4899'];
 
-export default function LifecycleChart({ lifecycles, maintenanceEvents, points, oils }) {
+export default function LifecycleChart({ lifecycles, maintenanceEvents, units, oils }) {
   const { minDate, maxDate, range } = useMemo(() => {
     const allDates = [
       ...lifecycles.map(l => l.start_date).filter(Boolean),
@@ -26,11 +26,11 @@ export default function LifecycleChart({ lifecycles, maintenanceEvents, points, 
     return { minDate, maxDate, range: maxDate - minDate || 1 };
   }, [lifecycles, maintenanceEvents]);
 
-  const groupedByPoint = useMemo(() => {
+  const groupedByUnit = useMemo(() => {
     const map = {};
     lifecycles.forEach(lc => {
-      if (!map[lc.sampling_point_id]) map[lc.sampling_point_id] = [];
-      map[lc.sampling_point_id].push(lc);
+      if (!map[lc.equipment_unit_id]) map[lc.equipment_unit_id] = [];
+      map[lc.equipment_unit_id].push(lc);
     });
     return map;
   }, [lifecycles]);
@@ -54,9 +54,9 @@ export default function LifecycleChart({ lifecycles, maintenanceEvents, points, 
     return ((new Date(dateStr).getTime() - minDate) / range) * 100;
   };
 
-  const pointIds = Object.keys(groupedByPoint);
+  const unitIds = Object.keys(groupedByUnit);
 
-  if (!pointIds.length) {
+  if (!unitIds.length) {
     return (
       <div className="text-center py-10 text-slate-400 text-sm">Нет данных для отображения графика</div>
     );
@@ -76,15 +76,15 @@ export default function LifecycleChart({ lifecycles, maintenanceEvents, points, 
       </div>
 
       <div className="space-y-3">
-        {pointIds.map(pointId => {
-          const point = points.find(p => p.id === pointId);
-          const lcs = groupedByPoint[pointId];
-          const pointEvents = maintenanceEvents.filter(e => e.sampling_point_id === pointId);
+        {unitIds.map(unitId => {
+          const unit = units.find(item => item.id === unitId);
+          const lcs = groupedByUnit[unitId];
+          const unitEvents = maintenanceEvents.filter(event => event.equipment_unit_id === unitId);
 
           return (
-            <div key={pointId} className="flex items-center gap-3">
+            <div key={unitId} className="flex items-center gap-3">
               <div className="text-xs text-slate-600 font-medium w-28 shrink-0 text-right truncate">
-                {point?.point_name || '—'}
+                {unit?.unit_name || '—'}
               </div>
               <div className="relative flex-1 h-8 bg-slate-100 rounded-md">
                 {lcs.map((lc, idx) => {
@@ -104,7 +104,7 @@ export default function LifecycleChart({ lifecycles, maintenanceEvents, points, 
                     </div>
                   );
                 })}
-                {pointEvents.map(ev => {
+                {unitEvents.map(ev => {
                   const pct = toPercent(ev.event_date);
                   if (pct === null) return null;
                   const color = TYPE_COLORS[ev.event_type] || '#6b7280';

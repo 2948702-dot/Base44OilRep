@@ -155,7 +155,7 @@ function drawFooter(doc, pageNum) {
 // ─────────────────────────────────────────────
 // Export single sample report
 // ─────────────────────────────────────────────
-export function exportSamplePDF({ result, sample, oilRef, baseline, client, asset, unit, point }) {
+export function exportSamplePDF({ result, sample, oilRef, baseline, client, asset, unit }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
   let y = drawHeader(doc, 'Отчёт по пробе масла', `Проба: ${sample?.sample_number || '—'} · Дата: ${sample?.sampling_date || '—'}`);
@@ -170,8 +170,7 @@ export function exportSamplePDF({ result, sample, oilRef, baseline, client, asse
   drawKV(doc, 'Тип актива', asset?.asset_type, 140, y);
   y += 11;
   drawKV(doc, 'Оборудование', unit?.unit_name, 10, y);
-  drawKV(doc, 'Точка отбора', point?.point_name, 75, y);
-  drawKV(doc, 'Масло', oilRef?.oil_name, 140, y);
+  drawKV(doc, 'Масло', oilRef?.oil_name, 75, y);
   y += 14;
 
   // Sample info
@@ -219,7 +218,7 @@ export function exportSamplePDF({ result, sample, oilRef, baseline, client, asse
 // ─────────────────────────────────────────────
 // Export full equipment report (multiple results)
 // ─────────────────────────────────────────────
-export function exportEquipmentReportPDF({ results, samples, oilRefs, clients, assets, units, points }) {
+export function exportEquipmentReportPDF({ results, samples, oilRefs, clients, assets, units }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   let pageNum = 1;
 
@@ -250,7 +249,6 @@ export function exportEquipmentReportPDF({ results, samples, oilRefs, clients, a
 
     const s = samples.find(s => s.id === r.sample_id);
     const unit = units.find(u => u.id === s?.equipment_unit_id);
-    const pt = points.find(p => p.id === s?.sampling_point_id);
     const oil = oilRefs.find(o => o.id === (s?.oil_type_id || unit?.current_oil_type_id || unit?.oil_type_id));
     const rgb = STATUS_RGB[r.overall_status] || [100, 116, 139];
 
@@ -293,7 +291,6 @@ export function exportEquipmentReportPDF({ results, samples, oilRefs, clients, a
     const client = clients.find(c => c.id === s.client_id);
     const asset = assets.find(a => a.id === s.asset_id);
     const unit = units.find(u => u.id === s.equipment_unit_id);
-    const pt = points.find(p => p.id === s.sampling_point_id);
     const oilRef = oilRefs.find(o => o.id === (s.oil_type_id || unit?.current_oil_type_id || unit?.oil_type_id));
     const baseline = findFreshOilBaseline(s, samples, results, units);
 

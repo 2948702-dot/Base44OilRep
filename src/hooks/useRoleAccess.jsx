@@ -6,8 +6,11 @@ export function useRoleAccess() {
   const isAdmin = user?.role === 'admin';
   const isSuperintendent = user?.role === 'superintendent';
   const isCaptain = user?.role === 'captain';
-  const assignedAssetId = user?.asset_id || user?.asset_ids?.[0];
-  const assignedAssetIds = assignedAssetId ? [assignedAssetId] : [];
+  const assignedAssetIds = [...new Set([
+    user?.asset_id,
+    ...(Array.isArray(user?.asset_ids) ? user.asset_ids : []),
+  ].filter(Boolean))];
+  const assignedAssetId = assignedAssetIds[0];
   const assignedClientId = user?.client_id;
 
   return {

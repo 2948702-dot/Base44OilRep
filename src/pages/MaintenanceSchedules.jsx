@@ -9,13 +9,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
-import { PLANNING_METHODS } from '@/utils/labels';
+import { EVENT_TYPES, PLANNING_METHODS } from '@/utils/labels';
 import StatusBadge from '@/components/StatusBadge';
+import { buildPayload } from '@/utils/payload';
+import { useSaveMutation } from '@/hooks/useSaveMutation';
+import {
+  MAINTENANCE_SCHEDULE_FIELDS,
+  MAINTENANCE_SCHEDULE_NUMBER_FIELDS,
+} from '@/utils/entityFields';
 
 const DEF = {
-  client_id: '', asset_id: '', equipment_unit_id: '', sampling_point_id: '',
-  maintenance_type: '', planning_method: 'hours', interval_hours: '', target_hours: '',
+  client_id: '', asset_id: '', equipment_unit_id: '',
+  maintenance_type: '', event_type: 'oil_change', planning_method: 'hours',
+  interval_hours: '', interval_days: '', target_hours: '',
   target_date: '', current_hours: '', remaining_hours: '', remaining_days: '',
+  initial_target_hours: '', initial_target_date: '',
   status: 'normal', notification_enabled: false, comments: ''
 };
 
@@ -58,11 +66,30 @@ export default function MaintenanceSchedules() {
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list() });
-  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list() });
 
-  const save = useMutation({
-    mutationFn: d => d.id ? base44.entities.MaintenanceSchedule.update(d.id, d) : base44.entities.MaintenanceSchedule.create(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['maintenance-schedules'] }); setOpen(false); setForm(DEF); }
+  const save = useSaveMutation({
+    mutationFn: async (d) => {
+      const unit = units.find(item => item.id === d.equipment_unit_id);
+      const calculated = calcStatus({
+        ...d,
+        current_hours: unit?.current_total_hours ?? d.current_hours,
+        initial_target_hours: d.initial_target_hours || d.target_hours || null,
+        initial_target_date: d.initial_target_date || d.target_date || null,
+      });
+      const payload = buildPayload(
+        calculated,
+        MAINTENANCE_SCHEDULE_FIELDS,
+        MAINTENANCE_SCHEDULE_NUMBER_FIELDS,
+      );
+      return d.id
+        ? base44.entities.MaintenanceSchedule.update(d.id, payload)
+        : base44.entities.MaintenanceSchedule.create(payload);
+    },
+    invalidateKeys: [['maintenance-schedules']],
+    onSuccess: () => {
+      setOpen(false);
+      setForm(DEF);
+    },
   });
   const del = useMutation({
     mutationFn: id => base44.entities.MaintenanceSchedule.delete(id),
@@ -71,14 +98,16 @@ export default function MaintenanceSchedules() {
 
   const filtAssets = assets.filter(a => !form.client_id || a.client_id === form.client_id);
   const filtUnits = units.filter(u => !form.asset_id || u.asset_id === form.asset_id);
-  const filtPoints = points.filter(p => !form.equipment_unit_id || p.equipment_unit_id === form.equipment_unit_id);
   const filtered = schedules.filter(s => !filterStatus || s.status === filterStatus);
   const getName = (list, id, field) => list.find(x => x.id === id)?.[field] || '—';
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  const handleSave = () => {
-    const calculated = calcStatus(form);
-    save.mutate(calculated);
+  const handleSave = () => save.mutate(form);
+
+  const formatVariance = (value, unit) => {
+    if (value == null) return '—';
+    if (value === 0) return `0 ${unit}`;
+    return `${value > 0 ? '+' : ''}${value} ${unit}`;
   };
 
   return (
@@ -116,15 +145,17 @@ export default function MaintenanceSchedules() {
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Цель (дата)</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Остаток ч.</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Остаток дн.</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Последний факт</th>
+              <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">План-факт</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Статус</th>
               <th className="w-20 px-4 py-2.5"></th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={9} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
+              <tr><td colSpan={11} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={9} className="text-center py-10 text-slate-400">Планы не найдены</td></tr>
+              <tr><td colSpan={11} className="text-center py-10 text-slate-400">Планы не найдены</td></tr>
             ) : filtered.map(s => (
               <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50">
                 <td className="px-4 py-2.5 font-medium text-slate-900">{s.maintenance_type}</td>
@@ -137,6 +168,18 @@ export default function MaintenanceSchedules() {
                 <td className="px-4 py-2.5 text-slate-600">{s.target_date ?? '—'}</td>
                 <td className="px-4 py-2.5 text-slate-600">{s.remaining_hours ?? '—'}</td>
                 <td className="px-4 py-2.5 text-slate-600">{s.remaining_days ?? '—'}</td>
+                <td className="px-4 py-2.5 text-xs text-slate-600">
+                  <div>{s.last_completed_date || '—'}</div>
+                  <div className="text-slate-400">{s.last_completed_hours != null ? `${s.last_completed_hours} м/ч` : ''}</div>
+                </td>
+                <td className="px-4 py-2.5 text-xs">
+                  <div className={s.last_date_variance_days > 0 ? 'text-red-600' : 'text-slate-600'}>
+                    {formatVariance(s.last_date_variance_days, 'дн.')}
+                  </div>
+                  <div className={s.last_hours_variance > 0 ? 'text-red-600' : 'text-slate-400'}>
+                    {formatVariance(s.last_hours_variance, 'м/ч')}
+                  </div>
+                </td>
                 <td className="px-4 py-2.5"><StatusBadge status={s.status} /></td>
                 <td className="px-4 py-2.5">
                   <div className="flex gap-1">
@@ -162,6 +205,13 @@ export default function MaintenanceSchedules() {
               <Label>Тип обслуживания *</Label>
               <Input value={form.maintenance_type} onChange={e => f('maintenance_type', e.target.value)} placeholder="Замена масла, Замена фильтра..." />
             </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Связанное событие *</Label>
+              <Select value={form.event_type} onValueChange={v => f('event_type', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{Object.entries(EVENT_TYPES).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1">
               <Label>Клиент</Label>
               <Select value={form.client_id} onValueChange={v => f('client_id', v)}>
@@ -176,18 +226,11 @@ export default function MaintenanceSchedules() {
                 <SelectContent>{filtAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
+            <div className="col-span-2 space-y-1">
               <Label>Оборудование</Label>
               <Select value={form.equipment_unit_id} onValueChange={v => f('equipment_unit_id', v)}>
                 <SelectTrigger><SelectValue placeholder="Оборудование" /></SelectTrigger>
                 <SelectContent>{filtUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Точка отбора</Label>
-              <Select value={form.sampling_point_id} onValueChange={v => f('sampling_point_id', v)}>
-                <SelectTrigger><SelectValue placeholder="Точка" /></SelectTrigger>
-                <SelectContent>{filtPoints.map(p => <SelectItem key={p.id} value={p.id}>{p.point_name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="col-span-2 space-y-1">
@@ -205,7 +248,12 @@ export default function MaintenanceSchedules() {
                 </div>
                 <div className="space-y-1">
                   <Label>Текущие м/ч</Label>
-                  <Input type="number" value={form.current_hours} onChange={e => f('current_hours', +e.target.value)} />
+                  <Input
+                    type="number"
+                    value={units.find(item => item.id === form.equipment_unit_id)?.current_total_hours ?? form.current_hours}
+                    readOnly
+                    className="bg-slate-50"
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label>Интервал, м/ч</Label>
@@ -214,10 +262,16 @@ export default function MaintenanceSchedules() {
               </>
             )}
             {(form.planning_method === 'date' || form.planning_method === 'whichever_first') && (
-              <div className="space-y-1">
-                <Label>Целевая дата</Label>
-                <Input type="date" value={form.target_date} onChange={e => f('target_date', e.target.value)} />
-              </div>
+              <>
+                <div className="space-y-1">
+                  <Label>Целевая дата</Label>
+                  <Input type="date" value={form.target_date} onChange={e => f('target_date', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Интервал, дней</Label>
+                  <Input type="number" min="1" value={form.interval_days} onChange={e => f('interval_days', e.target.value)} />
+                </div>
+              </>
             )}
             <div className="col-span-2 flex items-center justify-between py-1">
               <Label>Уведомления</Label>
@@ -228,6 +282,7 @@ export default function MaintenanceSchedules() {
               <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
             </div>
           </div>
+          {save.errorBlock}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
             <Button onClick={handleSave} disabled={!form.maintenance_type || save.isPending} className="gap-2">

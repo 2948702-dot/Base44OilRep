@@ -34,6 +34,8 @@ export const EQUIPMENT_UNIT_FIELDS = [
   'manufacturer',
   'model',
   'serial_number',
+  'sampling_qr_code',
+  'sampling_method',
   'total_operating_hours',
   'initial_oil_hours',
   'oil_type_id',
@@ -74,19 +76,10 @@ export const OIL_REFERENCE_NUMBER_FIELDS = [
   'passport_dielectric',
 ];
 
-export const SAMPLING_POINT_FIELDS = [
+export const SAMPLING_SCHEDULE_FIELDS = [
   'client_id',
   'asset_id',
   'equipment_unit_id',
-  'point_name',
-  'qr_code',
-  'sampling_method',
-  'comments',
-];
-export const SAMPLING_POINT_NUMBER_FIELDS = [];
-
-export const SAMPLING_SCHEDULE_FIELDS = [
-  'sampling_point_id',
   'schedule_name',
   'is_active',
   'stages',
@@ -112,7 +105,6 @@ export const OIL_SAMPLE_FIELDS = [
   'client_id',
   'asset_id',
   'equipment_unit_id',
-  'sampling_point_id',
   'oil_type_id',
   'lifecycle_id',
   'applies_to_equipment_unit_ids',
@@ -137,4 +129,34 @@ export const OIL_SAMPLE_FIELDS = [
 export const OIL_SAMPLE_NUMBER_FIELDS = [
   'total_hours_at_sampling',
   'oil_hours_at_sampling',
+];
+
+export const MAINTENANCE_SCHEDULE_FIELDS = [
+  'client_id',
+  'asset_id',
+  'equipment_unit_id',
+  'maintenance_type',
+  'event_type',
+  'planning_method',
+  'interval_hours',
+  'interval_days',
+  'target_hours',
+  'target_date',
+  'initial_target_hours',
+  'initial_target_date',
+  'current_hours',
+  'remaining_hours',
+  'remaining_days',
+  'status',
+  'notification_enabled',
+  'comments',
+];
+export const MAINTENANCE_SCHEDULE_NUMBER_FIELDS = [
+  'interval_hours',
+  'interval_days',
+  'target_hours',
+  'initial_target_hours',
+  'current_hours',
+  'remaining_hours',
+  'remaining_days',
 ];

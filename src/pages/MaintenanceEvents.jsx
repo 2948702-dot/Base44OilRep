@@ -13,7 +13,7 @@ import { EVENT_TYPES } from '@/utils/labels';
 
 const DEF = {
   event_type: '', event_date: '', client_id: '', asset_id: '', equipment_unit_id: '',
-  sampling_point_id: '', total_operating_hours: '', oil_hours: '', old_oil_type_id: '', new_oil_type_id: '',
+  total_operating_hours: '', oil_hours: '', old_oil_type_id: '', new_oil_type_id: '',
   replaced_oil_volume: '', added_oil_volume: '', comment: '', attachments: []
 };
 
@@ -29,7 +29,6 @@ export default function MaintenanceEvents() {
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
   const { data: units = [] } = useQuery({ queryKey: ['equipment-units'], queryFn: () => base44.entities.EquipmentUnit.list(undefined, 500) });
-  const { data: points = [] } = useQuery({ queryKey: ['sampling-points'], queryFn: () => base44.entities.SamplingPoint.list(undefined, 500) });
   const { data: oils = [] } = useQuery({ queryKey: ['oil-references'], queryFn: () => base44.entities.OilReference.list() });
   const { data: lifecycles = [] } = useQuery({ queryKey: ['oil-lifecycles'], queryFn: () => base44.entities.OilLifecycle.list(undefined, 500) });
 
@@ -58,7 +57,6 @@ export default function MaintenanceEvents() {
 
   const filtAssets = assets.filter(a => !form.client_id || a.client_id === form.client_id);
   const filtUnits = units.filter(u => !form.asset_id || u.asset_id === form.asset_id);
-  const filtPoints = points.filter(p => !form.equipment_unit_id || p.equipment_unit_id === form.equipment_unit_id);
   const filtered = events.filter(e =>
     (filterClient === 'none' || e.client_id === filterClient) &&
     (filterType === 'none' || e.event_type === filterType)
@@ -194,30 +192,23 @@ export default function MaintenanceEvents() {
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs">Клиент *</Label>
-                  <Select value={form.client_id} onValueChange={v => setForm(p => ({ ...p, client_id: v, asset_id: '', equipment_unit_id: '', sampling_point_id: '' }))}>
+                  <Select value={form.client_id} onValueChange={v => setForm(p => ({ ...p, client_id: v, asset_id: '', equipment_unit_id: '' }))}>
                     <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Клиент" /></SelectTrigger>
                     <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Актив *</Label>
-                  <Select value={form.asset_id} onValueChange={v => setForm(p => ({ ...p, asset_id: v, equipment_unit_id: '', sampling_point_id: '' }))} disabled={!form.client_id}>
+                  <Select value={form.asset_id} onValueChange={v => setForm(p => ({ ...p, asset_id: v, equipment_unit_id: '' }))} disabled={!form.client_id}>
                     <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.client_id ? 'Актив' : '← сначала клиент'} /></SelectTrigger>
                     <SelectContent>{filtAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Оборудование</Label>
-                  <Select value={form.equipment_unit_id} onValueChange={v => setForm(p => ({ ...p, equipment_unit_id: v, sampling_point_id: '' }))} disabled={!form.asset_id}>
+                  <Select value={form.equipment_unit_id} onValueChange={v => setForm(p => ({ ...p, equipment_unit_id: v }))} disabled={!form.asset_id}>
                     <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.asset_id ? 'Оборудование' : '← сначала актив'} /></SelectTrigger>
                     <SelectContent>{filtUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Точка отбора</Label>
-                  <Select value={form.sampling_point_id} onValueChange={v => f('sampling_point_id', v)} disabled={!form.equipment_unit_id}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.equipment_unit_id ? 'Точка' : '← сначала оборудование'} /></SelectTrigger>
-                    <SelectContent>{filtPoints.map(p => <SelectItem key={p.id} value={p.id}>{p.point_name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
               </div>
@@ -225,7 +216,6 @@ export default function MaintenanceEvents() {
                 client={clients.find(c => c.id === form.client_id)?.company_name}
                 asset={assets.find(a => a.id === form.asset_id)?.asset_name}
                 unit={units.find(u => u.id === form.equipment_unit_id)?.unit_name}
-                point={points.find(p => p.id === form.sampling_point_id)?.point_name}
               />
             </div>
             <div className="space-y-1">

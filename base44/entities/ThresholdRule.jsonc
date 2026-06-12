@@ -14,10 +14,6 @@
       "type": "string",
       "title": "Equipment Unit (Optional)"
     },
-    "sampling_point_id": {
-      "type": "string",
-      "title": "Sampling Point (Optional)"
-    },
     "oil_type_id": {
       "type": "string",
       "title": "Oil Type (Optional)"

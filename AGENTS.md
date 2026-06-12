@@ -12,15 +12,20 @@ SmartOil — система предиктивной диагностики ма
 - Сущности: JSON-схемы в `base44/entities/*.jsonc`
 
 **Иерархия данных:**
-Client → Asset → EquipmentUnit → SamplingPoint → OilSample
+Client → Asset → EquipmentUnit → OilSample
 
 **Источники истины:**
 - Моточасы агрегата: `MaintenanceEvent` → `EquipmentUnit.current_*`
 - Масло агрегата: `EquipmentUnit.current_oil_type_id`
-- Пороги: custom thresholds агрегата → правила масла (`OilReference.threshold_rules`)
-- `SamplingPoint` больше НЕ источник моточасов/масла (legacy)
+- Пороги: custom thresholds агрегата → `ThresholdRule` выбранного масла
+- Отдельной сущности `SamplingPoint` нет: один `EquipmentUnit` является единственным местом отбора.
+- QR и способ отбора хранятся в `EquipmentUnit.sampling_qr_code` и `EquipmentUnit.sampling_method`.
 
 Подробнее: `src/docs/operating-hours-architecture.md`, `src/USER_MANAGEMENT_GUIDE.md`.
+
+Текущий статус и накопленные практики:
+- `ROADMAP.md`
+- `src/docs/engineering-practices.md`
 
 ---
 
@@ -56,9 +61,8 @@ Client → Asset → EquipmentUnit → SamplingPoint → OilSample
 - `base44/functions/saveMaintenanceEvent/entry.ts`
 - `base44/functions/saveMobileMaintenanceEvent/entry.ts`
 - `base44/functions/migrateEquipmentUnitState/entry.ts`
-- `base44/functions/migrateOilFromPointsToUnits/entry.ts`
 
-При PR с изменением одной копии reviewer обязан проверить остальные три.
+При PR с изменением одной копии reviewer обязан проверить остальные две.
 
 ---
 
@@ -119,6 +123,16 @@ const payload = buildPayload(dataWithSync, FIELDS, NUMBER_FIELDS);
 4. Claude → приёмка по стандартному формату
 
 **Каждое ТЗ содержит:** цель, проблему, ожидаемое поведение, изменения в UI/логике, критерии приёмки, тесты, риски, формат отчёта.
+
+### Обязательная фиксация знаний
+
+После каждого значимого этапа агент обязан:
+
+1. Обновить `ROADMAP.md`: текущий статус, завершённая веха, риски и следующий шаг.
+2. Дополнить `src/docs/engineering-practices.md`, если найден новый проверенный подход, ограничение Base44 или тупиковый путь.
+3. Не оставлять существенные решения только в переписке.
+4. Удалять временные spike-функции и тестовые артефакты после фиксации результата.
+5. Завершать этап отдельным понятным коммитом после build/lint.
 
 ---
 

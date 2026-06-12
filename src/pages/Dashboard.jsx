@@ -38,6 +38,8 @@ export default function Dashboard() {
     filteredSamples = samples.filter(s => s.client_id === assignedClientId || clientAssetIds.has(s.asset_id));
     filteredSchedules = schedules.filter(s => s.client_id === assignedClientId || clientAssetIds.has(s.asset_id));
   }
+  const visibleSampleIds = new Set(filteredSamples.map(sample => sample.id));
+  filteredResults = results.filter(result => visibleSampleIds.has(result.sample_id));
 
   // All hooks must be before early return
   const green = filteredResults.filter(r => r.overall_status === 'green').length;

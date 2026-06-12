@@ -8,23 +8,22 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Plus, Pencil, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2 } from 'lucide-react';
 import { EQ_TYPES } from '@/utils/labels';
-import SamplingPointsPanel from '@/components/SamplingPointsPanel';
 import { buildPayload } from '@/utils/payload';
 import { useSaveMutation } from '@/hooks/useSaveMutation';
 import { EQUIPMENT_UNIT_FIELDS, EQUIPMENT_UNIT_NUMBER_FIELDS } from '@/utils/entityFields';
 
 const DEF = {
   unit_name: '', equipment_type: '', manufacturer: '', model: '',
-  serial_number: '', total_operating_hours: '', initial_oil_hours: '', comments: ''
+  serial_number: '', sampling_qr_code: '', sampling_method: '',
+  total_operating_hours: '', initial_oil_hours: '', comments: ''
 };
 
 export default function AssetDetail() {
   const { assetId } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [expandedId, setExpandedId] = useState(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(DEF);
 
@@ -42,11 +41,6 @@ export default function AssetDetail() {
     queryFn: () => base44.entities.EquipmentUnit.filter({ asset_id: assetId }),
     enabled: !!assetId
   });
-  const { data: oils = [] } = useQuery({
-    queryKey: ['oil-references'],
-    queryFn: () => base44.entities.OilReference.list()
-  });
-
   const save = useSaveMutation({
     mutationFn: async d => {
       const dataWithSync = {
@@ -112,7 +106,6 @@ export default function AssetDetail() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="w-8 px-2 py-2.5"></th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Наименование</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Тип</th>
               <th className="text-left px-4 py-2.5 font-medium text-slate-600 text-xs">Производитель / Модель</th>
@@ -122,19 +115,11 @@ export default function AssetDetail() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={6} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
+              <tr><td colSpan={5} className="text-center py-10 text-slate-400">Загрузка...</td></tr>
             ) : units.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-10 text-slate-400">Агрегаты не добавлены</td></tr>
+              <tr><td colSpan={5} className="text-center py-10 text-slate-400">Агрегаты не добавлены</td></tr>
             ) : units.map(u => (
-              <>
-                <tr
-                  key={u.id}
-                  className={`border-b border-slate-100 hover:bg-slate-50 cursor-pointer ${expandedId === u.id ? 'bg-blue-50/40' : ''}`}
-                  onClick={() => setExpandedId(prev => prev === u.id ? null : u.id)}
-                >
-                  <td className="px-2 py-2.5 text-slate-400">
-                    {expandedId === u.id ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  </td>
+                <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-medium text-slate-900">{u.unit_name}</td>
                   <td className="px-4 py-2.5 text-slate-600">{EQ_TYPES[u.equipment_type] || u.equipment_type}</td>
                   <td className="px-4 py-2.5 text-slate-600">
@@ -152,14 +137,6 @@ export default function AssetDetail() {
                     </div>
                   </td>
                 </tr>
-                {expandedId === u.id && (
-                  <tr key={`${u.id}-exp`}>
-                    <td colSpan={6} className="p-0">
-                      <SamplingPointsPanel unit={u} oils={oils} />
-                    </td>
-                  </tr>
-                )}
-              </>
             ))}
           </tbody>
         </table>
@@ -211,16 +188,26 @@ export default function AssetDetail() {
               <Label>Серийный номер</Label>
               <Input value={form.serial_number} onChange={e => f('serial_number', e.target.value)} />
             </div>
+            <div className="space-y-1">
+              <Label>QR-код агрегата</Label>
+              <Input value={form.sampling_qr_code || ''} onChange={e => f('sampling_qr_code', e.target.value)} placeholder="Код для мобильного отбора" />
+            </div>
+            <div className="space-y-1">
+              <Label>Способ отбора</Label>
+              <Select value={form.sampling_method || ''} onValueChange={v => f('sampling_method', v)}>
+                <SelectTrigger><SelectValue placeholder="Не указан" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pump">Насосом</SelectItem>
+                  <SelectItem value="drain_plug">Через сливную пробку</SelectItem>
+                  <SelectItem value="minimess_port">Через Minimess-порт</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="col-span-2 space-y-1">
               <Label>Комментарии</Label>
               <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
             </div>
           </div>
-          {form.id && (
-            <div className="border-t pt-3">
-              <SamplingPointsPanel unit={form} oils={oils} />
-            </div>
-          )}
           {save.errorBlock}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Закрыть</Button>

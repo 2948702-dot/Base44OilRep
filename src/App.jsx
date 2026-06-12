@@ -10,7 +10,6 @@ import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
 import Assets from './pages/Assets';
 import EquipmentUnits from './pages/EquipmentUnits';
-import SamplingPoints from './pages/SamplingPoints';
 import OilSamples from './pages/OilSamples';
 import CompareSamples from './pages/CompareSamples';
 import AnalysisResults from './pages/AnalysisResults';
@@ -60,7 +59,6 @@ const AuthenticatedApp = () => {
         <Route path="/clients" element={<Clients />} />
         <Route path="/assets" element={<Assets />} />
         <Route path="/equipment-units" element={<EquipmentUnits />} />
-        <Route path="/sampling-points" element={<SamplingPoints />} />
         <Route path="/oil-samples" element={<OilSamples />} />
         <Route path="/compare-samples" element={<CompareSamples />} />
         <Route path="/analysis-results" element={<AnalysisResults />} />
