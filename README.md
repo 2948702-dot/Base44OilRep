@@ -1,39 +1,104 @@
-**Welcome to your Base44 project** 
+# SmartOil
 
-**About**
+SmartOil - система учета и предиктивной диагностики масел и оборудования. Она объединяет лабораторные пробы, состояние агрегатов, события обслуживания, жизненные циклы масла, пороговые правила и план-факт замены масла.
 
-View and Edit  your app on [Base44.com](http://Base44.com) 
+## Стек
 
-This project contains everything you need to run your app locally.
+- React 18, Vite, Tailwind CSS, shadcn/ui
+- TanStack Query
+- Base44 entities и RLS
+- Base44 serverless functions на Deno/TypeScript
+- Recharts для аналитики
 
-**Edit the code in your local development environment**
+## Ключевая модель
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
-
-**Prerequisites:** 
-
-1. Clone the repository using the project's Git URL 
-2. Navigate to the project directory
-3. Install dependencies: `npm install`
-4. Create an `.env.local` file and set the right environment variables
-
+```text
+Client -> Asset -> EquipmentUnit -> OilSample -> AnalysisResult
+                         |
+                         +-> MaintenanceEvent
+                         +-> OilLifecycle
+                         +-> MaintenanceSchedule
+                         +-> SamplingSchedule
 ```
+
+Отдельной сущности `SamplingPoint` в продуктовой модели больше нет. Один агрегат является одним местом отбора; QR-код и способ отбора хранятся в `EquipmentUnit`.
+
+Источники истины:
+
+- моточасы и текущее масло: `MaintenanceEvent -> EquipmentUnit.current_*`;
+- результаты лаборатории: `OilSample -> AnalysisResult`;
+- пороги: индивидуальные границы агрегата или стандартные правила выбранного масла;
+- состояние масла на момент отбора: snapshot-поля в `OilSample`.
+
+## Быстрый старт
+
+Требуется Node.js и npm.
+
+```bash
+npm install
+npm run dev
+```
+
+Для локального запуска создайте `.env.local`:
+
+```env
 VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=your_backend_url
-
-e.g.
-VITE_BASE44_APP_ID=cbef744a8545c389ef439ea6
-VITE_BASE44_APP_BASE_URL=https://my-to-do-list-81bfaad7.base44.app
+VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 ```
 
-Run the app: `npm run dev`
+Обязательные проверки:
 
-**Publish your changes**
+```bash
+npm run build
+npm run lint
+```
 
-Open [Base44.com](http://Base44.com) and click on Publish.
+Дополнительная проверка типов:
 
-**Docs & Support**
+```bash
+npm run typecheck
+```
 
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
+На текущем baseline `typecheck` имеет известные ошибки типизации JSX и SDK; см. `KI-011` в `src/docs/known-issues.md`.
 
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+## GitHub и Base44
+
+Репозиторий синхронизирован с Base44. Изменения, отправленные в основную ветку GitHub, появляются в редакторе Base44. Публикация production-версии выполняется отдельно кнопкой Publish в Base44.
+
+Перед изменением сущностей или backend-функций:
+
+1. прочитайте `AGENTS.md`;
+2. проверьте ограничения Base44;
+3. не выполняйте запись в production без прямого разрешения владельца;
+4. после изменения запустите build и lint.
+
+## Документация
+
+Главная карта документов: [`src/docs/README.md`](src/docs/README.md).
+
+Обязательное чтение для разработчиков и AI-агентов:
+
+- [`AGENTS.md`](AGENTS.md) - правила работы агентов;
+- [`src/docs/architecture-overview.md`](src/docs/architecture-overview.md) - архитектура и потоки данных;
+- [`src/docs/data-model.md`](src/docs/data-model.md) - сущности и связи;
+- [`src/docs/business-rules.md`](src/docs/business-rules.md) - бизнес-правила;
+- [`src/docs/decisions.md`](src/docs/decisions.md) - принятые решения;
+- [`src/docs/known-issues.md`](src/docs/known-issues.md) - риски и технический долг;
+- [`ROADMAP.md`](ROADMAP.md) - текущий продуктовый статус.
+
+## Структура репозитория
+
+```text
+base44/entities/       схемы сущностей и RLS
+base44/functions/      независимые backend-функции Base44
+src/pages/             страницы приложения
+src/components/        прикладные и UI-компоненты
+src/hooks/             общие React-хуки
+src/utils/             резолверы и общая бизнес-логика
+src/docs/              архитектурная и эксплуатационная документация
+```
+
+## Поддержка Base44
+
+- [GitHub integration](https://docs.base44.com/Integrations/Using-GitHub)
+- [Base44 support](https://app.base44.com/support)
