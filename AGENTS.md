@@ -26,6 +26,7 @@ Client → Asset → EquipmentUnit → OilSample
 Текущий статус и накопленные практики:
 - `ROADMAP.md`
 - `src/docs/engineering-practices.md`
+- `src/docs/base44-live-access.md` — авторизация и живые read-only проверки Base44
 
 ---
 
@@ -50,6 +51,26 @@ Client → Asset → EquipmentUnit → OilSample
 2. **Function-to-function вызовы** через `base44.functions.invoke()` поддерживаются (подтверждено spike-тестом для роли admin). Для других ролей требуется отдельная проверка перед использованием.
 
 3. **Версия SDK хардкодится** во всех функциях: `npm:@base44/sdk@0.8.25`. Не менять без согласования.
+
+---
+
+## Живые проверки Base44
+
+Перед выводами о production-данных агент должен проверить их через один из двух независимых каналов:
+
+1. Base44-плагин Codex.
+2. Авторизованный Base44 CLI + Deno через `base44 exec`.
+
+Если плагин возвращает `token_expired`, не считать CLI также неработающим: это разные OAuth-сессии. Использовать CLI как резервный read-only канал по инструкции `src/docs/base44-live-access.md`.
+
+Перед `base44 exec` обязательно:
+
+- выполнить `base44 whoami`;
+- проверить `base44/.app.jsonc`;
+- начинать с операций чтения;
+- не выполнять `create`, `update` или `delete` без прямого запроса владельца.
+
+На Windows использовать локальный npm-кэш проекта: `--cache .npm-cache`.
 
 ---
 
