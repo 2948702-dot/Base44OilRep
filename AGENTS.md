@@ -23,6 +23,14 @@ Client → Asset → EquipmentUnit → OilSample
 
 Подробнее: `src/docs/operating-hours-architecture.md`, `src/USER_MANAGEMENT_GUIDE.md`.
 
+Обязательная карта документации:
+- `src/docs/README.md`
+- `src/docs/architecture-overview.md`
+- `src/docs/data-model.md`
+- `src/docs/business-rules.md`
+- `src/docs/decisions.md`
+- `src/docs/known-issues.md`
+
 Текущий статус и накопленные практики:
 - `ROADMAP.md`
 - `src/docs/engineering-practices.md`
@@ -151,9 +159,12 @@ const payload = buildPayload(dataWithSync, FIELDS, NUMBER_FIELDS);
 
 1. Обновить `ROADMAP.md`: текущий статус, завершённая веха, риски и следующий шаг.
 2. Дополнить `src/docs/engineering-practices.md`, если найден новый проверенный подход, ограничение Base44 или тупиковый путь.
-3. Не оставлять существенные решения только в переписке.
-4. Удалять временные spike-функции и тестовые артефакты после фиксации результата.
-5. Завершать этап отдельным понятным коммитом после build/lint.
+3. Добавить принятое продуктовое или архитектурное решение в `src/docs/decisions.md`.
+4. Добавить обнаруженное расхождение или технический долг в `src/docs/known-issues.md`.
+5. Обновить `data-model.md` или `business-rules.md`, если изменились связи или поведение.
+6. Не оставлять существенные решения только в переписке.
+7. Удалять временные spike-функции и тестовые артефакты после фиксации результата.
+8. Завершать этап отдельным понятным коммитом после build/lint.
 
 ---
 
