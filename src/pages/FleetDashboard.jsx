@@ -5,15 +5,17 @@ import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-function statusColor(ohi) {
-  if (ohi == null) return 'border-slate-200 bg-white';
+function statusColor(ohi, hasAnalysis) {
+  if (!hasAnalysis) return 'border-slate-200 bg-white';
+  if (ohi == null) return 'border-blue-200 bg-blue-50';
   if (ohi >= 70) return 'border-green-200 bg-green-50';
   if (ohi >= 40) return 'border-yellow-200 bg-yellow-50';
   return 'border-red-200 bg-red-50';
 }
 
-function statusLabel(ohi) {
-  if (ohi == null) return { text: 'Нет данных', cls: 'text-slate-400' };
+function statusLabel(ohi, hasAnalysis) {
+  if (!hasAnalysis) return { text: 'Нет данных', cls: 'text-slate-400' };
+  if (ohi == null) return { text: 'Анализ есть · OHI не рассчитан', cls: 'text-blue-600' };
   if (ohi >= 70) return { text: 'Норма', cls: 'text-green-600' };
   if (ohi >= 40) return { text: 'Внимание', cls: 'text-yellow-600' };
   return { text: 'Критично', cls: 'text-red-600' };
@@ -42,7 +44,7 @@ export default function FleetDashboard() {
       const groupId = sample.equipment_unit_id || sample.id;
       if (latestByUnit.has(groupId)) continue;
       const result = results.find(item => item.sample_id === sample.id);
-      if (result?.oil_health_index != null) {
+      if (result) {
         latestByUnit.set(groupId, { sample, result });
       }
     }
@@ -54,6 +56,7 @@ export default function FleetDashboard() {
     return {
       ...asset,
       ohi: latestAnalysed?.result.oil_health_index ?? null,
+      hasAnalysis: latestByUnit.size > 0,
       latestDate: latestAnalysed?.sample.sampling_date ?? null,
       sampleCount: assetSamples.length,
       clientName: client?.company_name,
@@ -68,8 +71,9 @@ export default function FleetDashboard() {
   const availableAssets = (selectedClientId && selectedClientId !== 'none') ? assets.filter(a => a.client_id === selectedClientId) : assets;
   
   const total = filtered.length;
-  const withData = filtered.filter(a => a.ohi != null).length;
-  const avgOHI = withData > 0 ? Math.round(filtered.filter(a => a.ohi != null).reduce((s, a) => s + a.ohi, 0) / withData) : null;
+  const withData = filtered.filter(a => a.hasAnalysis).length;
+  const withOHI = filtered.filter(a => a.ohi != null);
+  const avgOHI = withOHI.length > 0 ? Math.round(withOHI.reduce((s, a) => s + a.ohi, 0) / withOHI.length) : null;
   const critical = filtered.filter(a => a.ohi != null && a.ohi < 40).length;
 
   return (
@@ -123,15 +127,15 @@ export default function FleetDashboard() {
       ) : (
         <div className="flex flex-wrap gap-4">
           {filtered.map(asset => {
-            const sl = statusLabel(asset.ohi);
+            const sl = statusLabel(asset.ohi, asset.hasAnalysis);
             return (
               <button
                 key={asset.id}
                 onClick={() => navigate(`/vessel/${asset.id}`)}
-                className={`flex flex-col items-center p-4 rounded-xl border-2 transition-all hover:shadow-md hover:scale-105 cursor-pointer w-44 ${statusColor(asset.ohi)}`}
+                className={`flex w-44 flex-col items-center rounded-xl border-2 p-4 transition-all hover:scale-105 hover:shadow-md ${statusColor(asset.ohi, asset.hasAnalysis)}`}
               >
                 <OHIGauge value={asset.ohi} size={110} label={asset.asset_name} />
-                <p className={`text-xs font-semibold mt-1 ${sl.cls}`}>{sl.text}</p>
+                <p className={`mt-1 min-h-8 text-center text-xs font-semibold leading-4 ${sl.cls}`}>{sl.text}</p>
                 {asset.latestDate && <p className="text-[10px] text-slate-400 mt-0.5">{ new Date(asset.latestDate).toLocaleDateString('ru-RU') }</p>}
                 {asset.overdueCount > 0 && (
                   <p className="text-[10px] text-red-600 font-semibold mt-1">⚠️ {asset.overdueCount} просроч.</p>
