@@ -314,8 +314,8 @@ export default function Layout() {
       {/* Mobile layout */}
       <div className="flex flex-col flex-1 min-w-0 md:hidden">
         {/* Mobile top header */}
-        <header className="bg-slate-900 text-white px-4 h-14 flex items-center justify-between sticky top-0 z-20 flex-shrink-0">
-          <span className="font-bold text-base">ДонРечФлот</span>
+        <header className={`${isMobilePage ? 'bg-white text-slate-700 border-b border-slate-200 h-10 px-3' : 'bg-slate-900 text-white h-14 px-4'} flex items-center justify-between sticky top-0 z-20 flex-shrink-0`}>
+          {isMobilePage ? <span aria-hidden="true" /> : <span className="font-bold text-base">ДонРечФлот</span>}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <button aria-label="Открыть меню" className="p-1">

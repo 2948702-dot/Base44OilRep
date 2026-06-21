@@ -143,6 +143,22 @@ function LookupField({ value, options, onChange, placeholder, disabled = false, 
   );
 }
 
+function LabHeader({ muted = false }) {
+  return (
+    <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+      <div className="flex items-center gap-3">
+        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${muted ? 'bg-slate-100 text-slate-500' : 'bg-purple-50 text-purple-700'}`}>
+          <FlaskConical className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="text-base font-semibold leading-tight text-slate-900">Ввод результатов</h1>
+          <p className="text-xs leading-tight text-slate-500">Лабораторный анализ масла</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MobileLab() {
   const qc = useQueryClient();
   const { user, isAdmin, isClientAdmin, isLabTechnician } = useRoleAccess();
@@ -322,13 +338,7 @@ export default function MobileLab() {
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col max-w-md mx-auto">
-        <div className="bg-slate-900 text-white px-4 py-4">
-          <div className="flex items-center gap-2">
-            <FlaskConical className="w-5 h-5 text-purple-400" />
-            <h1 className="font-bold text-lg">Ввод результатов</h1>
-          </div>
-          <p className="text-slate-400 text-xs mt-0.5">Лабораторный анализ масла</p>
-        </div>
+        <LabHeader muted />
         <div className="flex-1 p-4">
           <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
             Проверяем права доступа...
@@ -341,13 +351,7 @@ export default function MobileLab() {
   if (!canUseLab) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col max-w-md mx-auto">
-        <div className="bg-slate-900 text-white px-4 py-4">
-          <div className="flex items-center gap-2">
-            <FlaskConical className="w-5 h-5 text-purple-400" />
-            <h1 className="font-bold text-lg">Ввод результатов</h1>
-          </div>
-          <p className="text-slate-400 text-xs mt-0.5">Лабораторный анализ масла</p>
-        </div>
+        <LabHeader muted />
         <div className="flex-1 p-4">
           <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
             Ввод лабораторных анализов доступен только лаборанту или админу франчайзи.
@@ -361,14 +365,7 @@ export default function MobileLab() {
     <div className="min-h-screen bg-slate-50 flex flex-col max-w-md mx-auto">
       {scanner && <QRScanner label="Сканируйте QR банки с пробой" onScan={handleScan} onClose={() => setScanner(false)} />}
 
-      {/* Header */}
-      <div className="bg-slate-900 text-white px-4 py-4 sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <FlaskConical className="w-5 h-5 text-purple-400" />
-          <h1 className="font-bold text-lg">Ввод результатов</h1>
-        </div>
-        <p className="text-slate-400 text-xs mt-0.5">Лабораторный анализ масла</p>
-      </div>
+      <LabHeader />
 
       <div className="flex-1 p-4 overflow-y-auto">
 
