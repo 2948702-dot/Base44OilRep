@@ -23,9 +23,9 @@ Client → Asset → EquipmentUnit → OilSample
 
 **Франчайзи и роли:**
 - `admin` — глобальный администратор платформы SmartOil.
-- `client_admin` — администратор франчайзи/клиента, scoped через `client_id`; не равен глобальному `admin`.
+- `client_admin` — администратор франчайзи/клиента, scoped через `client_id`; не равен глобальному `admin`, но включает права лаборанта и мобильного оператора в своей области.
 - `lab_technician` — лаборант франчайзи/клиента, scoped через `client_id`.
-- `/mobile-lab` доступен только `admin` и `lab_technician`.
+- `/mobile-lab` доступен `admin`, `client_admin` и `lab_technician`.
 - `superintendent` и `captain` не вводят лабораторные анализы; они видят данные в своей области доступа.
 - Прямой доступ к управлению пользователями для `client_admin` не открывать без отдельной backend-функции scoped-приглашений.
 

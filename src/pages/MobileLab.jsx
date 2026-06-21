@@ -145,8 +145,8 @@ function LookupField({ value, options, onChange, placeholder, disabled = false, 
 
 export default function MobileLab() {
   const qc = useQueryClient();
-  const { user, isAdmin, isLabTechnician } = useRoleAccess();
-  const canUseLab = isAdmin || isLabTechnician;
+  const { user, isAdmin, isClientAdmin, isLabTechnician } = useRoleAccess();
+  const canUseLab = isAdmin || isClientAdmin || isLabTechnician;
   const [step, setStep] = useState(0); // 0=search, 1=form, 2=done, 3=manual sample
   const [scanner, setScanner] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -350,7 +350,7 @@ export default function MobileLab() {
         </div>
         <div className="flex-1 p-4">
           <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
-            Ввод лабораторных анализов доступен только лаборанту.
+            Ввод лабораторных анализов доступен только лаборанту или админу франчайзи.
           </div>
         </div>
       </div>

@@ -63,6 +63,7 @@ const NAV = {
         { label: 'Отбор пробы', href: '/mobile-sampling', icon: Droplets },
         { label: 'Долив масла', href: '/mobile-sampling?mode=topup', icon: Plus },
         { label: 'Замена масла', href: '/mobile-sampling?mode=change', icon: Wrench },
+        { label: 'Ввод анализа', href: '/mobile-lab', icon: FlaskConical },
       ]
     }
   ],

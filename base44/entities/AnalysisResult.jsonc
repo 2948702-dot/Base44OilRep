@@ -75,6 +75,18 @@
           "$and": [
             {
               "user_condition": {
+                "role": "client_admin"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
                 "role": "lab_technician"
               }
             },
@@ -153,6 +165,18 @@
           "$and": [
             {
               "user_condition": {
+                "role": "client_admin"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
                 "role": "lab_technician"
               }
             },
@@ -169,6 +193,18 @@
           "user_condition": {
             "role": "admin"
           }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "client_admin"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
         },
         {
           "$and": [
