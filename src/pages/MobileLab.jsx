@@ -49,12 +49,25 @@ export default function MobileLab() {
     queryKey: ['equipment-units'],
     queryFn: () => base44.entities.EquipmentUnit.list()
   });
+  const { data: clients = [] } = useQuery({
+    queryKey: ['clients'],
+    queryFn: () => base44.entities.Client.list()
+  });
+  const { data: assets = [] } = useQuery({
+    queryKey: ['assets'],
+    queryFn: () => base44.entities.Asset.list()
+  });
 
   const pendingSamples = allSamples.filter(s => s.sample_status === 'pending' || s.sample_status === 'in_analysis');
 
   const handleScan = (data) => {
     setScanner(false);
-    const found = allSamples.find(s => s.can_qr_code === data || s.sample_number === data);
+    const normalized = String(data || '').trim().toLowerCase();
+    const found = allSamples.find(s => [
+      s.can_qr_code,
+      s.sample_number,
+      s.external_sample_label,
+    ].some(value => String(value || '').trim().toLowerCase() === normalized));
     if (found) { selectSample(found); }
     else alert('Проба с таким кодом не найдена');
   };
@@ -102,13 +115,29 @@ export default function MobileLab() {
   });
 
   const getUnitName = (id) => equipmentUnits.find(u => u.id === id)?.unit_name || '';
+  const getClientName = (id) => clients.find(c => c.id === id)?.company_name || '';
+  const getAssetName = (id) => assets.find(a => a.id === id)?.asset_name || '';
+  const getContainerLabel = (s) => {
+    if (s.can_qr_code) return `QR: ${s.can_qr_code.slice(0, 20)}${s.can_qr_code.length > 20 ? '...' : ''}`;
+    if (s.external_sample_label) return `Маркировка клиента: ${s.external_sample_label}`;
+    return 'Без QR и номера банки';
+  };
   const selectedUnit = sample ? equipmentUnits.find(u => u.id === sample.equipment_unit_id) : null;
   const selectedOilTypeId = sample?.oil_type_id || selectedUnit?.current_oil_type_id || selectedUnit?.oil_type_id;
 
-  const filtered = pendingSamples.filter(s =>
-    s.sample_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.can_qr_code?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = pendingSamples.filter(s => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return [
+      s.sample_number,
+      s.can_qr_code,
+      s.external_sample_label,
+      getUnitName(s.equipment_unit_id),
+      getAssetName(s.asset_id),
+      getClientName(s.client_id),
+    ].some(value => String(value || '').toLowerCase().includes(query));
+  });
+  const displayedSamples = searchQuery ? filtered : pendingSamples;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col max-w-md mx-auto">
@@ -134,18 +163,18 @@ export default function MobileLab() {
             </Button>
             <div className="relative">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-300" /></div>
-              <div className="relative flex justify-center text-sm"><span className="bg-slate-50 px-3 text-slate-500">или поиск по номеру</span></div>
+              <div className="relative flex justify-center text-sm"><span className="bg-slate-50 px-3 text-slate-500">или выберите из списка</span></div>
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input className="pl-9 h-12 text-base" placeholder="Номер пробы..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+              <Input className="pl-9 h-12 text-base" placeholder="Поиск: клиент, судно, агрегат, № пробы, QR..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
             {(searchQuery || pendingSamples.length > 0) && (
               <div className="space-y-2">
                 <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide">
                   {searchQuery ? `Результаты (${filtered.length})` : `Ожидают анализа (${pendingSamples.length})`}
                 </p>
-                {(searchQuery ? filtered : pendingSamples).map(s => (
+                {displayedSamples.map(s => (
                   <button key={s.id} className="w-full text-left bg-white rounded-xl p-4 border border-slate-200 hover:border-purple-300 active:bg-purple-50"
                     onClick={() => selectSample(s)}>
                     <div className="flex items-center justify-between">
@@ -155,9 +184,17 @@ export default function MobileLab() {
                       </span>
                     </div>
                     <p className="text-sm text-slate-500 mt-1">{getUnitName(s.equipment_unit_id)} · {s.sampling_date}</p>
-                    {s.can_qr_code && <p className="text-xs text-slate-400 mt-0.5">QR: {s.can_qr_code.slice(0, 20)}…</p>}
+                    <p className="text-xs text-slate-400 mt-0.5">{getClientName(s.client_id)} · {getAssetName(s.asset_id)}</p>
+                    <p className={`text-xs mt-1 ${s.can_qr_code || s.external_sample_label ? 'text-slate-400' : 'text-amber-600'}`}>
+                      {getContainerLabel(s)}
+                    </p>
                   </button>
                 ))}
+                {displayedSamples.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                    Ничего не найдено. Можно очистить поиск и выбрать пробу из общего списка ожидающих анализа.
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -171,6 +208,7 @@ export default function MobileLab() {
               <p className="font-bold text-purple-900 font-mono text-lg">{sample.sample_number}</p>
               <p className="text-sm text-purple-700">{getUnitName(sample.equipment_unit_id)}</p>
               <p className="text-xs text-purple-500">{sample.sampling_date}</p>
+              <p className="text-xs text-purple-600 mt-1">{getContainerLabel(sample)}</p>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
