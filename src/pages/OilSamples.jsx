@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { buildPayload } from '@/utils/payload';
@@ -41,6 +41,80 @@ const genSampleNumber = (existing) => {
   const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
   return `${prefix}${String(next).padStart(3, '0')}`;
 };
+
+function LookupField({ value, options, onChange, placeholder, disabled = false, allowClear = true }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const selected = options.find(option => option.id === value);
+    setQuery(selected?.label || '');
+  }, [value, options]);
+
+  useEffect(() => {
+    const handler = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filteredOptions = options
+    .filter(option => `${option.label} ${option.meta || ''}`.toLowerCase().includes(query.trim().toLowerCase()))
+    .slice(0, 12);
+
+  const clear = () => {
+    onChange('');
+    setQuery('');
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <div className="relative">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
+        <Input
+          className="h-8 text-sm pl-6 pr-7"
+          value={query}
+          placeholder={placeholder}
+          disabled={disabled}
+          onFocus={() => !disabled && setOpen(true)}
+          onChange={event => {
+            setQuery(event.target.value);
+            setOpen(true);
+          }}
+        />
+        {allowClear && value && !disabled && (
+          <button type="button" onClick={clear} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+      {open && !disabled && (
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+          {filteredOptions.length > 0 ? filteredOptions.map(option => (
+            <button
+              key={option.id}
+              type="button"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+              onMouseDown={() => {
+                onChange(option.id);
+                setQuery(option.label);
+                setOpen(false);
+              }}
+            >
+              <span className="font-medium text-slate-800">{option.label}</span>
+              {option.meta && <span className="block text-[11px] text-slate-400">{option.meta}</span>}
+            </button>
+          )) : (
+            <div className="px-3 py-3 text-sm text-slate-500">Ничего не найдено</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function OilSamples() {
   const [open, setOpen] = useState(false);
@@ -119,12 +193,20 @@ export default function OilSamples() {
     setForm(p => ({ ...p, attachments: (p.attachments || []).filter(item => item !== url) }));
   };
 
+  const getName = (list, id, field) => list.find(x => x.id === id)?.[field] || '—';
+  const getUnitClientId = (unit) => unit.client_id || assets.find(asset => asset.id === unit.asset_id)?.client_id || '';
   const filtAssets = assets.filter(a => !form.client_id || a.client_id === form.client_id);
-  const filtUnits = units.filter(u => !form.asset_id || u.asset_id === form.asset_id);
+  const filtUnits = units.filter(u =>
+    (!form.client_id || getUnitClientId(u) === form.client_id) &&
+    (!form.asset_id || u.asset_id === form.asset_id)
+  );
   const activeLC = lifecycles.filter(l => {
     if (l.status !== 'active') return false;
     if (form.equipment_unit_id) return l.equipment_unit_id === form.equipment_unit_id;
-    return true;
+    const unit = units.find(u => u.id === l.equipment_unit_id);
+    if (!unit) return false;
+    return (!form.client_id || getUnitClientId(unit) === form.client_id) &&
+      (!form.asset_id || unit.asset_id === form.asset_id);
   });
 
   const filteredAssetOptions = assets.filter(a => filterClient === 'none' || a.client_id === filterClient);
@@ -177,6 +259,27 @@ export default function OilSamples() {
     });
   };
 
+  const clientOptions = clients.map(client => ({
+    id: client.id,
+    label: client.company_name,
+    meta: client.contact_person || client.email || '',
+  }));
+  const assetOptions = filtAssets.map(asset => ({
+    id: asset.id,
+    label: asset.asset_name,
+    meta: getName(clients, asset.client_id, 'company_name'),
+  }));
+  const unitOptions = filtUnits.map(unit => ({
+    id: unit.id,
+    label: unit.unit_name,
+    meta: getName(assets, unit.asset_id, 'asset_name'),
+  }));
+  const oilOptions = oils.map(oil => ({
+    id: oil.id,
+    label: oil.oil_name,
+    meta: oil.manufacturer || '',
+  }));
+
   const filtered = samples.filter(s =>
     (filterClient === 'none' || s.client_id === filterClient) &&
     (filterAsset === 'none' || s.asset_id === filterAsset) &&
@@ -184,8 +287,15 @@ export default function OilSamples() {
     (!searchText || [s.sample_number, s.external_sample_label, s.can_qr_code].some(v => v?.toLowerCase().includes(searchText.toLowerCase())))
   );
 
-  const getName = (list, id, field) => list.find(x => x.id === id)?.[field] || '—';
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const needsAssetAndUnit = form.sample_type === 'in_service';
+  const canSaveSample =
+    form.sample_number &&
+    form.sampling_date &&
+    form.client_id &&
+    (form.sample_type === 'fresh_oil' ? form.oil_type_id : form.asset_id && form.equipment_unit_id && form.engine_state) &&
+    !save.isPending &&
+    !saveAnalysis.isPending;
 
   return (
     <div className="p-6">
@@ -368,7 +478,7 @@ export default function OilSamples() {
           <div className="grid grid-cols-3 gap-3 py-2 max-h-[75vh] overflow-y-auto pr-1">
             <div className="space-y-1">
               <Label>Тип пробы <span className="text-red-500">*</span></Label>
-              <Select value={form.sample_type} onValueChange={v => f('sample_type', v)}>
+              <Select value={form.sample_type} onValueChange={v => setForm(p => ({ ...p, sample_type: v, lifecycle_id: '', applies_to_equipment_unit_ids: [], applies_to_lifecycle_ids: [] }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="fresh_oil">Свежее (базовое) масло</SelectItem>
@@ -476,26 +586,49 @@ export default function OilSamples() {
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
                       <Label className="text-xs">Клиент *</Label>
-                      <Select value={form.client_id} onValueChange={v => setForm(p => ({ ...p, client_id: v, asset_id: '', equipment_unit_id: '', lifecycle_id: '' }))}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Клиент" /></SelectTrigger>
-                        <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}</SelectContent>
-                      </Select>
+                      <LookupField
+                        value={form.client_id}
+                        options={clientOptions}
+                        placeholder="Найти клиента..."
+                        onChange={v => setForm(p => ({ ...p, client_id: v, asset_id: '', equipment_unit_id: '', lifecycle_id: '', applies_to_equipment_unit_ids: [], applies_to_lifecycle_ids: [] }))}
+                      />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Актив</Label>
-                      <Select value={form.asset_id} onValueChange={v => setForm(p => ({ ...p, asset_id: v, equipment_unit_id: '', lifecycle_id: '' }))} disabled={!form.client_id}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.client_id ? 'Актив' : '← сначала клиент'} /></SelectTrigger>
-                        <SelectContent>{filtAssets.map(a => <SelectItem key={a.id} value={a.id}>{a.asset_name}</SelectItem>)}</SelectContent>
-                      </Select>
+                      <Label className="text-xs">Актив{needsAssetAndUnit ? ' *' : ''}</Label>
+                      <LookupField
+                        value={form.asset_id}
+                        options={assetOptions}
+                        placeholder={form.client_id ? 'Найти актив...' : 'сначала клиент'}
+                        disabled={!form.client_id}
+                        onChange={v => setForm(p => ({ ...p, asset_id: v, equipment_unit_id: '', lifecycle_id: '', applies_to_equipment_unit_ids: [], applies_to_lifecycle_ids: [] }))}
+                      />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Оборудование</Label>
-                      <Select value={form.equipment_unit_id} onValueChange={v => { const unit = units.find(u => u.id === v); setForm(p => ({ ...p, equipment_unit_id: v, lifecycle_id: '', oil_type_id: unit?.current_oil_type_id || unit?.oil_type_id || p.oil_type_id })); }} disabled={!form.asset_id}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder={form.asset_id ? 'Оборудование' : '← сначала актив'} /></SelectTrigger>
-                        <SelectContent>{filtUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.unit_name}</SelectItem>)}</SelectContent>
-                      </Select>
+                      <Label className="text-xs">Агрегат / узел{needsAssetAndUnit ? ' *' : ''}</Label>
+                      <LookupField
+                        value={form.equipment_unit_id}
+                        options={unitOptions}
+                        placeholder={form.client_id ? 'Найти агрегат...' : 'сначала клиент'}
+                        disabled={!form.client_id}
+                        onChange={v => {
+                          const unit = units.find(u => u.id === v);
+                          const unitOilId = unit?.current_oil_type_id || unit?.oil_type_id || '';
+                          setForm(p => ({
+                            ...p,
+                            asset_id: unit?.asset_id || p.asset_id,
+                            equipment_unit_id: v,
+                            lifecycle_id: '',
+                            oil_type_id: p.sample_type === 'in_service' ? unitOilId || p.oil_type_id : p.oil_type_id || unitOilId,
+                          }));
+                        }}
+                      />
                     </div>
                   </div>
+                  {form.sample_type === 'fresh_oil' && (
+                    <p className="text-xs text-slate-500">
+                      Для базового свежего масла достаточно выбрать клиента и масло. Актив и агрегат можно указать сразу или назначить ниже галочками.
+                    </p>
+                  )}
                   <HierarchyPath
                     client={clients.find(c => c.id === form.client_id)?.company_name}
                     asset={assets.find(a => a.id === form.asset_id)?.asset_name}
@@ -507,12 +640,14 @@ export default function OilSamples() {
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <Label className="text-xs">Масло *</Label>
-                        <Select value={form.oil_type_id} onValueChange={v => setForm(p => ({ ...p, oil_type_id: v, applies_to_equipment_unit_ids: [], applies_to_lifecycle_ids: [] }))}>
-                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Выберите масло" /></SelectTrigger>
-                          <SelectContent>{oils.map(o => <SelectItem key={o.id} value={o.id}>{o.oil_name}</SelectItem>)}</SelectContent>
-                        </Select>
+                        <LookupField
+                          value={form.oil_type_id}
+                          options={oilOptions}
+                          placeholder="Найти масло..."
+                          onChange={v => setForm(p => ({ ...p, oil_type_id: v, applies_to_equipment_unit_ids: [], applies_to_lifecycle_ids: [] }))}
+                        />
                       </div>
-                      {activeLC.length > 0 && (
+                      {form.equipment_unit_id && activeLC.length > 0 && (
                         <div className="space-y-1">
                           <Label className="text-xs">База для цикла масла</Label>
                           <Select value={form.lifecycle_id} onValueChange={v => f('lifecycle_id', v)}>
@@ -527,7 +662,7 @@ export default function OilSamples() {
                         <div className="flex items-center justify-between gap-2">
                           <div>
                             <p className="text-xs font-semibold text-slate-700">Назначить базовую пробу</p>
-                            <p className="text-[11px] text-slate-500">Выберите агрегаты этого актива с тем же маслом.</p>
+                            <p className="text-[11px] text-slate-500">Выберите агрегаты клиента/актива с тем же маслом.</p>
                           </div>
                           <div className="flex gap-1">
                             <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={setAllBaselineTargets} disabled={baselineUnitOptions.length === 0}>
@@ -539,7 +674,7 @@ export default function OilSamples() {
                           </div>
                         </div>
                         {baselineUnitOptions.length === 0 ? (
-                          <p className="text-xs text-slate-400">Нет агрегатов с выбранным маслом в этом активе.</p>
+                          <p className="text-xs text-slate-400">Нет агрегатов с выбранным маслом для выбранного клиента/актива.</p>
                         ) : (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                             {baselineUnitOptions.map(unit => {
@@ -656,7 +791,8 @@ export default function OilSamples() {
                   if (hasAnalysisData) {
                     const realSampleId = savedSample?.id || form.id;
                     const existingAnalysis = results.find(r => r.sample_id === realSampleId);
-                    const analysisData = { sample_id: realSampleId, client_id: form.client_id, asset_id: form.asset_id };
+                    const analysisData = { sample_id: realSampleId, client_id: form.client_id };
+                    if (form.asset_id) analysisData.asset_id = form.asset_id;
                     if (iron_mg_l !== undefined && iron_mg_l !== '') analysisData.iron_mg_l = iron_mg_l;
                     if (water_ppm !== undefined && water_ppm !== '') analysisData.water_ppm = water_ppm;
                     if (water_activity !== undefined && water_activity !== '') analysisData.water_activity = water_activity;
@@ -671,7 +807,7 @@ export default function OilSamples() {
                   }
                 }
               });
-            }} disabled={!form.sample_number || !form.sampling_date || !form.client_id || !form.asset_id || !form.equipment_unit_id || (form.sample_type === 'fresh_oil' && !form.oil_type_id) || (form.sample_type === 'in_service' && !form.engine_state) || save.isPending || saveAnalysis.isPending}>
+            }} disabled={!canSaveSample}>
               {save.isPending || saveAnalysis.isPending ? 'Сохранение...' : 'Сохранить'}
             </Button>
           </DialogFooter>
