@@ -43,6 +43,29 @@ const NAV = {
       ]
     }
   ],
+  client_admin: [
+    {
+      title: 'Управление',
+      items: [
+        { label: 'Дашборд', href: '/', icon: Home },
+        { label: 'Активы', href: '/assets', icon: Package },
+        { label: 'Агрегаты', href: '/equipment-units', icon: Cog },
+        { label: 'Флот', href: '/fleet', icon: ShoppingCart },
+        { label: 'Критические', href: '/critical', icon: AlertCircle },
+        { label: 'Пробы масла', href: '/oil-samples', icon: Droplets },
+        { label: 'Результаты', href: '/analysis-results', icon: TrendingUp },
+        { label: 'QR-коды', href: '/qr-manager', icon: QrCode },
+      ]
+    },
+    {
+      title: 'Мобильное',
+      items: [
+        { label: 'Отбор пробы', href: '/mobile-sampling', icon: Droplets },
+        { label: 'Долив масла', href: '/mobile-sampling?mode=topup', icon: Plus },
+        { label: 'Замена масла', href: '/mobile-sampling?mode=change', icon: Wrench },
+      ]
+    }
+  ],
   superintendent: [
     {
       title: 'Флот',
@@ -66,6 +89,13 @@ const NAV = {
         { label: 'Отбор пробы', href: '/mobile-sampling', icon: Droplets },
         { label: 'Долив масла', href: '/mobile-sampling?mode=topup', icon: Plus },
         { label: 'Замена масла', href: '/mobile-sampling?mode=change', icon: Wrench },
+      ]
+    }
+  ],
+  lab_technician: [
+    {
+      title: 'Лаборатория',
+      items: [
         { label: 'Ввод анализа', href: '/mobile-lab', icon: FlaskConical },
       ]
     }
@@ -130,7 +160,7 @@ function RolePreviewPanel() {
       return;
     }
 
-    if (nextRole === 'superintendent') {
+    if (nextRole === 'client_admin' || nextRole === 'lab_technician' || nextRole === 'superintendent') {
       updatePreview({ role: nextRole, client_id: clients[0]?.id || '' });
       return;
     }
@@ -145,7 +175,7 @@ function RolePreviewPanel() {
   };
 
   const handleClientChange = (client_id) => {
-    updatePreview({ role: 'superintendent', client_id });
+    updatePreview({ role: previewRole, client_id });
   };
 
   const handleAssetChange = (asset_id) => {
@@ -168,12 +198,14 @@ function RolePreviewPanel() {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="admin">Администратор</SelectItem>
+          <SelectItem value="client_admin">Админ клиента</SelectItem>
+          <SelectItem value="lab_technician">Лаборант</SelectItem>
           <SelectItem value="superintendent">Суперинтендант</SelectItem>
           <SelectItem value="captain">Ответственный</SelectItem>
         </SelectContent>
       </Select>
 
-      {previewRole === 'superintendent' && (
+      {(previewRole === 'client_admin' || previewRole === 'lab_technician' || previewRole === 'superintendent') && (
         <Select value={selectedClientId} onValueChange={handleClientChange}>
           <SelectTrigger className="h-9 text-xs">
             <SelectValue placeholder="Клиент" />
@@ -256,15 +288,17 @@ function NavContent({ roleNav, location, onClose, previewPanel }) {
 
 export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { user, isAdmin, isSuperintendent, isCaptain } = useRoleAccess();
+  const { user, isAdmin, isClientAdmin, isSuperintendent, isCaptain, isLabTechnician } = useRoleAccess();
   const location = useLocation();
 
   let groups = [];
   if (isAdmin) groups = NAV.admin;
+  else if (isClientAdmin) groups = NAV.client_admin;
+  else if (isLabTechnician) groups = NAV.lab_technician;
   else if (isSuperintendent) groups = NAV.superintendent;
   else if (isCaptain) groups = NAV.captain;
 
-  const roleLabel = isAdmin ? 'Администратор' : isSuperintendent ? 'Суперинтендант' : 'Ответственный';
+  const roleLabel = isAdmin ? 'Администратор' : isClientAdmin ? 'Админ клиента' : isLabTechnician ? 'Лаборант' : isSuperintendent ? 'Суперинтендант' : 'Ответственный';
   const roleNav = { groups, _roleLabel: roleLabel, _userName: user?.full_name || 'User' };
 
   const isMobilePage = location.pathname === '/mobile-sampling' || location.pathname === '/mobile-lab';

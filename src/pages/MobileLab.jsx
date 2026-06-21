@@ -1,13 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { buildPayload } from '@/utils/payload';
+import { OIL_SAMPLE_FIELDS, OIL_SAMPLE_NUMBER_FIELDS } from '@/utils/entityFields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Camera, Search, CheckCircle2, FlaskConical, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Camera, Search, CheckCircle2, FlaskConical, ChevronRight, ChevronLeft, X } from 'lucide-react';
 import QRScanner from '@/components/mobile/QRScanner';
 import { getThresholdSeverity, resolveThresholdRule } from '@/utils/thresholdRules';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
 
 const PARAMS = [
   { key: 'iron_mg_l', label: 'Железо', unit: 'мг/л' },
@@ -28,34 +32,158 @@ function StatusDot({ value, rule }) {
   return <span className={`w-3 h-3 rounded-full ${color} flex-shrink-0 mt-1`} />;
 }
 
+const today = () => new Date().toISOString().split('T')[0];
+
+const genSampleNumber = (existing) => {
+  const year = new Date().getFullYear();
+  const prefix = `SO-${year}-`;
+  const nums = existing
+    .map(s => s.sample_number)
+    .filter(n => n && n.startsWith(prefix))
+    .map(n => parseInt(n.replace(prefix, ''), 10))
+    .filter(n => !Number.isNaN(n));
+  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+  return `${prefix}${String(next).padStart(3, '0')}`;
+};
+
+const makeManualForm = (existingSamples) => {
+  const date = today();
+  return {
+    sample_type: 'fresh_oil',
+    sample_number: genSampleNumber(existingSamples),
+    sample_origin: 'client_delivered',
+    container_type: 'client_container',
+    external_sample_label: '',
+    can_qr_code: '',
+    client_id: '',
+    asset_id: '',
+    equipment_unit_id: '',
+    oil_type_id: '',
+    sampling_date: date,
+    received_date: date,
+    hours_source: 'reported_by_client',
+    engine_state: 'warm',
+    sample_status: 'in_analysis',
+    comments: '',
+    attachments: [],
+  };
+};
+
+function LookupField({ value, options, onChange, placeholder, disabled = false, allowClear = true }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const selected = options.find(option => option.id === value);
+    setQuery(selected?.label || '');
+  }, [value, options]);
+
+  useEffect(() => {
+    const handler = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filtered = options
+    .filter(option => `${option.label} ${option.meta || ''}`.toLowerCase().includes(query.trim().toLowerCase()))
+    .slice(0, 12);
+
+  const clear = () => {
+    onChange('');
+    setQuery('');
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Input
+          className="h-12 pl-9 pr-9 text-base"
+          value={query}
+          placeholder={placeholder}
+          disabled={disabled}
+          onFocus={() => !disabled && setOpen(true)}
+          onChange={event => {
+            setQuery(event.target.value);
+            setOpen(true);
+          }}
+        />
+        {allowClear && value && !disabled && (
+          <button type="button" onClick={clear} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+      {open && !disabled && (
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+          {filtered.length > 0 ? filtered.map(option => (
+            <button
+              key={option.id}
+              type="button"
+              className="w-full text-left px-3 py-3 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+              onMouseDown={() => {
+                onChange(option.id);
+                setQuery(option.label);
+                setOpen(false);
+              }}
+            >
+              <span className="font-medium text-slate-800">{option.label}</span>
+              {option.meta && <span className="block text-xs text-slate-400 mt-0.5">{option.meta}</span>}
+            </button>
+          )) : (
+            <div className="px-3 py-4 text-sm text-slate-500">Ничего не найдено</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MobileLab() {
   const qc = useQueryClient();
-  const [step, setStep] = useState(0); // 0=search, 1=form, 2=done
+  const { user, isAdmin, isLabTechnician } = useRoleAccess();
+  const canUseLab = isAdmin || isLabTechnician;
+  const [step, setStep] = useState(0); // 0=search, 1=form, 2=done, 3=manual sample
   const [scanner, setScanner] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sample, setSample] = useState(null);
   const [results, setResults] = useState({});
   const [recommendation, setRecommendation] = useState('');
+  const [manualForm, setManualForm] = useState(() => makeManualForm([]));
 
   const { data: allSamples = [] } = useQuery({
     queryKey: ['oil-samples'],
-    queryFn: () => base44.entities.OilSample.list()
+    queryFn: () => base44.entities.OilSample.list(),
+    enabled: canUseLab,
   });
   const { data: thresholds = [] } = useQuery({
     queryKey: ['threshold-rules'],
-    queryFn: () => base44.entities.ThresholdRule.list()
+    queryFn: () => base44.entities.ThresholdRule.list(),
+    enabled: canUseLab,
   });
   const { data: equipmentUnits = [] } = useQuery({
     queryKey: ['equipment-units'],
-    queryFn: () => base44.entities.EquipmentUnit.list()
+    queryFn: () => base44.entities.EquipmentUnit.list(),
+    enabled: canUseLab,
   });
   const { data: clients = [] } = useQuery({
     queryKey: ['clients'],
-    queryFn: () => base44.entities.Client.list()
+    queryFn: () => base44.entities.Client.list(),
+    enabled: canUseLab,
   });
   const { data: assets = [] } = useQuery({
     queryKey: ['assets'],
-    queryFn: () => base44.entities.Asset.list()
+    queryFn: () => base44.entities.Asset.list(),
+    enabled: canUseLab,
+  });
+  const { data: oils = [] } = useQuery({
+    queryKey: ['oil-references'],
+    queryFn: () => base44.entities.OilReference.list(),
+    enabled: canUseLab,
   });
 
   const pendingSamples = allSamples.filter(s => s.sample_status === 'pending' || s.sample_status === 'in_analysis');
@@ -101,7 +229,8 @@ export default function MobileLab() {
       });
       // Upsert: update existing result if any, create otherwise
       const existing = await base44.entities.AnalysisResult.filter({ sample_id: sample.id });
-      const resultData = { sample_id: sample.id, ...numericResults, recommendation_text: recommendation, overall_status: overall };
+      const resultData = { sample_id: sample.id, client_id: sample.client_id, ...numericResults, recommendation_text: recommendation, overall_status: overall };
+      if (sample.asset_id) resultData.asset_id = sample.asset_id;
       if (existing.length > 0) {
         await base44.entities.AnalysisResult.update(existing[0].id, resultData);
       } else {
@@ -114,9 +243,34 @@ export default function MobileLab() {
     onSuccess: () => setStep(2),
   });
 
+  const createManualSample = useMutation({
+    mutationFn: async () => {
+      const unit = equipmentUnits.find(u => u.id === manualForm.equipment_unit_id);
+      const data = {
+        ...manualForm,
+        asset_id: manualForm.asset_id || unit?.asset_id || '',
+        oil_type_id: manualForm.oil_type_id || unit?.current_oil_type_id || unit?.oil_type_id || '',
+        equipment_unit_id: manualForm.equipment_unit_id || '',
+        engine_state: manualForm.sample_type === 'in_service' ? manualForm.engine_state : null,
+        sample_status: 'in_analysis',
+      };
+      const payload = buildPayload(data, OIL_SAMPLE_FIELDS, OIL_SAMPLE_NUMBER_FIELDS);
+      return base44.entities.OilSample.create(payload);
+    },
+    onSuccess: (createdSample) => {
+      qc.invalidateQueries({ queryKey: ['oil-samples'] });
+      setSample(createdSample);
+      setResults({});
+      setRecommendation('');
+      setStep(1);
+    },
+  });
+
   const getUnitName = (id) => equipmentUnits.find(u => u.id === id)?.unit_name || '';
   const getClientName = (id) => clients.find(c => c.id === id)?.company_name || '';
   const getAssetName = (id) => assets.find(a => a.id === id)?.asset_name || '';
+  const getOilName = (id) => oils.find(o => o.id === id)?.oil_name || '';
+  const getUnitClientId = (unit) => unit?.client_id || assets.find(a => a.id === unit?.asset_id)?.client_id || '';
   const getContainerLabel = (s) => {
     if (s.can_qr_code) return `QR: ${s.can_qr_code.slice(0, 20)}${s.can_qr_code.length > 20 ? '...' : ''}`;
     if (s.external_sample_label) return `Маркировка клиента: ${s.external_sample_label}`;
@@ -138,6 +292,70 @@ export default function MobileLab() {
     ].some(value => String(value || '').toLowerCase().includes(query));
   });
   const displayedSamples = searchQuery ? filtered : pendingSamples;
+  const manualAssets = assets.filter(a => !manualForm.client_id || a.client_id === manualForm.client_id);
+  const manualUnits = equipmentUnits.filter(u =>
+    (!manualForm.client_id || getUnitClientId(u) === manualForm.client_id) &&
+    (!manualForm.asset_id || u.asset_id === manualForm.asset_id)
+  );
+  const clientOptions = clients.map(c => ({ id: c.id, label: c.company_name, meta: c.contact_person || c.email || '' }));
+  const assetOptions = manualAssets.map(a => ({ id: a.id, label: a.asset_name, meta: getClientName(a.client_id) }));
+  const unitOptions = manualUnits.map(u => ({ id: u.id, label: u.unit_name, meta: getAssetName(u.asset_id) }));
+  const oilOptions = oils.map(o => ({ id: o.id, label: o.oil_name, meta: o.manufacturer || '' }));
+  const canCreateManualSample =
+    manualForm.sample_number &&
+    manualForm.sampling_date &&
+    manualForm.client_id &&
+    (
+      manualForm.sample_type === 'fresh_oil'
+        ? manualForm.oil_type_id
+        : manualForm.asset_id && manualForm.equipment_unit_id && manualForm.engine_state
+    ) &&
+    !createManualSample.isPending;
+
+  const openManualForm = () => {
+    setManualForm(makeManualForm(allSamples));
+    setResults({});
+    setRecommendation('');
+    setStep(3);
+  };
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col max-w-md mx-auto">
+        <div className="bg-slate-900 text-white px-4 py-4">
+          <div className="flex items-center gap-2">
+            <FlaskConical className="w-5 h-5 text-purple-400" />
+            <h1 className="font-bold text-lg">Ввод результатов</h1>
+          </div>
+          <p className="text-slate-400 text-xs mt-0.5">Лабораторный анализ масла</p>
+        </div>
+        <div className="flex-1 p-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
+            Проверяем права доступа...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!canUseLab) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col max-w-md mx-auto">
+        <div className="bg-slate-900 text-white px-4 py-4">
+          <div className="flex items-center gap-2">
+            <FlaskConical className="w-5 h-5 text-purple-400" />
+            <h1 className="font-bold text-lg">Ввод результатов</h1>
+          </div>
+          <p className="text-slate-400 text-xs mt-0.5">Лабораторный анализ масла</p>
+        </div>
+        <div className="flex-1 p-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+            Ввод лабораторных анализов доступен только лаборанту.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col max-w-md mx-auto">
@@ -160,6 +378,9 @@ export default function MobileLab() {
             <Button className="w-full h-14 text-base gap-3" onClick={() => setScanner(true)}>
               <Camera className="w-5 h-5" />
               Сканировать QR банки
+            </Button>
+            <Button variant="outline" className="w-full h-14 text-base gap-3 bg-white" onClick={openManualForm}>
+              Нет QR — ввести пробу вручную
             </Button>
             <div className="relative">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-300" /></div>
@@ -200,13 +421,138 @@ export default function MobileLab() {
           </div>
         )}
 
+        {/* Step 3: Manual sample creation */}
+        {step === 3 && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Проба без QR</p>
+                <p className="text-xs text-slate-500 mt-0.5">Заполните данные банки, затем сразу внесите результаты анализа.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm">Тип пробы</Label>
+                <Select value={manualForm.sample_type} onValueChange={value => setManualForm(p => ({ ...p, sample_type: value, asset_id: '', equipment_unit_id: '', oil_type_id: value === 'fresh_oil' ? p.oil_type_id : '' }))}>
+                  <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fresh_oil">Свежее (базовое) масло</SelectItem>
+                    <SelectItem value="in_service">Масло из узла</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-sm">№ пробы</Label>
+                  <Input className="h-12 text-base" value={manualForm.sample_number} onChange={e => setManualForm(p => ({ ...p, sample_number: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Дата</Label>
+                  <Input className="h-12 text-base" type="date" value={manualForm.sampling_date} onChange={e => setManualForm(p => ({ ...p, sampling_date: e.target.value, received_date: e.target.value }))} />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm">Клиент *</Label>
+                <LookupField
+                  value={manualForm.client_id}
+                  options={clientOptions}
+                  placeholder="Найти клиента..."
+                  onChange={value => setManualForm(p => ({ ...p, client_id: value, asset_id: '', equipment_unit_id: '' }))}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm">Актив{manualForm.sample_type === 'in_service' ? ' *' : ''}</Label>
+                <LookupField
+                  value={manualForm.asset_id}
+                  options={assetOptions}
+                  placeholder={manualForm.client_id ? 'Найти актив...' : 'сначала клиент'}
+                  disabled={!manualForm.client_id}
+                  onChange={value => setManualForm(p => ({ ...p, asset_id: value, equipment_unit_id: '' }))}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm">Агрегат / узел{manualForm.sample_type === 'in_service' ? ' *' : ''}</Label>
+                <LookupField
+                  value={manualForm.equipment_unit_id}
+                  options={unitOptions}
+                  placeholder={manualForm.client_id ? 'Найти агрегат...' : 'сначала клиент'}
+                  disabled={!manualForm.client_id}
+                  onChange={value => {
+                    const unit = equipmentUnits.find(u => u.id === value);
+                    const unitOilId = unit?.current_oil_type_id || unit?.oil_type_id || '';
+                    setManualForm(p => ({
+                      ...p,
+                      asset_id: unit?.asset_id || p.asset_id,
+                      equipment_unit_id: value,
+                      oil_type_id: p.sample_type === 'in_service' ? unitOilId || p.oil_type_id : p.oil_type_id || unitOilId,
+                    }));
+                  }}
+                />
+              </div>
+
+              {manualForm.sample_type === 'fresh_oil' && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Базовое масло *</Label>
+                  <LookupField
+                    value={manualForm.oil_type_id}
+                    options={oilOptions}
+                    placeholder="Найти масло..."
+                    onChange={value => setManualForm(p => ({ ...p, oil_type_id: value }))}
+                  />
+                </div>
+              )}
+
+              {manualForm.sample_type === 'in_service' && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Состояние агрегата</Label>
+                  <Select value={manualForm.engine_state} onValueChange={value => setManualForm(p => ({ ...p, engine_state: value }))}>
+                    <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="warm">Тёплый</SelectItem>
+                      <SelectItem value="cold">Холодный</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label className="text-sm">Надпись клиента / комментарий</Label>
+                <Input className="h-12 text-base" value={manualForm.external_sample_label} onChange={e => setManualForm(p => ({ ...p, external_sample_label: e.target.value }))} placeholder="если есть" />
+              </div>
+
+              {manualForm.sample_type === 'fresh_oil' && (
+                <p className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-700">
+                  Для базового масла достаточно клиента и масла. Актив и агрегат можно указать, если известно куда применять базу.
+                </p>
+              )}
+
+              {createManualSample.isError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  Ошибка создания пробы: {createManualSample.error?.message || 'Base44 не принял данные'}
+                </div>
+              )}
+            </div>
+
+            <Button className="w-full h-14 text-base" onClick={() => createManualSample.mutate()} disabled={!canCreateManualSample}>
+              {createManualSample.isPending ? 'Создание...' : 'Продолжить к анализу'}
+              <ChevronRight className="w-5 h-5 ml-1" />
+            </Button>
+            <Button variant="ghost" className="w-full" onClick={() => setStep(0)}>
+              <ChevronLeft className="w-4 h-4 mr-1" />Назад
+            </Button>
+          </div>
+        )}
+
         {/* Step 1: Results form */}
         {step === 1 && sample && (
           <div className="space-y-4">
             <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
               <p className="text-xs text-purple-600 font-medium uppercase tracking-wide mb-1">Проба</p>
               <p className="font-bold text-purple-900 font-mono text-lg">{sample.sample_number}</p>
-              <p className="text-sm text-purple-700">{getUnitName(sample.equipment_unit_id)}</p>
+              <p className="text-sm text-purple-700">{getUnitName(sample.equipment_unit_id) || getOilName(sample.oil_type_id) || getClientName(sample.client_id)}</p>
               <p className="text-xs text-purple-500">{sample.sampling_date}</p>
               <p className="text-xs text-purple-600 mt-1">{getContainerLabel(sample)}</p>
             </div>

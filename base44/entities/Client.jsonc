@@ -47,6 +47,30 @@
           "$and": [
             {
               "user_condition": {
+                "role": "client_admin"
+              }
+            },
+            {
+              "id": "{{user.client_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "lab_technician"
+              }
+            },
+            {
+              "id": "{{user.client_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
                 "role": "superintendent"
               }
             },

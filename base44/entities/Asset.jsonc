@@ -50,6 +50,18 @@
           "$and": [
             {
               "user_condition": {
+                "role": "client_admin"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
                 "role": "superintendent"
               }
             },
@@ -78,6 +90,42 @@
           "user_condition": {
             "role": "admin"
           }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "client_admin"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "lab_technician"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "superintendent"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
         },
         {
           "$and": [
@@ -116,6 +164,18 @@
           "$and": [
             {
               "user_condition": {
+                "role": "client_admin"
+              }
+            },
+            {
+              "data.client_id": "{{user.client_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
                 "role": "superintendent"
               }
             },
@@ -149,7 +209,7 @@
           "$and": [
             {
               "user_condition": {
-                "role": "superintendent"
+                "role": "client_admin"
               }
             },
             {

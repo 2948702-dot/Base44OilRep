@@ -21,6 +21,14 @@ Client → Asset → EquipmentUnit → OilSample
 - Отдельной сущности `SamplingPoint` нет: один `EquipmentUnit` является единственным местом отбора.
 - QR и способ отбора хранятся в `EquipmentUnit.sampling_qr_code` и `EquipmentUnit.sampling_method`.
 
+**Франчайзи и роли:**
+- `admin` — глобальный администратор платформы SmartOil.
+- `client_admin` — администратор франчайзи/клиента, scoped через `client_id`; не равен глобальному `admin`.
+- `lab_technician` — лаборант франчайзи/клиента, scoped через `client_id`.
+- `/mobile-lab` доступен только `admin` и `lab_technician`.
+- `superintendent` и `captain` не вводят лабораторные анализы; они видят данные в своей области доступа.
+- Прямой доступ к управлению пользователями для `client_admin` не открывать без отдельной backend-функции scoped-приглашений.
+
 Подробнее: `src/docs/operating-hours-architecture.md`, `src/USER_MANAGEMENT_GUIDE.md`.
 
 Обязательная карта документации:

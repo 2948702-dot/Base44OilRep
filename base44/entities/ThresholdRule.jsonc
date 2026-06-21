@@ -171,6 +171,44 @@
           "$and": [
             {
               "user_condition": {
+                "role": "client_admin"
+              }
+            },
+            {
+              "$or": [
+                {
+                  "data.client_id": null
+                },
+                {
+                  "data.client_id": "{{user.client_id}}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "lab_technician"
+              }
+            },
+            {
+              "$or": [
+                {
+                  "data.client_id": null
+                },
+                {
+                  "data.client_id": "{{user.client_id}}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
                 "role": "superintendent"
               }
             },

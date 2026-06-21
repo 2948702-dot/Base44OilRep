@@ -7,6 +7,8 @@
       "title": "Role",
       "enum": [
         "admin",
+        "client_admin",
+        "lab_technician",
         "superintendent",
         "captain"
       ]

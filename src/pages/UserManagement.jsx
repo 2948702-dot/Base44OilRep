@@ -9,12 +9,16 @@ import { UserPlus, Trash2 } from 'lucide-react';
 
 const ROLE_LABELS = {
   admin: 'Администратор',
+  client_admin: 'Админ клиента',
+  lab_technician: 'Лаборант',
   superintendent: 'Суперинтендант',
   captain: 'Ответственный за актив',
 };
 
 const ROLE_BADGES = {
   admin: 'bg-red-100 text-red-700',
+  client_admin: 'bg-orange-100 text-orange-700',
+  lab_technician: 'bg-purple-100 text-purple-700',
   superintendent: 'bg-blue-100 text-blue-700',
   captain: 'bg-green-100 text-green-700',
 };
@@ -43,9 +47,24 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
-  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: () => base44.entities.User.list() });
-  const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: () => base44.entities.Asset.list() });
-  const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list() });
+  const canManageUsers = currentUser?.role === 'admin' || currentUser?.role === 'superintendent';
+  const canLoadManagementData = Boolean(currentUser && canManageUsers);
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => base44.entities.User.list(),
+    enabled: canLoadManagementData,
+  });
+  const { data: assets = [] } = useQuery({
+    queryKey: ['assets'],
+    queryFn: () => base44.entities.Asset.list(),
+    enabled: canLoadManagementData,
+  });
+  const { data: clients = [] } = useQuery({
+    queryKey: ['clients'],
+    queryFn: () => base44.entities.Client.list(),
+    enabled: canLoadManagementData,
+  });
 
   useEffect(() => {
     const getUser = async () => {
@@ -56,11 +75,31 @@ export default function UserManagement() {
   }, []);
 
   const availableAssets = useMemo(() => {
-    if (currentUser?.role === 'superintendent') {
+    if (currentUser?.role === 'client_admin' || currentUser?.role === 'superintendent') {
       return assets.filter(asset => asset.client_id === currentUser.client_id);
     }
     return assets;
   }, [assets, currentUser]);
+
+  if (!currentUser) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 text-slate-500">
+          Проверяем права доступа...
+        </div>
+      </div>
+    );
+  }
+
+  if (currentUser && !canManageUsers) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
+          Управление пользователями доступно только администратору платформы и суперинтенданту.
+        </div>
+      </div>
+    );
+  }
 
   const findInvitedUser = async (targetEmail, invitationResult) => {
     const directUser = invitationResult?.user || invitationResult?.data || invitationResult;
@@ -87,8 +126,13 @@ export default function UserManagement() {
       return;
     }
 
-    if (currentUser.role === 'captain') {
-      alert('У ответственного за актив нет прав приглашать пользователей.');
+    if (currentUser.role === 'captain' || currentUser.role === 'lab_technician') {
+      alert('У этой роли нет прав приглашать пользователей.');
+      return;
+    }
+
+    if (currentUser.role === 'client_admin' && !['lab_technician', 'superintendent', 'captain'].includes(role)) {
+      alert('Админ клиента может приглашать только пользователей своего клиента.');
       return;
     }
 
@@ -97,8 +141,13 @@ export default function UserManagement() {
       return;
     }
 
-    if (role === 'superintendent' && !clientId) {
-      alert('Выберите клиента для суперинтенданта.');
+    const scopedClientId = currentUser.role === 'client_admin' || currentUser.role === 'superintendent'
+      ? currentUser.client_id
+      : clientId;
+    const clientScopedRoles = ['client_admin', 'lab_technician', 'superintendent'];
+
+    if (clientScopedRoles.includes(role) && !scopedClientId) {
+      alert('Выберите клиента для этой роли.');
       return;
     }
 
@@ -108,14 +157,14 @@ export default function UserManagement() {
     }
 
     const selectedAsset = availableAssets.find(asset => asset.id === assetId);
-    if (role === 'captain' && currentUser.role === 'superintendent' && selectedAsset?.client_id !== currentUser.client_id) {
+    if (role === 'captain' && ['client_admin', 'superintendent'].includes(currentUser.role) && selectedAsset?.client_id !== currentUser.client_id) {
       alert('Можно назначить только актив своего клиента.');
       return;
     }
 
     const assignment = {
       role,
-      client_id: role === 'superintendent' ? clientId : role === 'captain' ? selectedAsset?.client_id || '' : '',
+      client_id: clientScopedRoles.includes(role) ? scopedClientId : role === 'captain' ? selectedAsset?.client_id || '' : '',
       asset_id: role === 'captain' ? selectedAsset?.id || '' : '',
       asset_ids: role === 'captain' && selectedAsset?.id ? [selectedAsset.id] : [],
       position_title: role === 'captain' ? positionTitle : '',
@@ -154,7 +203,7 @@ export default function UserManagement() {
   };
 
   const getAssignmentLabel = (user) => {
-    if (user.role === 'superintendent') {
+    if (['client_admin', 'lab_technician', 'superintendent'].includes(user.role)) {
       return clients.find(client => client.id === user.client_id)?.company_name || '-';
     }
 
@@ -244,6 +293,14 @@ export default function UserManagement() {
                   {currentUser?.role === 'admin' && (
                     <>
                       <SelectItem value="admin">Администратор</SelectItem>
+                      <SelectItem value="client_admin">Админ клиента</SelectItem>
+                      <SelectItem value="lab_technician">Лаборант</SelectItem>
+                      <SelectItem value="superintendent">Суперинтендант</SelectItem>
+                    </>
+                  )}
+                  {currentUser?.role === 'client_admin' && (
+                    <>
+                      <SelectItem value="lab_technician">Лаборант</SelectItem>
                       <SelectItem value="superintendent">Суперинтендант</SelectItem>
                     </>
                   )}
@@ -251,7 +308,7 @@ export default function UserManagement() {
                 </SelectContent>
               </Select>
             </div>
-            {currentUser?.role === 'admin' && role === 'superintendent' && (
+            {currentUser?.role === 'admin' && ['client_admin', 'lab_technician', 'superintendent'].includes(role) && (
               <div>
                 <label className="text-sm font-medium text-slate-900 block mb-1">Клиент</label>
                 <Select value={clientId} onValueChange={setClientId}>
