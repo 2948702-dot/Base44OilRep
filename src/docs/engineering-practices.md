@@ -45,6 +45,45 @@
 - После переподключения OAuth-плагина может потребоваться новый поток Codex, поскольку старый поток сохраняет прежний контекст инструментов.
 - Полный runbook: `src/docs/base44-live-access.md`.
 
+### Визуальная проверка через Playwright CLI
+
+Проверенный резервный путь для случаев, когда in-app Browser недоступен или не подключён:
+
+1. Выполнить `npm run build`.
+2. Сначала попробовать штатный dev/preview сервер.
+3. Если Vite в Codex sandbox падает с `Access is denied` или `Could not resolve vite.config.js`, не тратить время на Vite: поднять временный Node static server для `dist` с SPA fallback.
+4. Запускать Playwright через локальный npm cache проекта:
+
+   ```powershell
+   & 'C:\Program Files\nodejs\npx.cmd' --yes --cache .npm-cache --package @playwright/cli playwright-cli -s=$session open 'http://127.0.0.1:4173/mobile-lab'
+   ```
+
+5. На Windows обязательно изолировать Playwright от системных cache/daemon путей:
+
+   ```powershell
+   $runId = [guid]::NewGuid().ToString('N')
+   $env:LOCALAPPDATA = Join-Path (Get-Location) ('.localappdata-' + $runId)
+   $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.playwright-browsers'
+   $session = 'smartoil-' + $runId.Substring(0, 8)
+   ```
+
+6. Для мобильной проверки:
+
+   ```powershell
+   & 'C:\Program Files\nodejs\npx.cmd' --yes --cache .npm-cache --package @playwright/cli playwright-cli -s=$session resize 390 844
+   & 'C:\Program Files\nodejs\npx.cmd' --yes --cache .npm-cache --package @playwright/cli playwright-cli -s=$session snapshot
+   & 'C:\Program Files\nodejs\npx.cmd' --yes --cache .npm-cache --package @playwright/cli playwright-cli -s=$session screenshot --filename 'output\playwright\mobile-lab.png'
+   ```
+
+7. После проверки закрыть сессию, остановить временный сервер и удалить временные артефакты: `.localappdata-*`, `.playwright-cli`, `.playwright-browsers`, `output`.
+
+Что уже подтверждено этим способом:
+
+- Static `dist` server + Playwright CLI корректно открывает локальную SPA-страницу.
+- `snapshot` позволяет проверить DOM даже без авторизованной Base44-сессии.
+- `screenshot --filename ...` корректно сохраняет мобильный скрин.
+- Для `/mobile-lab` в viewport `390x844` подтверждено: бренд в мобильной верхней шапке скрыт, компактный заголовок страницы отображается.
+
 ### Русский текст
 
 - Файлы читаются как UTF-8.
@@ -97,3 +136,7 @@ UI-фильтр не является защитой данных. RLS/backend �
 ### Единственный канал доступа к Base44
 
 Не полагаться только на OAuth-плагин или только на CLI. Для эксплуатационной приёмки поддерживать оба канала, чтобы истёкший токен одного из них не блокировал проверку.
+
+### Vite как единственный способ визуальной проверки
+
+Если `npm run dev` или `vite preview` не стартуют из-за ограничений Codex sandbox, не считать визуальную проверку заблокированной. Использовать static `dist` server + Playwright CLI по рецепту выше.

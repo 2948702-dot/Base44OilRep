@@ -121,6 +121,24 @@ Client → Asset → EquipmentUnit → OilSample
 
 ---
 
+## Визуальная проверка UI
+
+Если in-app Browser недоступен или не видит нужную страницу, использовать резервный Playwright CLI-путь:
+
+1. Собрать проект обычной командой `npm run build`.
+2. Если `npm run dev` или `vite preview` падают в Codex sandbox с `Access is denied` / `Could not resolve vite.config.js`, поднять временный static server для папки `dist` с SPA fallback.
+3. Запускать Playwright CLI через `npx --yes --cache .npm-cache --package @playwright/cli playwright-cli`.
+4. На Windows для Playwright задавать workspace-local окружение:
+   - `LOCALAPPDATA=<repo>/.localappdata-<runId>`
+   - `PLAYWRIGHT_BROWSERS_PATH=<repo>/.playwright-browsers`
+5. Использовать уникальное имя сессии `-s=<project>-<runId>`, чтобы не конфликтовать с зависшими daemon-файлами.
+6. Проверять мобильный viewport через `resize 390 844`, затем делать `snapshot` и при необходимости `screenshot --filename output/playwright/<name>.png`.
+7. После проверки закрыть сессию, остановить временный сервер и удалить `.localappdata-*`, `.playwright-cli`, `.playwright-browsers`, `output`.
+
+Полный рецепт и причины обходного пути: `src/docs/engineering-practices.md`.
+
+---
+
 ## Дублированная логика
 
 Из-за ограничения №1 (нет shared-модулей) следующая логика существует в нескольких копиях. При изменении в одном месте — синхронизировать остальные:
