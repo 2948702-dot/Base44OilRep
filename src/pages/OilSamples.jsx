@@ -15,6 +15,7 @@ import HierarchyPath from '@/components/HierarchyPath';
 import { useNavigate } from 'react-router-dom';
 import { ENGINE_STATES, SAMPLE_STATUSES } from '@/utils/labels';
 import StatusBadge from '@/components/StatusBadge';
+import OilFormDialog from '@/components/OilFormDialog';
 
 const STORAGE_TYPES = ['Закрытый склад', 'На открытом воздухе', 'Холодное хранилище', 'Другое'];
 
@@ -42,7 +43,7 @@ const genSampleNumber = (existing) => {
   return `${prefix}${String(next).padStart(3, '0')}`;
 };
 
-function LookupField({ value, options, onChange, placeholder, disabled = false, allowClear = true }) {
+function LookupField({ value, options, onChange, placeholder, disabled = false, allowClear = true, actionLabel, onAction }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -110,6 +111,20 @@ function LookupField({ value, options, onChange, placeholder, disabled = false, 
           )) : (
             <div className="px-3 py-3 text-sm text-slate-500">Ничего не найдено</div>
           )}
+          {onAction && (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-left text-sm font-medium text-blue-600 hover:bg-blue-50"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                setOpen(false);
+                onAction();
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {actionLabel || 'Добавить'}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -125,6 +140,7 @@ export default function OilSamples() {
   const [filterStatus, setFilterStatus] = useState('none');
   const [searchText, setSearchText] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [oilDialogOpen, setOilDialogOpen] = useState(false);
   const qc = useQueryClient();
   const navigate = useNavigate();
 
@@ -288,6 +304,17 @@ export default function OilSamples() {
   );
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const handleOilCreated = (oil) => {
+    qc.invalidateQueries({ queryKey: ['oil-references'] });
+    if (oil?.id) {
+      setForm(p => ({
+        ...p,
+        oil_type_id: oil.id,
+        applies_to_equipment_unit_ids: [],
+        applies_to_lifecycle_ids: [],
+      }));
+    }
+  };
   const needsAssetAndUnit = form.sample_type === 'in_service';
   const canSaveSample =
     form.sample_number &&
@@ -640,12 +667,27 @@ export default function OilSamples() {
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <Label className="text-xs">Масло *</Label>
-                        <LookupField
-                          value={form.oil_type_id}
-                          options={oilOptions}
-                          placeholder="Найти масло..."
-                          onChange={v => setForm(p => ({ ...p, oil_type_id: v, applies_to_equipment_unit_ids: [], applies_to_lifecycle_ids: [] }))}
-                        />
+                        <div className="flex gap-2">
+                          <div className="min-w-0 flex-1">
+                            <LookupField
+                              value={form.oil_type_id}
+                              options={oilOptions}
+                              placeholder="Найти масло..."
+                              onChange={v => setForm(p => ({ ...p, oil_type_id: v, applies_to_equipment_unit_ids: [], applies_to_lifecycle_ids: [] }))}
+                              actionLabel="Добавить масло"
+                              onAction={() => setOilDialogOpen(true)}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-8 shrink-0 gap-1.5 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => setOilDialogOpen(true)}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Добавить
+                          </Button>
+                        </div>
                       </div>
                       {form.equipment_unit_id && activeLC.length > 0 && (
                         <div className="space-y-1">
@@ -813,6 +855,11 @@ export default function OilSamples() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <OilFormDialog
+        open={oilDialogOpen}
+        onOpenChange={setOilDialogOpen}
+        onCreated={handleOilCreated}
+      />
     </div>
   );
 }
