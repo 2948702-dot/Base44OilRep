@@ -10,6 +10,7 @@ import { CheckCircle2, QrCode, Droplets, ChevronRight, ChevronLeft, Search, Came
 import { useNavigate } from 'react-router-dom';
 import QRScanner from '@/components/mobile/QRScanner';
 import { format } from 'date-fns';
+import OilFormDialog from '@/components/OilFormDialog';
 
 function genSampleNumber() {
   return 'S-' + Date.now().toString(36).toUpperCase();
@@ -44,6 +45,7 @@ export default function MobileSampling() {
   const [saveResult, setSaveResult] = useState(null);
   const [showHoursPrompt, setShowHoursPrompt] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [oilDialogOpen, setOilDialogOpen] = useState(false);
 
   const [sampleForm, setSampleForm] = useState({
     sample_number: genSampleNumber(),
@@ -130,6 +132,13 @@ export default function MobileSampling() {
       setStep(2);
     }
   });
+
+  const handleOilCreated = (oil) => {
+    qc.invalidateQueries({ queryKey: ['oil-references'] });
+    if (oil?.id) {
+      setEventForm(p => ({ ...p, oil_type_id: oil.id }));
+    }
+  };
 
   const handleSubmitEvent = () => {
     if (!eventForm.total_operating_hours) {
@@ -231,6 +240,11 @@ export default function MobileSampling() {
           onClose={() => setScanner(null)}
         />
       )}
+      <OilFormDialog
+        open={oilDialogOpen}
+        onOpenChange={setOilDialogOpen}
+        onCreated={handleOilCreated}
+      />
 
       {/* Hours prompt modal */}
       {showHoursPrompt && (
@@ -573,6 +587,15 @@ export default function MobileSampling() {
                   }
                   return null;
                 })()}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 w-full justify-center gap-2 bg-white text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  onClick={() => setOilDialogOpen(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                  Добавить масло
+                </Button>
               </div>
               <div className="space-y-1">
                 <Label className="text-sm font-semibold">{mode === 'topup' ? 'Объём долива (л)' : 'Объём замены (л)'}</Label>

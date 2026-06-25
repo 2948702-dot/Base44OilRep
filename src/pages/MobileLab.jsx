@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, Search, CheckCircle2, FlaskConical, ChevronRight, ChevronLeft, X } from 'lucide-react';
+import { Camera, Search, CheckCircle2, FlaskConical, ChevronRight, ChevronLeft, Plus, X } from 'lucide-react';
 import QRScanner from '@/components/mobile/QRScanner';
 import { getThresholdSeverity, resolveThresholdRule } from '@/utils/thresholdRules';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
+import OilFormDialog from '@/components/OilFormDialog';
 
 const PARAMS = [
   { key: 'iron_mg_l', label: 'Железо', unit: 'мг/л' },
@@ -69,7 +70,7 @@ const makeManualForm = (existingSamples) => {
   };
 };
 
-function LookupField({ value, options, onChange, placeholder, disabled = false, allowClear = true }) {
+function LookupField({ value, options, onChange, placeholder, disabled = false, allowClear = true, actionLabel, onAction }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -137,6 +138,20 @@ function LookupField({ value, options, onChange, placeholder, disabled = false, 
           )) : (
             <div className="px-3 py-4 text-sm text-slate-500">Ничего не найдено</div>
           )}
+          {onAction && (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-3 text-left text-sm font-medium text-blue-600 hover:bg-blue-50"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                setOpen(false);
+                onAction();
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              {actionLabel || 'Добавить'}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -170,6 +185,7 @@ export default function MobileLab() {
   const [results, setResults] = useState({});
   const [recommendation, setRecommendation] = useState('');
   const [manualForm, setManualForm] = useState(() => makeManualForm([]));
+  const [oilDialogOpen, setOilDialogOpen] = useState(false);
 
   const { data: allSamples = [] } = useQuery({
     queryKey: ['oil-samples'],
@@ -335,6 +351,13 @@ export default function MobileLab() {
     setStep(3);
   };
 
+  const handleOilCreated = (oil) => {
+    qc.invalidateQueries({ queryKey: ['oil-references'] });
+    if (oil?.id) {
+      setManualForm(p => ({ ...p, oil_type_id: oil.id }));
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col max-w-md mx-auto">
@@ -364,6 +387,11 @@ export default function MobileLab() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col max-w-md mx-auto">
       {scanner && <QRScanner label="Сканируйте QR банки с пробой" onScan={handleScan} onClose={() => setScanner(false)} />}
+      <OilFormDialog
+        open={oilDialogOpen}
+        onOpenChange={setOilDialogOpen}
+        onCreated={handleOilCreated}
+      />
 
       <LabHeader />
 
@@ -498,7 +526,18 @@ export default function MobileLab() {
                     options={oilOptions}
                     placeholder="Найти масло..."
                     onChange={value => setManualForm(p => ({ ...p, oil_type_id: value }))}
+                    actionLabel="Добавить масло"
+                    onAction={() => setOilDialogOpen(true)}
                   />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 w-full justify-center gap-2 bg-white text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    onClick={() => setOilDialogOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Добавить масло
+                  </Button>
                 </div>
               )}
 

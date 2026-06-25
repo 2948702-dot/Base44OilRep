@@ -92,8 +92,8 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
             <TabsTrigger value="thresholds">Границы параметров</TabsTrigger>
           </TabsList>
           <TabsContent value="passport">
-            <div className="grid grid-cols-3 gap-3 max-h-[55vh] overflow-y-auto pr-1">
-              <div className="col-span-2 space-y-1">
+            <div className="grid grid-cols-1 gap-3 max-h-[55vh] overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-1 sm:col-span-2">
                 <Label>Наименование масла <Req /></Label>
                 <Input value={form.oil_name} onChange={e => f('oil_name', e.target.value)} />
               </div>
@@ -126,7 +126,7 @@ export default function OilFormDialog({ open, onOpenChange, initialData = null, 
               <NInput label="Вязкость при 40°C" unit="мм²/с" value={form.passport_viscosity_40} onChange={v => f('passport_viscosity_40', v)} />
               <NInput label="Плотность при 15°C" unit="кг/м³" value={form.passport_density_15} onChange={v => f('passport_density_15', v)} />
               <NInput label="Диэлектр. постоянная" value={form.passport_dielectric} onChange={v => f('passport_dielectric', v)} />
-              <div className="col-span-3 space-y-1">
+              <div className="space-y-1 sm:col-span-2 lg:col-span-3">
                 <Label>Комментарии</Label>
                 <Textarea value={form.comments} onChange={e => f('comments', e.target.value)} rows={2} />
               </div>
