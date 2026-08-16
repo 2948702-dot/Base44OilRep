@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
+    "whereami": "node src/whereami.js",
     "seed": "node src/seed.js",
     "test": "node --test \"test/*.test.js\""
   },
