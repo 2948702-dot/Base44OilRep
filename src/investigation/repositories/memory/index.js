@@ -49,7 +49,7 @@ function createMemoryEntityRepository({ store, entity, scope, audit, caseScoped 
     if (forCreate && caseScoped && scope.caseId && payload.case_id == null) {
       payload.case_id = scope.caseId;
     }
-    if (!forCreate) delete payload.case_id;
+    if (!forCreate && caseScoped) delete payload.case_id;
     return payload;
   }
 

@@ -30,7 +30,8 @@ src/investigation/engine/        машина стадий, инварианты
 src/investigation/agents/        framework агентов и определения агентов
 src/investigation/services/      прикладной слой
 src/investigation/server/        HTTP-контур: аутентификация, дело, участник интервью
-src/investigation/fixtures/      демонстрационное дело Missing Cash 001
+src/investigation/simulator/     симулятор учебных дел и бенчмарк (§51–§52)
+src/investigation/fixtures/      демонстрационное и учебное дело Missing Cash 001
 ```
 
 ## Команды
@@ -41,6 +42,8 @@ npm run investigation:migrate         # применить миграции
 npm run investigation:acceptance      # приёмка §81 на хранилище в памяти
 npm run investigation:acceptance:pg   # та же приёмка против настоящей базы
 npm run investigation:smoke           # дымовой прогон HTTP-контура
+npm run investigation:benchmark       # прогон учебного дела и метрики §52
+npm run investigation:benchmark:pg    # то же против настоящей базы
 npm run investigation:server          # запустить API
 ```
 

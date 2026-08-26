@@ -13,6 +13,8 @@
     "investigation:migrate": "node investigation/tools/migrate.mjs",
     "investigation:acceptance": "node investigation/tools/acceptance.mjs",
     "investigation:acceptance:pg": "node investigation/tools/acceptance.mjs --postgres",
+    "investigation:benchmark": "node investigation/tools/benchmark.mjs",
+    "investigation:benchmark:pg": "node investigation/tools/benchmark.mjs --postgres",
     "investigation:smoke": "node investigation/tools/smoke-api.mjs",
     "investigation:jobs": "node investigation/tools/smoke-jobs.mjs",
     "investigation:ui": "node investigation/tools/smoke-ui.mjs",

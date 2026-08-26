@@ -13,6 +13,7 @@ import { createCaseService } from './CaseService.js';
 import { createInterviewService } from './InterviewService.js';
 import { createAnalysisService } from './AnalysisService.js';
 import { createReportService } from './ReportService.js';
+import { createSimulatorService } from './SimulatorService.js';
 
 export {
   createApprovalService,
@@ -21,6 +22,7 @@ export {
   createInterviewService,
   createAnalysisService,
   createReportService,
+  createSimulatorService,
 };
 
 /**
@@ -49,7 +51,7 @@ export function createInvestigationServices({
 
   const cases = createCaseService({ repositories, scope, llm: llmClient, approvals });
 
-  return {
+  const bundle = {
     repositories,
     approvals,
     sources,
@@ -58,4 +60,25 @@ export function createInvestigationServices({
     analysis: createAnalysisService({ repositories, scope, llm: llmClient, approvals }),
     reports: createReportService({ repositories, scope, llm: llmClient, approvals }),
   };
+
+  // Симулятор строит сервисы в области видимости учебного дела тем же вызовом, что и
+  // всё остальное приложение: прогон обязан идти по тому же коду, что и настоящее
+  // расследование, иначе он измеряет не то, что мы поставляем.
+  bundle.simulator = createSimulatorService({
+    repositories,
+    scope,
+    llm: llmClient,
+    services: bundle,
+    makeCaseServices: (caseId) => createInvestigationServices({
+      scope: { ...scope, caseId },
+      pool,
+      store,
+      driver,
+      llm: llmClient,
+      fileRoot,
+      extractDocument: extractDocumentImpl,
+    }),
+  });
+
+  return bundle;
 }

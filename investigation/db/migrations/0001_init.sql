@@ -74,6 +74,7 @@ create table investigation_case (
   overall_confidence text,
   current_round numeric,
   finalized_at timestamptz,
+  is_training boolean,
   deleted_at timestamptz,
   deleted_by text,
   deletion_reason text,
@@ -807,6 +808,52 @@ create table training_case (
   constraint training_case_type_check check (type is null or type in ('real_public', 'synthetic', 'fiction_adapted', 'internal_anonymized'))
 );
 
+-- Прогон симулятора
+create table simulation_run (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  training_case_id uuid not null,
+  case_id uuid,
+  training_case_slug text,
+  status text not null,
+  director_mode text,
+  investigator_model text,
+  methodology_version text,
+  benchmark_version text,
+  started_at timestamptz,
+  finished_at timestamptz,
+  steps jsonb,
+  interactions jsonb,
+  error text,
+  deleted_at timestamptz,
+  deleted_by text,
+  deletion_reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint simulation_run_status_check check (status is null or status in ('pending', 'running', 'completed', 'failed')),
+  constraint simulation_run_director_mode_check check (director_mode is null or director_mode in ('scripted', 'agent'))
+);
+
+-- Результат бенчмарка
+create table benchmark_result (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  simulation_run_id uuid not null,
+  training_case_id uuid,
+  training_case_slug text,
+  benchmark_version text not null,
+  scored_at timestamptz,
+  metrics jsonb,
+  summary jsonb,
+  safety_passed boolean,
+  safety_failures text[],
+  deleted_at timestamptz,
+  deleted_by text,
+  deletion_reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- Организация несёт человекочитаемый идентификатор для поддомена и экспорта.
 alter table organization add column slug text;
 
@@ -935,6 +982,14 @@ alter table audit_event add constraint audit_event_case_id_fkey foreign key (cas
 alter table knowledge_document add constraint knowledge_document_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table knowledge_document add constraint knowledge_document_source_id_fkey foreign key (source_id) references source(id) on delete set null;
 
+alter table simulation_run add constraint simulation_run_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
+alter table simulation_run add constraint simulation_run_training_case_id_fkey foreign key (training_case_id) references training_case(id) on delete set null;
+alter table simulation_run add constraint simulation_run_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
+
+alter table benchmark_result add constraint benchmark_result_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
+alter table benchmark_result add constraint benchmark_result_simulation_run_id_fkey foreign key (simulation_run_id) references simulation_run(id) on delete set null;
+alter table benchmark_result add constraint benchmark_result_training_case_id_fkey foreign key (training_case_id) references training_case(id) on delete set null;
+
 -- ============================ ИНДЕКСЫ ============================
 
 create index investigation_case_org_idx on investigation_case (organization_id) where deleted_at is null;
@@ -964,6 +1019,8 @@ create index investigation_job_org_case_idx on investigation_job (organization_i
 create index audit_event_org_case_idx on audit_event (organization_id, case_id) where deleted_at is null;
 create index knowledge_document_org_case_idx on knowledge_document (organization_id, case_id) where deleted_at is null;
 create index training_case_org_idx on training_case (organization_id) where deleted_at is null;
+create index simulation_run_org_idx on simulation_run (organization_id) where deleted_at is null;
+create index benchmark_result_org_idx on benchmark_result (organization_id) where deleted_at is null;
 
 -- Векторный поиск по двум непересекающимся пространствам знаний.
 alter table knowledge_document add column embedding vector(1536);
@@ -1042,6 +1099,10 @@ create trigger knowledge_document_set_updated_at before update on knowledge_docu
   for each row execute function set_updated_at();
 create trigger training_case_set_updated_at before update on training_case
   for each row execute function set_updated_at();
+create trigger simulation_run_set_updated_at before update on simulation_run
+  for each row execute function set_updated_at();
+create trigger benchmark_result_set_updated_at before update on benchmark_result
+  for each row execute function set_updated_at();
 
 -- =============== НЕИЗМЕНЯЕМЫЕ ЖУРНАЛЫ ===============
 --
@@ -1061,6 +1122,8 @@ create trigger audit_event_append_only before update or delete on audit_event
 create trigger agent_run_append_only before update or delete on agent_run
   for each row execute function forbid_mutation();
 create trigger hypothesis_revision_append_only before update or delete on hypothesis_revision
+  for each row execute function forbid_mutation();
+create trigger benchmark_result_append_only before update or delete on benchmark_result
   for each row execute function forbid_mutation();
 
 -- ============================ RLS ============================
@@ -1404,6 +1467,30 @@ create policy knowledge_document_tenant_isolation on knowledge_document
 alter table training_case enable row level security;
 alter table training_case force row level security;
 create policy training_case_tenant_isolation on training_case
+  using (
+      coalesce(current_setting('app.is_system_admin', true), 'off') = 'on'
+      or organization_id = nullif(current_setting('app.organization_id', true), '')::uuid
+    )
+  with check (
+      coalesce(current_setting('app.is_system_admin', true), 'off') = 'on'
+      or organization_id = nullif(current_setting('app.organization_id', true), '')::uuid
+    );
+
+alter table simulation_run enable row level security;
+alter table simulation_run force row level security;
+create policy simulation_run_tenant_isolation on simulation_run
+  using (
+      coalesce(current_setting('app.is_system_admin', true), 'off') = 'on'
+      or organization_id = nullif(current_setting('app.organization_id', true), '')::uuid
+    )
+  with check (
+      coalesce(current_setting('app.is_system_admin', true), 'off') = 'on'
+      or organization_id = nullif(current_setting('app.organization_id', true), '')::uuid
+    );
+
+alter table benchmark_result enable row level security;
+alter table benchmark_result force row level security;
+create policy benchmark_result_tenant_isolation on benchmark_result
   using (
       coalesce(current_setting('app.is_system_admin', true), 'off') = 'on'
       or organization_id = nullif(current_setting('app.organization_id', true), '')::uuid

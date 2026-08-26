@@ -108,6 +108,16 @@ const REFERENCES = {
   audit_event: { case_id: 'investigation_case' },
   knowledge_document: { case_id: 'investigation_case', source_id: 'source' },
   training_case: {},
+  simulation_run: {
+    organization_id: 'organization',
+    training_case_id: 'training_case',
+    case_id: 'investigation_case',
+  },
+  benchmark_result: {
+    organization_id: 'organization',
+    simulation_run_id: 'simulation_run',
+    training_case_id: 'training_case',
+  },
   organization: {},
 };
 
@@ -131,7 +141,7 @@ const UNIQUE_CONSTRAINTS = {
 };
 
 /** Таблицы, содержимое которых нельзя изменить или удалить после записи. */
-const APPEND_ONLY = ['audit_event', 'agent_run', 'hypothesis_revision'];
+const APPEND_ONLY = ['audit_event', 'agent_run', 'hypothesis_revision', 'benchmark_result'];
 
 /** Таблицы, которые не ограничиваются организацией на уровне RLS. */
 const TENANT_COLUMN_OVERRIDES = {

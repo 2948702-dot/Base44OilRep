@@ -76,11 +76,13 @@ DATABASE_URL=postgres://investigation_app:app@127.0.0.1:5432/investigation \
 ## Проверки
 
 ```bash
-npm run investigation:acceptance      # приёмка §81 на хранилище в памяти, 60 проверок
+npm run investigation:acceptance      # приёмка §81 на хранилище в памяти, 120 проверок
 npm run investigation:acceptance:pg   # тот же сценарий против настоящей базы
 npm run investigation:smoke           # HTTP-контур: вход, дело, изоляция арендаторов
 npm run investigation:jobs            # исполнитель очереди: повторы, отказы, отсрочка
 npm run investigation:ui              # интерфейс в настоящем браузере
+npm run investigation:benchmark       # прогон учебного дела и метрики качества §52
+npm run investigation:benchmark:pg    # тот же прогон против настоящей базы
 psql "$DATABASE_URL" -f investigation/db/checks/isolation.sql   # изоляция и журналы
 ```
 
@@ -90,6 +92,12 @@ psql "$DATABASE_URL" -f investigation/db/checks/isolation.sql   # изоляци
 человеком, выпустить факт без доказательства.
 
 `investigation:ui` поднимает сервер и открывает рабочее место настоящим браузером.
+
+`investigation:benchmark` прогоняет учебное дело со скрытой истиной и считает метрики
+§52. Прогон непройден, если нарушена защитная метрика: утверждение отчёта без опоры,
+обвинение непричастного, преждевременное закрытие версии или исключение верной версии.
+Настоящее измерение качества агентов — `node investigation/tools/benchmark.mjs --live`;
+оно обращается к настоящей модели и запускается вручную. Подробнее — `src/docs/investigation/simulator.md`.
 Маршруты, отвечающие 200, ничего не говорят о том, что увидит человек: обе ошибки
 вёрстки рабочего места прошли все проверки API и обнаружились только здесь. Если
 Playwright не установлен, проверка сообщает об этом и завершается успешно, а не падает.

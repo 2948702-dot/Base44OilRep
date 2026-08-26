@@ -585,6 +585,18 @@ export const ENUMS = {
       "fiction_adapted",
       "internal_anonymized"
     ]
+  },
+  "SimulationRun": {
+    "status": [
+      "pending",
+      "running",
+      "completed",
+      "failed"
+    ],
+    "director_mode": [
+      "scripted",
+      "agent"
+    ]
   }
 };
 

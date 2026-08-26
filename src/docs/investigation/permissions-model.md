@@ -50,6 +50,8 @@ C — create, R — read, U — update, D — soft delete, A — approve, «—�
 | KnowledgeDocument (methodology) | CRUD | R | R | R | R | R | — |
 | KnowledgeDocument (case) | CRUD | R | CRU | CRU | R | R | — |
 | TrainingCase | CRUD | R | R | R | — | — | — |
+| SimulationRun | CRUD | CRU | CRU | R | R | — | — |
+| BenchmarkResult | CR | CR | CR | R | R | — | — |
 
 `*` — только через serverless-функцию по действительному `InterviewAccessToken`, в пределах
 собственного интервью. Прямой клиентский доступ участника к сущностям запрещён.
@@ -110,7 +112,10 @@ using (
 - `delete` в матрице означает soft delete. Физическое удаление доступно только процедуре
   удаления данных арендатора (§60 ТЗ) и идёт каскадом от организации.
 - `TrainingCase.ground_truth` не отдаётся агентам расследования: доступ только через
-  Case Director симулятора.
+  Case Director симулятора. Наружу учебное дело отдаётся через `publicView`, где этого
+  поля нет вовсе, а перечень материалов виден без содержимого.
+- `BenchmarkResult` неизменяем на уровне базы: результат измерения, который можно
+  отредактировать, не является измерением.
 
 ## 5. Ограничение доступа агента
 

@@ -63,7 +63,9 @@ export function createEntityRepository({
     if (forCreate && caseScoped && scope.caseId && payload.case_id == null) {
       payload.case_id = scope.caseId;
     }
-    if (!forCreate) delete payload.case_id;
+    // Убирается только область видимости дела. Для сущностей вне дела (прогон
+    // симулятора, задача очереди) case_id — обычная ссылка, и её обновление законно.
+    if (!forCreate && caseScoped) delete payload.case_id;
     return payload;
   }
 

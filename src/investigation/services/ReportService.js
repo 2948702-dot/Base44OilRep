@@ -346,6 +346,17 @@ export function createReportService({ repositories, scope, llm, approvals }) {
       const report = await repositories.reports.get(reportId);
       if (!report) throw new Error(`Отчёт ${reportId} не найден`);
 
+      // Отчёт по учебному делу не выпускается никогда. Симулятор прогоняет тот же
+      // код, что и настоящее расследование, — значит документ, неотличимый по форме
+      // от настоящего, обязан быть отличим по статусу.
+      const owner = await repositories.cases.get(report.case_id);
+      if (owner?.is_training) {
+        throw new InvariantViolation(
+          'TRAINING_CASE_REPORT_CANNOT_BE_RELEASED',
+          'Отчёт по учебному делу симулятора не выпускается: он существует только для оценки',
+        );
+      }
+
       const approval = await approvals.findApproved({
         approvalType: 'final_report_release',
         objectId: reportId,

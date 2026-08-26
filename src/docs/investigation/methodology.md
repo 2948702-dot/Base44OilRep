@@ -115,4 +115,6 @@ Round N → Claim Extractor → Timeline → Contradiction Analysis → Hypothes
 Evidence Request Quality, Hypothesis Diversity, Alternative Hypothesis Preservation,
 Timeline Accuracy, Financial Trace Accuracy, Source Citation Accuracy.
 
-Измеряются на `TrainingCase` с известным ground truth в Phase 3.
+Измеряются на `TrainingCase` с известным ground truth. Реализовано: см. `simulator.md`.
+Защитные метрики решают исход прогона сами по себе — ненулевое значение любой из них
+делает прогон непройденным независимо от остальных показателей.

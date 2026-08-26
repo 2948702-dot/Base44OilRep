@@ -29,6 +29,7 @@ import { defenceReviewerAgent } from './definitions/defenceReviewer.js';
 import { rootCauseAnalystAgent } from './definitions/rootCauseAnalyst.js';
 import { finalReviewerAgent } from './definitions/finalReviewer.js';
 import { reportWriterAgent } from './definitions/reportWriter.js';
+import { caseDirectorAgent } from './definitions/caseDirector.js';
 
 const DEFINITIONS = [
   caseManagerAgent,
@@ -49,6 +50,9 @@ const DEFINITIONS = [
   rootCauseAnalystAgent,
   finalReviewerAgent,
   reportWriterAgent,
+  // Агент симулятора: в производственном расследовании не участвует и вызывается
+  // только прогоном учебного дела.
+  caseDirectorAgent,
 ];
 
 const REGISTRY = new Map(DEFINITIONS.map((definition) => [definition.id, createAgent(definition)]));

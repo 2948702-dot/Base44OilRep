@@ -112,6 +112,10 @@ export function createCaseService({ repositories, scope, llm, approvals }) {
         autonomy_level: autonomyLevel,
         overall_confidence: 'very_low',
         current_round: 0,
+        // Учебное дело симулятора помечается при создании и дальше живёт по общим
+        // правилам. Пометка нужна, чтобы отчёт по учебному делу нельзя было выпустить
+        // как настоящий и чтобы такие дела не смешивались с рабочими.
+        is_training: input.isTraining === true,
       });
     },
 

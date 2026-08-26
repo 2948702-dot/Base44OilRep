@@ -156,9 +156,11 @@ Red Team Investigator.
 
 ## Phase 3 (§74 ТЗ)
 
-Case Library, RAG поверх уже готового pgvector, приём публичных дел,
-Investigation Simulator с Case Director, Benchmark Suite, оценка агентов,
-поиск паттернов между делами.
+Выполнено: Investigation Simulator с Case Director, библиотека учебных дел со скрытой
+истиной, Benchmark Suite из четырнадцати метрик §52 с защитными порогами (`simulator.md`).
+
+Остаётся: RAG поверх уже готового pgvector, приём публичных дел, пополнение библиотеки
+учебных дел, поиск паттернов между делами.
 
 ## Phase 4 (§75 ТЗ)
 

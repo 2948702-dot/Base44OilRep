@@ -652,6 +652,24 @@ export const DocumentAnalysisSchema = z.object({
   observations,
 });
 
+/**
+ * Ответ Case Director симулятора (§51 ТЗ).
+ *
+ * В схеме намеренно нет поля, куда можно было бы записать, кто виноват, и нет поля
+ * для содержимого материала: директор выбирает элемент учебного дела по идентификатору,
+ * а содержимое подставляется из самого дела. Так «директор не выдумывает доказательства»
+ * становится свойством формата, а не просьбой в промпте.
+ */
+export const CaseDirectorResponseSchema = z.object({
+  kind: z.enum(['interview_answer', 'evidence_response']),
+  answer_text: z.string().nullable().optional(),
+  in_character_note: z.string().nullable().optional(),
+  granted: z.boolean().nullable().optional(),
+  item_id: z.string().nullable().optional(),
+  refusal_reason: z.string().nullable().optional(),
+  observations,
+});
+
 export const AGENT_OUTPUT_SCHEMAS = {
   DocumentAnalysisSchema,
   FinancialAnalysisSchema,
@@ -671,4 +689,5 @@ export const AGENT_OUTPUT_SCHEMAS = {
   ClaimExtractionSchema,
   HypothesisAnalysisSchema,
   RedTeamReviewSchema,
+  CaseDirectorResponseSchema,
 };

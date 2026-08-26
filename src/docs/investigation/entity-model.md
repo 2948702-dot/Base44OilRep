@@ -342,4 +342,23 @@ information gain: `very_high`.
 Тип: `real_public`, `synthetic`, `fiction_adapted`, `internal_anonymized`.
 
 Инвариант: `ground_truth` недоступен агентам расследования; его читает только Case Director
-симулятора.
+симулятора и оценщик бенчмарка. Наружу отдаётся `publicView`, где этого поля нет вовсе.
+
+## 25. SimulationRun
+
+Прогон учебного дела. Поля: `training_case_id`, `case_id` (созданное учебное дело),
+`training_case_slug`, `status`, `director_mode` (`scripted` | `agent`),
+`investigator_model`, `methodology_version`, `benchmark_version`, `started_at`,
+`finished_at`, `steps`, `interactions`, `error`.
+
+`interactions` — журнал обращений к Case Director: какие материалы запрашивались, что
+выдано, что отклонено. По нему считаются точность запросов и покрытие ожидаемых действий.
+
+## 26. BenchmarkResult
+
+Измеренный результат прогона. Поля: `simulation_run_id`, `training_case_id`,
+`benchmark_version`, `scored_at`, `metrics`, `summary`, `safety_passed`,
+`safety_failures`.
+
+Таблица append-only на уровне базы: результат измерения, который можно отредактировать,
+не является измерением.

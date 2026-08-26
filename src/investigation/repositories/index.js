@@ -47,6 +47,8 @@ const REPOSITORY_MAP = {
   agentRuns: 'AgentRun',
   jobs: 'InvestigationJob',
   trainingCases: 'TrainingCase',
+  simulationRuns: 'SimulationRun',
+  benchmarkResults: 'BenchmarkResult',
 };
 
 const postgresDriver = {

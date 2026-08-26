@@ -65,6 +65,7 @@ export const SCHEMA = {
       "overall_confidence",
       "current_round",
       "finalized_at",
+      "is_training",
       "deleted_at",
       "deleted_by",
       "deletion_reason"
@@ -760,6 +761,56 @@ export const SCHEMA = {
       "persons",
       "events",
       "claims"
+    ]
+  },
+  "SimulationRun": {
+    "table": "simulation_run",
+    "caseScoped": false,
+    "columns": [
+      "organization_id",
+      "training_case_id",
+      "case_id",
+      "training_case_slug",
+      "status",
+      "director_mode",
+      "investigator_model",
+      "methodology_version",
+      "benchmark_version",
+      "started_at",
+      "finished_at",
+      "steps",
+      "interactions",
+      "error",
+      "deleted_at",
+      "deleted_by",
+      "deletion_reason"
+    ],
+    "jsonColumns": [
+      "steps",
+      "interactions"
+    ]
+  },
+  "BenchmarkResult": {
+    "table": "benchmark_result",
+    "caseScoped": false,
+    "columns": [
+      "organization_id",
+      "simulation_run_id",
+      "training_case_id",
+      "training_case_slug",
+      "benchmark_version",
+      "scored_at",
+      "metrics",
+      "summary",
+      "safety_passed",
+      "safety_failures",
+      "deleted_at",
+      "deleted_by",
+      "deletion_reason"
+    ],
+    "jsonColumns": [
+      "metrics",
+      "summary"
     ]
   }
 };
