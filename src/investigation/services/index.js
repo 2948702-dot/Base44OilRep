@@ -31,13 +31,21 @@ export {
  * @param {'postgres'|'memory'} [params.driver]
  * @param {Object} [params.llm] клиент модели; по умолчанию — Anthropic на сервере
  * @param {string} [params.fileRoot]
+ * @param {Function} [params.extractDocument] извлечение текста из материалов
  * @returns {Object}
  */
-export function createInvestigationServices({ scope, pool, store, driver, llm, fileRoot }) {
+export function createInvestigationServices({
+  scope, pool, store, driver, llm, fileRoot, extractDocument: extractDocumentImpl,
+}) {
   const repositories = createRepositories({ scope, pool, store, driver, fileRoot });
   const llmClient = llm ?? createAnthropicLlmClient();
   const approvals = createApprovalService({ repositories, scope });
-  const sources = createSourceService({ repositories, scope });
+  const sources = createSourceService({
+    repositories,
+    scope,
+    llm: llmClient,
+    extractDocument: extractDocumentImpl,
+  });
 
   const cases = createCaseService({ repositories, scope, llm: llmClient, approvals });
 

@@ -532,7 +532,129 @@ export const RootCauseSchema = z.object({
   observations,
 });
 
+
+/**
+ * Финансовый контур (§33 ТЗ).
+ *
+ * Строится две цепочки: как деньги должны были пройти и как прошли на самом деле.
+ * Разрыв между ними — не бухгалтерская погрешность, а место, где нужно искать.
+ *
+ * Ребро без доказательства всегда остаётся неподтверждённым: движение денег, о котором
+ * известно только со слов, не становится фактом от того, что оно правдоподобно.
+ */
+export const FinancialAnalysisSchema = z.object({
+  expected_flow: z.array(z.object({
+    sequence: z.number().int().min(1),
+    source_entity: z.string(),
+    destination_entity: z.string(),
+    amount: z.number().nullable(),
+    currency: z.string().nullable(),
+    expected_at: z.string().nullable(),
+    basis: z.string(),
+  })).min(1),
+  actual_flow: z.array(z.object({
+    sequence: z.number().int().min(1),
+    source_entity: z.string(),
+    destination_entity: z.string(),
+    amount: z.number().nullable(),
+    currency: z.string().nullable(),
+    occurred_at: z.string().nullable(),
+    time_precision: z.enum(/** @type {[string, ...string[]]} */ (TIME_PRECISION)),
+    evidence_codes: z.array(z.string()).default([]),
+    claim_codes: z.array(z.string()).default([]),
+    verification_status: z.enum(['unverified', 'partially_verified', 'verified', 'contradicted']),
+  })),
+  unexplained_gaps: z.array(z.object({
+    description: z.string(),
+    amount: z.number().nullable(),
+    currency: z.string().nullable(),
+    between: z.string(),
+    what_would_explain_it: z.array(z.string()).min(1),
+  })).default([]),
+  duplicate_transactions: z.array(z.object({
+    description: z.string(),
+    transaction_codes: z.array(z.string()).default([]),
+    why_suspected: z.string(),
+  })).default([]),
+  missing_transfers: z.array(z.object({
+    expected: z.string(),
+    amount: z.number().nullable(),
+    currency: z.string().nullable(),
+    why_expected: z.string(),
+  })).default([]),
+  amount_mismatches: z.array(z.object({
+    description: z.string(),
+    stated_amount: z.number().nullable(),
+    actual_amount: z.number().nullable(),
+    currency: z.string().nullable(),
+    source_of_discrepancy: z.string(),
+  })).default([]),
+  missing_financial_evidence: z.array(z.object({
+    description: z.string(),
+    holder: z.string().nullable(),
+    would_resolve: z.string(),
+  })).default([]),
+  observations,
+});
+
+
+/**
+ * Разбор документа (§26 ТЗ).
+ *
+ * Каждый извлечённый элемент обязан указывать место в оригинале: страницу, строку,
+ * строку таблицы или идентификатор сообщения. Без этого утверждение из документа
+ * нельзя проверить, а вывод, на нём построенный, нельзя защитить.
+ */
+export const DocumentAnalysisSchema = z.object({
+  classification: z.object({
+    document_type: z.string(),
+    confidence,
+    reasoning: z.string(),
+  }),
+  entities: z.object({
+    persons: z.array(z.object({ name: z.string(), role: z.string().nullable(), locator: z.string() })).default([]),
+    organizations: z.array(z.object({ name: z.string(), locator: z.string() })).default([]),
+    locations: z.array(z.object({ name: z.string(), locator: z.string() })).default([]),
+  }),
+  dates: z.array(z.object({
+    text: z.string(),
+    normalized_start: z.string().nullable(),
+    normalized_end: z.string().nullable(),
+    precision: z.enum(/** @type {[string, ...string[]]} */ (TIME_PRECISION)),
+    locator: z.string(),
+  })).default([]),
+  amounts: z.array(z.object({
+    text: z.string(),
+    amount: z.number().nullable(),
+    currency: z.string().nullable(),
+    locator: z.string(),
+  })).default([]),
+  claims: z.array(z.object({
+    text: z.string(),
+    normalized_statement: z.string(),
+    claim_type: z.enum(/** @type {[string, ...string[]]} */ (CLAIM_TYPE)),
+    subject_entity: z.string().nullable(),
+    predicate: z.string().nullable(),
+    object_entity: z.string().nullable(),
+    time_start: z.string().nullable(),
+    time_end: z.string().nullable(),
+    time_precision: z.enum(/** @type {[string, ...string[]]} */ (TIME_PRECISION)),
+    amount: z.number().nullable(),
+    currency: z.string().nullable(),
+    ai_extraction_confidence: confidence,
+    // Единица привязки к оригиналу: страница, строка, строка таблицы, сообщение.
+    locator_kind: z.enum(['page', 'line', 'row', 'record', 'unknown']),
+    locator_ref: z.union([z.string(), z.number()]),
+  })).default([]),
+  document_metadata: z.record(z.unknown()).default({}),
+  // Обнаруженные признаки подмены инструкций фиксируются как свойство материала.
+  suspicious_content: z.array(z.string()).default([]),
+  observations,
+});
+
 export const AGENT_OUTPUT_SCHEMAS = {
+  DocumentAnalysisSchema,
+  FinancialAnalysisSchema,
   CorroborationSchema,
   DefenceReviewSchema,
   RootCauseSchema,

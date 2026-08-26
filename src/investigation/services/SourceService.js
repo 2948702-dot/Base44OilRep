@@ -9,8 +9,11 @@
 import { sha256OfText } from '../domain/hash.js';
 import { nextCode } from '../domain/codes.js';
 import { detectInjectionMarkers } from '../agents/framework/promptEnvelope.js';
+import { assertClaimIsAttributed } from '../engine/invariants.js';
+import { createAgentContext } from '../agents/framework/AgentContext.js';
+import { getAgent } from '../agents/registry.js';
 
-export function createSourceService({ repositories, scope }) {
+export function createSourceService({ repositories, scope, llm, extractDocument }) {
   async function nextEvidenceCode() {
     const existing = await repositories.evidence.list({}, { includeDeleted: true });
     return nextCode('evidence', existing.map((e) => e.evidence_code));
@@ -165,6 +168,126 @@ export function createSourceService({ repositories, scope }) {
         storage_uri: source.original_file,
         source_locator: sourceLocator ?? null,
       });
+    },
+
+    /**
+     * Разбор приобщённого материала (§26 ТЗ).
+     *
+     * Текст извлекается с сохранением привязки к месту в оригинале и сохраняется
+     * отдельным производным источником. Оригинал не изменяется никогда.
+     *
+     * Утверждения, извлечённые из документа, получают source_locator: без него
+     * утверждение нельзя показать в оригинале, а вывод на нём нельзя защитить.
+     */
+    async analyzeDocument(sourceId) {
+      if (!llm) throw new Error('Разбор документа требует клиента модели');
+      if (!extractDocument) throw new Error('Разбор документа требует извлечения текста');
+
+      const source = await repositories.sources.get(sourceId);
+      if (!source) throw new Error(`Источник ${sourceId} не найден`);
+
+      const bytes = source.original_file
+        ? await repositories.files.read(source.original_file)
+        : new TextEncoder().encode(source.extracted_text ?? '');
+
+      const extracted = await extractDocument(bytes, {
+        mimeType: source.mime_type,
+        filename: source.original_filename ?? source.title,
+      });
+
+      const derived = await this.createDerivedSource(sourceId, {
+        type: 'document',
+        text: extracted.text,
+        method: `extract:${extracted.format}`,
+        meta: { title: `Извлечённый текст ${source.title ?? source.original_filename ?? sourceId}` },
+      });
+
+      const context = createAgentContext({
+        caseId: source.case_id,
+        organizationId: scope.organizationId,
+        actorId: scope.actorId,
+        actorType: 'agent',
+        repositories,
+        llm,
+      });
+
+      const agent = getAgent('document_analyst');
+      const result = await agent.runWithMetadata({ sourceId, extracted }, context);
+      const analysis = result.output;
+
+      const existing = await repositories.claims.list({}, { includeDeleted: true });
+      const codes = existing.map((c) => c.claim_code);
+
+      const created = [];
+      for (const claim of analysis.claims) {
+        const code = nextCode('claim', codes);
+        codes.push(code);
+
+        // Привязка переводится в source_locator того же вида, что и у утверждений
+        // из интервью: следователь не должен различать, откуда пришло утверждение,
+        // чтобы найти его в оригинале.
+        const locator = {};
+        if (claim.locator_kind === 'page') locator.page = Number(claim.locator_ref) || null;
+        else if (claim.locator_kind === 'line') locator.line = Number(claim.locator_ref) || null;
+        else if (claim.locator_kind === 'row') locator.row_id = String(claim.locator_ref);
+        else if (claim.locator_kind === 'record') locator.message_id = String(claim.locator_ref);
+        else locator.page = null;
+
+        const record = {
+          case_id: source.case_id,
+          claim_code: code,
+          source_id: sourceId,
+          source_person_id: source.source_person_id ?? null,
+          text: claim.text,
+          normalized_statement: claim.normalized_statement,
+          claim_type: claim.claim_type,
+          subject_entity: claim.subject_entity,
+          predicate: claim.predicate,
+          object_entity: claim.object_entity,
+          time_start: claim.time_start,
+          time_end: claim.time_end,
+          time_precision: claim.time_precision,
+          amount: claim.amount,
+          currency: claim.currency,
+          // Документ не говорит «кажется»: он фиксирует. Неопределённость документа
+          // выражается типом утверждения, а не степенью уверенности говорящего.
+          speaker_certainty: 'certain',
+          ai_extraction_confidence: claim.ai_extraction_confidence,
+          corroboration_status: 'uncorroborated',
+          verification_status: 'unverified',
+          source_locator: locator,
+          created_by_agent: agent.id,
+          agent_run_id: result.run.id,
+          reviewed_by_human: false,
+        };
+
+        if (claim.locator_kind !== 'unknown') assertClaimIsAttributed(record);
+        created.push(await repositories.claims.create(record));
+      }
+
+      // Признаки подмены инструкций сохраняются в самом источнике: это свойство
+      // материала, которое следователь обязан видеть рядом с ним, а не в журнале.
+      const markers = [
+        ...analysis.suspicious_content,
+        ...detectInjectionMarkers(extracted.text),
+      ];
+      if (markers.length > 0) {
+        await repositories.sources.update(sourceId, {
+          notes: `Обнаружены признаки подмены инструкций в материале: ${markers.join(' | ')}`,
+        });
+      }
+
+      return {
+        derivedSourceId: derived.id,
+        classification: analysis.classification,
+        entities: analysis.entities,
+        dates: analysis.dates,
+        amounts: analysis.amounts,
+        claims: created,
+        suspiciousContent: markers,
+        extraction: { format: extracted.format, units: extracted.units.length },
+        agentRunId: result.run.id,
+      };
     },
 
     /**

@@ -17,6 +17,7 @@
 import { withTenant } from '../repositories/postgres/pool.js';
 import { createInvestigationServices } from '../services/index.js';
 import { createWhisperClient } from './transcription.js';
+import { extractDocument } from './documentExtraction.js';
 
 const MAX_ATTEMPTS = 3;
 const DEFAULT_INTERVAL_MS = 5000;
@@ -116,6 +117,9 @@ export function createJobRunner(options) {
       pool,
       driver: 'postgres',
       llm,
+      // Извлечение текста подключается только на сервере: слой сервисов не должен
+      // зависеть от библиотеки разбора PDF, чтобы приёмка шла без неё.
+      extractDocument,
     });
   }
 
@@ -223,8 +227,21 @@ export function createJobRunner(options) {
       };
     },
 
-    async document_parse() {
-      throw new Error('Разбор документов ещё не реализован: см. mvp-plan.md');
+    /**
+     * Разбор приобщённого материала: извлечение текста с привязкой к месту
+     * в оригинале и выделение утверждений.
+     */
+    async document_parse(job, services) {
+      const sourceId = job.payload?.source_id;
+      if (!sourceId) throw new Error('document_parse без source_id');
+      const analysis = await services.sources.analyzeDocument(sourceId);
+      return {
+        derived_source_id: analysis.derivedSourceId,
+        document_type: analysis.classification.document_type,
+        claims: analysis.claims.length,
+        format: analysis.extraction.format,
+        suspicious_content: analysis.suspiciousContent.length,
+      };
     },
 
     async report_generation() {

@@ -15,6 +15,7 @@ import { caseManagerAgent } from './definitions/caseManager.js';
 import { intakeAnalystAgent } from './definitions/intakeAnalyst.js';
 import { investigationPlannerAgent } from './definitions/investigationPlanner.js';
 import { claimExtractorAgent } from './definitions/claimExtractor.js';
+import { documentAnalystAgent } from './definitions/documentAnalyst.js';
 import { redTeamInvestigatorAgent } from './definitions/redTeamInvestigator.js';
 import { interviewStrategistAgent } from './definitions/interviewStrategist.js';
 import { aiInterviewerAgent } from './definitions/aiInterviewer.js';
@@ -23,6 +24,7 @@ import { contradictionAnalystAgent } from './definitions/contradictionAnalyst.js
 import { hypothesisAnalystAgent } from './definitions/hypothesisAnalyst.js';
 import { followUpPlannerAgent } from './definitions/followUpPlanner.js';
 import { corroborationAgent } from './definitions/corroborationAgent.js';
+import { financialInvestigatorAgent } from './definitions/financialInvestigator.js';
 import { defenceReviewerAgent } from './definitions/defenceReviewer.js';
 import { rootCauseAnalystAgent } from './definitions/rootCauseAnalyst.js';
 import { finalReviewerAgent } from './definitions/finalReviewer.js';
@@ -32,12 +34,14 @@ const DEFINITIONS = [
   caseManagerAgent,
   intakeAnalystAgent,
   investigationPlannerAgent,
+  documentAnalystAgent,
   interviewStrategistAgent,
   aiInterviewerAgent,
   claimExtractorAgent,
   timelineAnalystAgent,
   contradictionAnalystAgent,
   corroborationAgent,
+  financialInvestigatorAgent,
   hypothesisAnalystAgent,
   redTeamInvestigatorAgent,
   defenceReviewerAgent,

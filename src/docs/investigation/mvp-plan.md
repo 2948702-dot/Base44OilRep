@@ -96,6 +96,19 @@ Red Team Investigator.
 
 Приёмка выросла до 90 проверок и проходит на обоих драйверах хранения.
 
+## Шаг 6 — документы и финансы (выполнено)
+
+| Шаг | Состояние | Где |
+|---|---|---|
+| Agent 04 Document Analyst | готово | `agents/definitions/documentAnalyst.js` |
+| Agent 11 Financial Investigator | готово | `agents/definitions/financialInvestigator.js` |
+| Извлечение текста с привязкой к месту в оригинале | готово | `server/documentExtraction.js` |
+| Приём файлов следователем и разбор задачей очереди | готово | `server/routes/cases.js`, `server/jobRunner.js` |
+| Ожидаемое и фактическое движение средств | готово | `services/AnalysisService.js` |
+
+Реализованы все 18 агентов из §22–§40 ТЗ.
+Приёмка — 97 проверок, очередь — 24, HTTP-контур — 28.
+
 ## Phase 1 — оставшееся (§72 ТЗ)
 
 | Приоритет | Работа | Зависит от |
@@ -105,15 +118,16 @@ Red Team Investigator.
 | P0 | Приём голосовых ответов и вложений от участника (`KI-025`) | обработчик транскрипции |
 | P1 | Проверить качество распознавания на живой русской речи (`KI-028`) | развёртывание |
 | P1 | Приём вложений от участника | разбор документов |
-| P1 | Agent 04 Document Analyst с обязательным `source_locator` | SourceService |
 | P1 | Telegram-бот интервью | веб-интервью |
 | P2 | Экраны: Case Dashboard, Timeline, Evidence Matrix, Contradiction Map, Hypothesis Board | сервисы |
 | P2 | Эмбеддинги и наполнение методологического пространства знаний | pgvector готов |
 
 ## Phase 2 (§73 ТЗ)
 
-Financial Investigator, Flow of Funds, парсинг банковских выписок, интеграции CRM,
-импорт почты и мессенджеров, граф связей, Root Cause, отслеживание корректирующих действий.
+Выполнено: Financial Investigator, Flow of Funds, Root Cause.
+
+Остаётся: разбор банковских выписок конкретных банков, интеграции CRM, импорт почты
+и мессенджеров, экран графа связей, отслеживание выполнения корректирующих действий.
 
 ## Phase 3 (§74 ТЗ)
 

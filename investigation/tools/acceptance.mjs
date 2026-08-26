@@ -107,6 +107,7 @@ const LLM_RESPONSES = [
   stub.HYPOTHESIS_REVIEW_OUTPUT,       // 12 hypothesis_analyst
   stub.RED_TEAM_OUTPUT,                // 13 red_team_investigator
   stub.FOLLOW_UP_OUTPUT,               // 15 follow_up_planner
+  stub.FINANCIAL_OUTPUT,               // 11 financial_investigator
   stub.FINAL_REVIEW_OUTPUT,            // 17 final_reviewer
   stub.DEFENCE_REVIEW_OUTPUT,          // 14 defence_reviewer
   stub.ROOT_CAUSE_OUTPUT,              // 16 root_cause_analyst
@@ -334,6 +335,35 @@ async function main() {
   check('Раунд второго интервью проставлен',
     round2.every((r) => r.interview.round === cycle.followUp.round));
 
+  // ───────────────────────── Финансовый контур ─────────────────────────
+
+  const financial = await app.analysis.runFinancialAnalysis(caseId);
+  check('Построены обе цепочки движения средств',
+    financial.edges.filter((e) => e.flow_type === 'expected').length === 4
+      && financial.edges.filter((e) => e.flow_type === 'actual').length === 2);
+  check('Ожидаемое движение не может быть подтверждённым: это норматив, а не факт',
+    financial.edges.filter((e) => e.flow_type === 'expected')
+      .every((e) => e.verification_status === 'unverified'));
+  check('Звено, известное только со слов, помечено неподтверждённым',
+    financial.edges.some(
+      (e) => e.flow_type === 'actual'
+        && e.destination_entity === 'Администратор'
+        && e.verification_status === 'unverified'),
+    'попытка объявить передачу проверенной отклонена');
+  check('Каждое фактическое звено стало операцией дела',
+    financial.transactions.length === 2
+      && financial.transactions.every((t) => /^TX-\d+$/.test(t.transaction_code)));
+  check('Разрыв в цепочке зафиксирован с указанием того, что его объяснит',
+    financial.analysis.unexplained_gaps.length >= 1
+      && financial.analysis.unexplained_gaps.every((g) => g.what_would_explain_it.length > 0));
+  check('Недостающие финансовые материалы стали задачами', financial.tasks.length === 2);
+
+  const snapshotAfterFinance = await app.cases.getSnapshot(caseId);
+  const nextAfterFinance = await app.cases.getNextBestActions(caseId);
+  check('Неподтверждённое движение средств попало в рекомендованные действия',
+    nextAfterFinance.actions.some((a) => a.target?.type === 'MoneyFlowEdge'),
+    `неподтверждённых рёбер: ${snapshotAfterFinance.moneyFlowEdges.filter((e) => e.verification_status === 'unverified').length}`);
+
   // ───────────────────────── Итоговый отчёт ─────────────────────────
 
   const finalReview = await app.reports.runFinalReview(caseId);
@@ -471,7 +501,7 @@ async function main() {
     agentRuns.every((r) => r.model && r.prompt_version && r.agent_version),
     `запусков: ${agentRuns.length}`);
   check('Задействованы все агенты цикла расследования',
-    new Set(agentRuns.map((r) => r.agent_type)).size >= 13,
+    new Set(agentRuns.map((r) => r.agent_type)).size >= 14,
     [...new Set(agentRuns.map((r) => r.agent_type))].join(', '));
   check('Отклонённый по методологии запуск сохранён в журнале',
     agentRuns.filter((r) => r.agent_type === 'hypothesis_analyst').length === 2);

@@ -4,13 +4,13 @@
 схему выхода. Реализованные агенты зарегистрированы в `src/investigation/agents/registry.js`;
 остальные реализуются поверх готового framework и не требуют его изменения.
 
-Реализовано 16 из 18. Расследование проходит целиком — от свободного описания инцидента
+Реализованы все 18. Расследование проходит целиком — от свободного описания инцидента
 до выпущенного отчёта: приём заявления → планирование → подготовка и проведение интервью →
 извлечение утверждений → хронология → противоречия → пересмотр версий → независимая
 проверка → следующий раунд → классификация выводов → итоговый документ → выпуск после
 утверждения человеком.
 
-Незамкнутыми остаются разбор документов (агент 04) и финансовый контур (11).
+Состав из §22–§40 ТЗ реализован полностью.
 
 Столбец «Состояние»: `готов` — реализован и проверен приёмочным прогоном;
 `спроектирован` — определены контракт, данные и схема, реализация впереди.
@@ -20,14 +20,16 @@
 | 01 | Case Manager | `case_manager` | готов | `CaseStateSchema` |
 | 02 | Intake Analyst | `intake_analyst` | готов | `IntakeAnalysisSchema` |
 | 03 | Investigation Planner | `investigation_planner` | готов | `InvestigationPlanSchema` |
-| 04 | Document Analyst | `document_analyst` | спроектирован | `DocumentAnalysisSchema` |
+| 04 | Document Analyst | `document_analyst` | готов | `DocumentAnalysisSchema` |
 | 05 | Interview Strategist | `interview_strategist` | готов | `InterviewPlanSchema` |
 | 06 | AI Interviewer | `ai_interviewer` | готов | `InterviewTurnSchema` |
 | 07 | Claim Extractor | `claim_extractor` | готов | `ClaimExtractionSchema` |
 | 08 | Timeline Analyst | `timeline_analyst` | готов | `TimelineSchema` |
 | 09 | Contradiction Analyst | `contradiction_analyst` | готов | `ContradictionScanSchema` |
-| 10 | Evidence Corroboration | `corroboration_agent` | готов | `CorroborationSchema` |
-| 11 | Financial Investigator | `financial_investigator` | спроектирован (Phase 2) | `FlowOfFundsSchema` |
+| 10 | Document Analyst | утверждение из документа без привязки к месту в оригинале отклоняется; текст с попыткой подмены инструкций фиксируется в самом материале, а не выполняется |
+| Financial Investigator | звено без объективного финансового материала записывается неподтверждённым; ожидаемое движение средств не может быть подтверждённым — это норматив, а не наблюдение |
+| Evidence Corroboration | `corroboration_agent` | готов | `CorroborationSchema` |
+| 11 | Financial Investigator | `financial_investigator` | готов | `FinancialAnalysisSchema` |
 | 12 | Hypothesis Analyst | `hypothesis_analyst` | готов | `HypothesisAnalysisSchema` |
 | 13 | Red Team Investigator | `red_team_investigator` | готов | `RedTeamReviewSchema` |
 | 14 | Defence Reviewer | `defence_reviewer` | готов | `DefenceReviewSchema` |
@@ -86,19 +88,27 @@ AI Interviewer не имеет права: угрожать, шантажиро�
 | Contradiction Analyst | ссылка на несуществующее утверждение отклоняется; повторные пары не создаются |
 | Hypothesis Analyst | попытка вернуть статус `eliminated` отклоняется `AGENT_CANNOT_ELIMINATE_HYPOTHESIS`; исчезновение всех альтернатив — `ALTERNATIVES_MUST_SURVIVE` |
 | Follow-Up Planner | вопрос с `reveals_other_testimony` помечается чувствительным принудительно, даже если агент этого не сделал |
+| Document Analyst | утверждение из документа без привязки к месту в оригинале отклоняется; текст с попыткой подмены инструкций фиксируется в самом материале, а не выполняется |
+| Financial Investigator | звено без объективного финансового материала записывается неподтверждённым; ожидаемое движение средств не может быть подтверждённым — это норматив, а не наблюдение |
 | Evidence Corroboration | утверждение не может стать `verified` без объективного материала: согласие людей — подтверждение, но не проверка; связь на несуществующие объекты отклоняется |
 | Defence Reviewer | вывод, признанный несостоятельным, невозможно утвердить (`FINDING_REJECTED_BY_DEFENCE_REVIEW`) — иначе проверка остаётся упражнением |
 | Root Cause Analyst | меры относятся к порядку работы и контролю; кадровые решения принимает организация, а не расследование |
 | Final Reviewer | вывод типа `fact` без ссылки на доказательство не сохраняется (`FACT_REQUIRES_EVIDENCE`); ссылка на несуществующее доказательство отклоняется (`FINDING_CITES_UNKNOWN_EVIDENCE`) |
 | Report Writer | ссылка на неутверждённый вывод отклоняет отчёт целиком (`REPORT_CITES_UNKNOWN_FINDING`); выпуск без утверждения человеком невозможен (`REPORT_RELEASE_REQUIRES_APPROVAL`) |
 
+## Форматы материалов, которые разбирает Document Analyst
+
+| Формат | Единица привязки |
+|---|---|
+| PDF | страница |
+| CSV, TSV | строка таблицы |
+| JSON, выгрузки переписки | идентификатор записи или сообщения |
+| Текст, Markdown | строка |
+| Изображения и сканы | не разбираются: отказ явный, оригинал сохранён |
+
+Скан PDF без текстового слоя отклоняется с объяснением, а не превращается в пустой
+разбор: молчаливо пустой результат выглядел бы как «в документе ничего нет».
+
 ## Контракты ещё не реализованных агентов
-
-**04 Document Analyst.** Вход: `Source`. Выход: классификация, извлечённый текст, сущности,
-даты, суммы, события, claims, метаданные. Обязателен `source_locator` каждого извлечённого
-элемента: страница, строка, timestamp, message id, row id.
-
-**11 Financial Investigator.** Ожидаемый и фактический поток средств, необъяснённые разрывы,
-дубли, отсутствующие переводы, расхождения сумм.
 
 

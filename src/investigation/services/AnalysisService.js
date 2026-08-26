@@ -249,6 +249,132 @@ export function createAnalysisService({ repositories, scope, llm, approvals }) {
     },
 
     /**
+     * Финансовый контур (§33 ТЗ).
+     *
+     * Ожидаемая и фактическая цепочки движения средств сохраняются раздельно: сравнение
+     * норматива с фактом и есть содержание финансового расследования.
+     *
+     * Звено без объективного финансового материала записывается как неподтверждённое
+     * независимо от того, что вернул агент: правдоподобие подтверждением не является.
+     */
+    async runFinancialAnalysis(caseId) {
+      const context = agentContext(caseId);
+      const agent = getAgent('financial_investigator');
+      const result = await agent.runWithMetadata({}, context);
+      const analysis = result.output;
+
+      const [evidence, existingEdges, existingTransactions] = await Promise.all([
+        repositories.evidence.list({ case_id: caseId }),
+        repositories.moneyFlowEdges.list({ case_id: caseId }),
+        repositories.transactions.list({}, { includeDeleted: true }),
+      ]);
+      const evidenceByCode = new Map(evidence.map((e) => [e.evidence_code, e]));
+      const transactionCodes = existingTransactions.map((t) => t.transaction_code);
+      const seenEdges = new Set(existingEdges.map(
+        (e) => `${e.flow_type}|${e.source_entity}|${e.destination_entity}|${e.sequence}`,
+      ));
+
+      const edges = [];
+
+      for (const step of analysis.expected_flow) {
+        const key = `expected|${step.source_entity}|${step.destination_entity}|${step.sequence}`;
+        if (seenEdges.has(key)) continue;
+        seenEdges.add(key);
+        edges.push(await repositories.moneyFlowEdges.create({
+          case_id: caseId,
+          sequence: step.sequence,
+          source_entity: step.source_entity,
+          destination_entity: step.destination_entity,
+          amount: step.amount,
+          currency: step.currency,
+          occurred_at: step.expected_at,
+          time_precision: 'unknown',
+          evidence_ids: [],
+          // Ожидаемое движение — это норматив, а не наблюдение, и подтверждённым
+          // быть не может по определению.
+          verification_status: 'unverified',
+          flow_type: 'expected',
+          notes: step.basis,
+        }));
+      }
+
+      const transactions = [];
+      for (const step of analysis.actual_flow) {
+        const evidenceIds = step.evidence_codes
+          .map((code) => evidenceByCode.get(code)?.id)
+          .filter(Boolean);
+
+        const hasObjectiveEvidence = evidenceIds.length > 0;
+        const verification = hasObjectiveEvidence
+          ? step.verification_status
+          : (step.verification_status === 'contradicted' ? 'contradicted' : 'unverified');
+
+        const key = `actual|${step.source_entity}|${step.destination_entity}|${step.sequence}`;
+        if (seenEdges.has(key)) continue;
+        seenEdges.add(key);
+
+        edges.push(await repositories.moneyFlowEdges.create({
+          case_id: caseId,
+          sequence: step.sequence,
+          source_entity: step.source_entity,
+          destination_entity: step.destination_entity,
+          amount: step.amount,
+          currency: step.currency,
+          occurred_at: step.occurred_at,
+          time_precision: step.time_precision,
+          evidence_ids: evidenceIds,
+          verification_status: verification,
+          flow_type: 'actual',
+          notes: step.claim_codes.length > 0 ? `Со слов: ${step.claim_codes.join(', ')}` : null,
+        }));
+
+        // Каждое фактическое звено становится операцией: движение денег должно быть
+        // видно в деле как объект, а не только как ребро схемы.
+        const code = nextCode('transaction', transactionCodes);
+        transactionCodes.push(code);
+        transactions.push(await repositories.transactions.create({
+          case_id: caseId,
+          transaction_code: code,
+          payer: step.source_entity,
+          receiver: step.destination_entity,
+          amount: step.amount,
+          currency: step.currency,
+          actual_at: step.occurred_at,
+          payment_method: 'unknown',
+          verification_status: verification,
+          notes: step.claim_codes.length > 0 ? `Со слов: ${step.claim_codes.join(', ')}` : null,
+        }));
+      }
+
+      // Недостающие финансовые материалы становятся задачами: разрыв, о котором никто
+      // не запросил документ, останется разрывом навсегда.
+      const tasks = [];
+      for (const item of analysis.missing_financial_evidence) {
+        tasks.push(await repositories.tasks.create({
+          case_id: caseId,
+          title: item.description,
+          description: item.holder ? `Держатель: ${item.holder}` : null,
+          task_type: 'request_bank_statement',
+          status: 'proposed',
+          priority: 'high',
+          expected_information_gain: 'very_high',
+          reason: `Финансовый разрыв: ${item.would_resolve}`,
+          created_by_agent: agent.id,
+          agent_run_id: result.run.id,
+        }));
+      }
+
+      return {
+        analysis,
+        edges,
+        transactions,
+        tasks,
+        unverifiedEdges: edges.filter((e) => e.verification_status === 'unverified').length,
+        agentRunId: result.run.id,
+      };
+    },
+
+    /**
      * Пересмотр версий. Смена статуса пишется в историю; исключение версии агентом
      * не допускается ни при каких условиях — это решение человека (§8, §34, §42 ТЗ).
      */

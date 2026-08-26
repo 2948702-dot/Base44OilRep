@@ -119,6 +119,74 @@ export function registerCaseRoutes(app) {
     return reply.code(201).send({ source, injection_scan: scan });
   });
 
+  /**
+   * Приём файла-материала. Оригинал кладётся по хэшу содержимого и не изменяется;
+   * разбор ставится в очередь, потому что извлечение текста из большого PDF
+   * не должно держать соединение интерфейса.
+   */
+  app.post('/api/cases/:caseId/sources/file', async (request, reply) => {
+    assertCanWrite(request.scope);
+    const { caseId } = request.params;
+
+    if (!request.isMultipart()) {
+      return reply.code(400).send({ error: 'Ожидается файл' });
+    }
+
+    let buffer = null;
+    let filename = null;
+    let mimeType = null;
+    let type = 'document';
+    let title = null;
+
+    for await (const part of request.parts()) {
+      if (part.type === 'file') {
+        buffer = await part.toBuffer();
+        filename = part.filename || 'file';
+        mimeType = part.mimetype;
+      } else if (part.fieldname === 'type') {
+        type = String(part.value);
+      } else if (part.fieldname === 'title') {
+        title = String(part.value);
+      }
+    }
+
+    if (!buffer || buffer.length === 0) {
+      return reply.code(400).send({ error: 'Файл пуст' });
+    }
+
+    const services = servicesFor(app, request, caseId);
+    const source = await services.sources.ingestFile(buffer, {
+      type, title: title ?? filename, filename, mimeType,
+    });
+
+    let job = null;
+    if (app.jobs) {
+      job = await app.jobs.enqueue({
+        organizationId: request.scope.organizationId,
+        caseId,
+        jobType: 'document_parse',
+        payload: { source_id: source.id },
+      });
+    }
+
+    return reply.code(201).send({ source, parse_job_id: job?.id ?? null });
+  });
+
+  /** Повторный разбор материала: нужен после изменения правил извлечения. */
+  app.post('/api/cases/:caseId/sources/:sourceId/parse', async (request, reply) => {
+    assertCanWrite(request.scope);
+    const { caseId, sourceId } = request.params;
+    if (!app.jobs) return reply.code(503).send({ error: 'Исполнитель очереди не запущен' });
+
+    const job = await app.jobs.enqueue({
+      organizationId: request.scope.organizationId,
+      caseId,
+      jobType: 'document_parse',
+      payload: { source_id: sourceId },
+    });
+    return reply.code(202).send({ status: 'queued', job_id: job.id });
+  });
+
   app.post('/api/cases/:caseId/sources/:sourceId/evidence', async (request, reply) => {
     assertCanWrite(request.scope);
     const { caseId, sourceId } = request.params;
