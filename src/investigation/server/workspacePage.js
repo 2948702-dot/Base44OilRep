@@ -215,6 +215,36 @@ function writeToken(value) {
   catch (e) { /* приватный режим: работа продолжается в пределах вкладки */ }
 }
 
+/**
+ * Скачивание файла из защищённого маршрута.
+ *
+ * Обычная ссылка сюда не годится: доступ идёт по токену в заголовке, а браузер
+ * заголовков к переходу по ссылке не добавляет. Поэтому файл забирается запросом,
+ * а браузеру отдаётся уже полученное содержимое.
+ */
+async function downloadFile(path) {
+  const response = await fetch(path, { headers: { authorization: 'Bearer ' + state.token } });
+  if (response.status === 401) { logout(); throw new Error('Сессия истекла'); }
+  if (!response.ok) {
+    const payload = await response.json().catch(function () { return {}; });
+    throw new Error(payload.error || ('Ошибка ' + response.status));
+  }
+
+  var disposition = response.headers.get('content-disposition') || '';
+  var match = disposition.match(/filename="([^"]+)"/);
+  var blob = await response.blob();
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement('a');
+  link.href = url;
+  link.download = match ? match[1] : 'report.docx';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+
+  return { message: 'Файл отдан браузеру: ' + link.download, reload: false };
+}
+
 async function api(path, options) {
   const opts = options || {};
   const response = await fetch(path, {
@@ -1031,6 +1061,12 @@ async function viewReport(root) {
       await api('/api/cases/' + state.caseId + '/reports/' + draftReport.id + '/release',
         { method: 'POST', body: {} });
       return { message: 'Отчёт выпущен, дело закрыто.', reload: true };
+    }, { ghost: true }) : null,
+    // Выгружается последняя версия: выпущенная, если она есть, иначе черновик.
+    // Черновик уносить наружу можно, но документ сам сообщает, что он черновик.
+    reports.reports.length > 0 ? action('Выгрузить в DOCX', function () {
+      return downloadFile('/api/cases/' + state.caseId + '/reports/'
+        + reports.reports[0].id + '/export.docx');
     }, { ghost: true }) : null,
   ]);
 

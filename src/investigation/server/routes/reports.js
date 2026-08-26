@@ -8,6 +8,7 @@
 
 import { createInvestigationServices } from '../../services/index.js';
 import { assertCanWrite, assertCanApprove } from '../auth.js';
+import { buildReportDocx, reportFileName } from '../reportExport.js';
 
 function servicesFor(app, request, caseId) {
   return createInvestigationServices({
@@ -119,6 +120,49 @@ export function registerReportRoutes(app) {
       return reply.code(404).send({ error: 'Отчёт не найден' });
     }
     return report;
+  });
+
+  /**
+   * Выгрузка отчёта в документ.
+   *
+   * Отчёт, который нельзя передать за пределы системы, наполовину бесполезен: итог
+   * расследования читают руководитель, юрист и иногда проверяющий, и у них нет доступа
+   * к платформе. Выгрузка сохраняет коды выводов и материалов рядом с утверждениями,
+   * чтобы документ оставался проверяемым и вне системы.
+   *
+   * Каждая выгрузка записывается в журнал: вынос материалов расследования наружу —
+   * событие, а не техническая операция.
+   */
+  app.get('/api/cases/:caseId/reports/:reportId/export.docx', async (request, reply) => {
+    const { caseId, reportId } = request.params;
+    const services = servicesFor(app, request, caseId);
+
+    const report = await services.repositories.reports.get(reportId);
+    if (!report || report.case_id !== caseId) {
+      return reply.code(404).send({ error: 'Отчёт не найден' });
+    }
+    const investigationCase = await services.repositories.cases.get(caseId);
+
+    await services.repositories.audit.record({
+      organization_id: request.scope.organizationId,
+      case_id: caseId,
+      actor: request.scope.actorId,
+      actor_type: 'user',
+      timestamp: new Date().toISOString(),
+      object_type: 'investigation_report',
+      object_id: reportId,
+      operation: 'export',
+      new_value: { format: 'docx', version: report.version, status: report.status },
+      ip: request.ip,
+      device: request.headers['user-agent'] ?? null,
+    });
+
+    const file = buildReportDocx({ report, investigationCase });
+    return reply
+      .header('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+      .header('content-disposition', `attachment; filename="${reportFileName(investigationCase, report)}"`)
+      .header('cache-control', 'no-store')
+      .send(file);
   });
 
   app.post('/api/cases/:caseId/reports/:reportId/request-release', async (request, reply) => {

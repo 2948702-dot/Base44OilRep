@@ -31,6 +31,8 @@ import {
   scoreRun,
 } from '../../src/investigation/simulator/index.js';
 import { MISSING_CASH_001_TRAINING } from '../../src/investigation/fixtures/training-cases/missingCash001.js';
+import { buildReportDocx } from '../../src/investigation/server/reportExport.js';
+import { extractDocument } from '../../src/investigation/server/documentExtraction.js';
 import {
   assertFindingHasEvidence,
   assertHypothesisClosureAllowed,
@@ -471,6 +473,26 @@ async function main() {
   check('Рекомендации касаются порядка работы, а не наказания людей',
     report.sections.recommended_actions.every(
       (a) => !/уволить|наказать|взыскать|дисциплинарн/i.test(a.action)));
+
+  // ───────────────────────── Выгрузка отчёта ─────────────────────────
+
+  const exported = buildReportDocx({ report, investigationCase });
+  check('Отчёт выгружается документом', exported.length > 1000
+    && exported[0] === 0x50 && exported[1] === 0x4b, `${exported.length} байт`);
+
+  // Проверка кругом: выгруженный документ читается тем же разбором, которым платформа
+  // читает материалы дела. Документ, который наш же разборщик открыть не может,
+  // не откроет и получатель.
+  const readBack = await extractDocument(exported, { filename: 'report.docx' });
+  check('Выгруженный документ читается обратно и сохраняет ссылки на выводы',
+    readBack.format === 'docx'
+      && readBack.text.includes(report.title)
+      && report.cited_finding_codes.every((code) => readBack.text.includes(code)),
+    `абзацев: ${readBack.units.length}`);
+  check('Черновик отчёта помечен черновиком в самом документе',
+    readBack.text.includes('Черновик'));
+  check('Выгрузка не добавляет утверждений сверх отчёта',
+    (report.sections.established_facts ?? []).every((f) => readBack.text.includes(f.text)));
 
   const releaseBlocked = await expectRejected(() => app.reports.releaseReport(report.id));
   check('Выпуск отчёта невозможен без утверждения человеком',

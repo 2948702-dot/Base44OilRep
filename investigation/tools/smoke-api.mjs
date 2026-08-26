@@ -218,6 +218,13 @@ try {
     badStage.status === 422 && String(badStage.body.error).includes('не предусмотрен'),
     badStage.body?.error ?? '');
 
+  const missingExport = await call(
+    'GET', `/api/cases/${caseId}/reports/00000000-0000-0000-0000-000000000000/export.docx`,
+    { token: tokenA },
+  );
+  check('Выгрузка несуществующего отчёта отвечает 404, а не пустым файлом',
+    missingExport.status === 404);
+
   const audit = await call('GET', `/api/cases/${caseId}/audit`, { token: tokenA });
   check('Журнал аудита доступен и не пуст',
     audit.status === 200 && audit.body.events.length > 0, `записей: ${audit.body?.events?.length ?? 0}`);
