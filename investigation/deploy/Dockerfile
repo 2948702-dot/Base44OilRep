@@ -8,7 +8,11 @@ FROM node:22-alpine
 # Распознавание текста на сканах живёт прямо в образе: tesseract — обычная программа,
 # а не модель на несколько гигабайт, и отдельный контейнер под неё был бы лишней
 # движущейся частью. Русские данные обязательны: без них скан читается как латиница.
-RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-rus tesseract-ocr-data-eng
+# Наличие русских данных проверяется прямо при сборке: образ без них собрался бы
+# успешно и молча читал бы кириллицу как латиницу — ошибка, которая обнаружилась бы
+# на первом же скане у клиента.
+RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-rus \
+ && tesseract --list-langs | grep -qx rus
 
 WORKDIR /app
 
