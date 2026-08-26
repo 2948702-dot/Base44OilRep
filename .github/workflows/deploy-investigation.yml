@@ -66,6 +66,15 @@ jobs:
       - name: Проверка исполнителя очереди
         run: npm run investigation:jobs
 
+      # Проверка интерфейса в настоящем браузере: маршруты, отвечающие 200, ничего
+      # не говорят о том, что увидит человек. Обе ошибки вёрстки рабочего места
+      # прошли все проверки API и обнаружились только здесь.
+      - name: Установить браузер
+        run: npx playwright install --with-deps chromium
+
+      - name: Проверка интерфейса
+        run: npm run investigation:ui
+
   deploy:
     needs: verify
     if: github.ref == 'refs/heads/main'

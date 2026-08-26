@@ -10,6 +10,7 @@
  */
 
 import { createInvestigationServices } from '../../services/index.js';
+import { assertCanWrite } from '../auth.js';
 
 function servicesFor(app, request, caseId) {
   return createInvestigationServices({
@@ -179,11 +180,13 @@ export function registerViewRoutes(app) {
 
     return {
       contradictions: contradictions.map((x) => ({
+        id: x.id,
         code: x.contradiction_code,
         type: x.type,
         severity: x.severity,
         description: x.description,
         resolution_status: x.resolution_status,
+        resolution_note: x.resolution_note,
         claim_a: side(x.claim_a_id),
         claim_b: side(x.claim_b_id),
         // Независимое доказательство показывается явно, включая его отсутствие:
@@ -304,6 +307,51 @@ export function registerViewRoutes(app) {
           .map((i) => ({ id: i.id, round: i.round, status: i.status, channel: i.channel })),
       })),
     };
+  });
+
+  /**
+   * Разрешение противоречия человеком.
+   *
+   * Закрыть противоречие может только человек и только с объяснением: противоречие,
+   * помеченное разрешённым без причины, исчезает из поля зрения, не будучи разрешённым.
+   */
+  app.post('/api/cases/:caseId/contradictions/:contradictionId/resolve', async (request, reply) => {
+    assertCanWrite(request.scope);
+    const { caseId, contradictionId } = request.params;
+    const { status, note } = request.body ?? {};
+
+    if (!['resolved', 'unresolvable', 'under_investigation', 'open'].includes(status)) {
+      return reply.code(400).send({ error: 'Недопустимое состояние противоречия' });
+    }
+    if (status !== 'open' && !note) {
+      return reply.code(400).send({ error: 'Изменение состояния противоречия требует объяснения' });
+    }
+
+    const services = servicesFor(app, request, caseId);
+    const contradiction = await services.repositories.contradictions.get(contradictionId);
+    if (!contradiction || contradiction.case_id !== caseId) {
+      return reply.code(404).send({ error: 'Противоречие не найдено' });
+    }
+
+    return services.repositories.contradictions.update(contradictionId, {
+      resolution_status: status,
+      resolution_note: note ?? null,
+      resolved_by: status === 'open' ? null : request.scope.userId,
+    });
+  });
+
+  /** Изменение состояния задачи расследования. */
+  app.post('/api/cases/:caseId/tasks/:taskId/status', async (request, reply) => {
+    assertCanWrite(request.scope);
+    const { caseId, taskId } = request.params;
+    const { status } = request.body ?? {};
+    if (!['proposed', 'accepted', 'in_progress', 'completed', 'cancelled', 'blocked'].includes(status)) {
+      return reply.code(400).send({ error: 'Недопустимое состояние задачи' });
+    }
+    const services = servicesFor(app, request, caseId);
+    const task = await services.repositories.tasks.get(taskId);
+    if (!task || task.case_id !== caseId) return reply.code(404).send({ error: 'Задача не найдена' });
+    return services.repositories.tasks.update(taskId, { status });
   });
 
   /** Задачи расследования и рекомендованные действия. */

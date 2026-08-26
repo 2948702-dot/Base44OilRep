@@ -136,6 +136,76 @@ function setChildren(node, children) {
   node.replaceChildren.apply(node, flat);
 }
 
+/**
+ * Действие с объяснением.
+ *
+ * Утверждение вывода, закрытие противоречия и выпуск отчёта требуют причины: решение
+ * без объяснения невозможно проверить потом, а именно это и обещает продукт. Поле
+ * причины показывается сразу рядом с кнопкой, а не в отдельном окне, чтобы человек
+ * видел, что именно он подтверждает.
+ */
+function noteAction(label, placeholder, handler, options) {
+  const opts = options || {};
+  const note = el('input', { type: 'text', placeholder: placeholder, style: 'min-width:16rem' });
+  const status = el('span', { class: 'muted' });
+  const confirm = el('button', { class: opts.ghost ? 'ghost' : '', text: label });
+
+  confirm.addEventListener('click', async function () {
+    const value = note.value.trim();
+    if (!value) { status.textContent = 'Нужно объяснение.'; return; }
+    confirm.disabled = true;
+    status.className = 'muted';
+    status.textContent = 'Выполняю…';
+    try {
+      await handler(value);
+      status.textContent = 'Готово.';
+      await render();
+    } catch (error) {
+      status.className = 'error';
+      status.textContent = error.message;
+      confirm.disabled = false;
+    }
+  });
+
+  return el('div', { class: 'filters' }, [note, confirm, status]);
+}
+
+/** Действие без объяснения: запуск анализа, подготовка интервью. */
+function action(label, handler, options) {
+  const opts = options || {};
+  const status = el('span', { class: 'muted' });
+  const button = el('button', { class: opts.ghost ? 'ghost' : '', text: label });
+
+  button.addEventListener('click', async function () {
+    button.disabled = true;
+    status.className = 'muted';
+    status.textContent = 'Выполняю…';
+    try {
+      const result = await handler();
+      if (result && result.message) {
+        status.textContent = result.message;
+        // Ссылка участника показывается один раз: в базе остаётся только её хэш,
+        // и повторно её выдать нельзя — только выпустить новую.
+        if (result.link) {
+          status.appendChild(document.createElement('br'));
+          status.appendChild(el('code', { text: result.link }));
+        }
+        button.disabled = false;
+        if (result.reload) await render();
+      } else {
+        status.textContent = 'Готово.';
+        await render();
+      }
+    } catch (error) {
+      status.className = 'error';
+      status.textContent = error.message;
+      button.disabled = false;
+    }
+  });
+
+  return el('span', { class: 'filters', style: 'display:inline-flex' }, [button, status]);
+}
+
 function readToken() {
   try { return sessionStorage.getItem('inv_token'); } catch (e) { return null; }
 }
@@ -194,6 +264,27 @@ const HYP_STATUS_RU = {
   active: 'проверяется', supported: 'подтверждена', weakened: 'ослаблена',
   contradicted: 'опровергнута', eliminated: 'исключена', unresolved: 'не разрешена',
 };
+const APPROVAL_RU = {
+  interview_dispatch: 'Отправка интервью участникам',
+  sensitive_question: 'Чувствительный вопрос',
+  subject_designation: 'Перевод человека в статус subject',
+  hypothesis_closure: 'Исключение версии',
+  finding_approval: 'Утверждение вывода',
+  final_report_release: 'Выпуск итогового отчёта',
+};
+
+/** Краткое содержание запроса: без него человек утверждает вслепую. */
+function describeApproval(a) {
+  const payload = a.payload || {};
+  if (payload.people) {
+    return 'раунд ' + (payload.round || '?') + ', человек: ' + payload.people.length
+      + ', чувствительных вопросов: '
+      + payload.people.reduce(function (sum, p) { return sum + (p.sensitive_questions || 0); }, 0);
+  }
+  if (payload.interview_ids) return 'интервью: ' + payload.interview_ids.length;
+  return a.object_type + (a.object_id ? ' ' + a.object_id : '');
+}
+
 const CONTRADICTION_TYPE_RU = {
   direct: 'прямое', temporal: 'по времени', financial: 'по суммам', location: 'по месту',
   identity: 'по участникам', sequence: 'по последовательности',
@@ -343,11 +434,56 @@ async function viewOverview(root) {
       ]);
     }));
 
+  // Действия предлагаются по стадии дела: показывать «составить план» до разбора
+  // заявления значит предлагать планировать расследование неизвестно чего.
+  const stage = data.case.current_stage;
+  const stageActions = el('div', { class: 'filters' }, [
+    stage === 'intake' ? action('Разобрать заявление', function () {
+      return api('/api/cases/' + state.caseId + '/intake', { method: 'POST', body: {} });
+    }) : null,
+    (stage === 'intake' || stage === 'planning') ? action('Составить план расследования', function () {
+      return api('/api/cases/' + state.caseId + '/plan', { method: 'POST', body: {} });
+    }) : null,
+    action('Запустить аналитический цикл', async function () {
+      const result = await api('/api/cases/' + state.caseId + '/analysis', { method: 'POST', body: {} });
+      return { message: result.job_id
+        ? 'Поставлено в очередь. Цикл дойдёт до пересмотра версий и остановится на утверждении человеком.'
+        : 'Цикл выполнен.', reload: true };
+    }, { ghost: true }),
+    action('Классифицировать выводы', function () {
+      return api('/api/cases/' + state.caseId + '/final-review', { method: 'POST', body: {} });
+    }, { ghost: true }),
+  ]);
+
+  const approvals = data.pending_approvals.length === 0 ? null : el('div', {}, [
+    el('h2', { text: 'Ждут вашего решения' }),
+    el('div', {}, data.pending_approvals.map(function (a) {
+      return el('div', { class: 'card', style: 'margin-bottom:.6rem' }, [
+        el('div', {}, [
+          el('strong', { text: APPROVAL_RU[a.approval_type] || a.approval_type }), ' ',
+          el('span', { class: 'chip warn', text: 'решение не принято' }),
+        ]),
+        a.payload ? el('div', { class: 'muted', text: describeApproval(a) }) : null,
+        el('div', { class: 'filters' }, [
+          noteAction('Утвердить', 'что именно проверено', function (note) {
+            return api('/api/cases/' + state.caseId + '/approvals/' + a.id + '/decide',
+              { method: 'POST', body: { decision: 'approved', note: note } });
+          }),
+          noteAction('Отклонить', 'почему отклонено', function (note) {
+            return api('/api/cases/' + state.caseId + '/approvals/' + a.id + '/decide',
+              { method: 'POST', body: { decision: 'rejected', note: note } });
+          }, { ghost: true }),
+        ]),
+      ]);
+    })),
+  ]);
+
   const people = data.persons.length === 0 ? empty('Участники не добавлены')
     : el('div', { class: 'scroll' }, [el('table', {}, [
       el('thead', {}, el('tr', {}, [
         el('th', { text: 'Участник' }), el('th', { text: 'Должность' }),
         el('th', { text: 'Роль в деле' }), el('th', { text: 'Отношение к событиям' }),
+        el('th', { text: 'Действие' }),
       ])),
       el('tbody', {}, data.persons.map(function (p) {
         return el('tr', {}, [
@@ -355,6 +491,10 @@ async function viewOverview(root) {
           el('td', { text: p.job_title || '—' }),
           el('td', {}, [el('span', { class: 'chip', text: PARTICIPANT_RU[p.participant_type] || p.participant_type })]),
           el('td', { class: 'muted', text: p.relationship_to_incident || '—' }),
+          el('td', {}, [action('Подготовить интервью', function () {
+            return api('/api/cases/' + state.caseId + '/interviews',
+              { method: 'POST', body: { personId: p.id } });
+          }, { ghost: true })]),
         ]);
       })),
     ])]);
@@ -363,6 +503,9 @@ async function viewOverview(root) {
     el('h1', { text: data.case.title }),
     el('p', { class: 'muted', text: data.case.case_number + ' · ' + (data.case.description || '') }),
     counters,
+    el('h2', { text: 'Действия по делу' }),
+    stageActions,
+    approvals,
     el('h2', { text: 'Что делать дальше' }),
     actions,
     el('h2', { text: 'Участники' }),
@@ -608,6 +751,19 @@ async function viewContradictions(root) {
         el('summary', { text: 'что может разрешить противоречие' }),
         el('ul', { class: 'plain' }, c.recommended_checks.map(function (t) { return el('li', { text: t }); })),
       ]) : null,
+      // Закрыть противоречие может только человек и только с объяснением: помеченное
+      // разрешённым без причины, оно исчезает из поля зрения, не будучи разрешённым.
+      c.resolution_status === 'open' ? el('div', { style: 'margin-top:.6rem' }, [
+        noteAction('Разрешено', 'чем именно разрешено', function (note) {
+          return api('/api/cases/' + state.caseId + '/contradictions/' + c.id + '/resolve',
+            { method: 'POST', body: { status: 'resolved', note: note } });
+        }),
+        noteAction('Неразрешимо', 'почему разрешить невозможно', function (note) {
+          return api('/api/cases/' + state.caseId + '/contradictions/' + c.id + '/resolve',
+            { method: 'POST', body: { status: 'unresolvable', note: note } });
+        }, { ghost: true }),
+      ]) : el('div', { class: 'muted', style: 'margin-top:.6rem',
+        text: c.resolution_note ? 'Решение: ' + c.resolution_note : '' }),
     ]);
   });
 
@@ -759,7 +915,8 @@ async function viewReport(root) {
     : el('div', { class: 'scroll' }, [el('table', {}, [
       el('thead', {}, el('tr', {}, [
         el('th', { text: 'Код' }), el('th', { text: 'Вывод' }), el('th', { text: 'Тип' }),
-        el('th', { text: 'Уверенность' }), el('th', { text: 'Состояние' }), el('th', { text: 'Защитная проверка' }),
+        el('th', { text: 'Уверенность' }), el('th', { text: 'Состояние' }),
+        el('th', { text: 'Решение' }), el('th', { text: 'Защитная проверка' }),
       ])),
       el('tbody', {}, findings.findings.map(function (f) {
         return el('tr', {}, [
@@ -778,6 +935,18 @@ async function viewReport(root) {
           el('td', { text: CONFIDENCE_RU[f.confidence] || f.confidence || '—' }),
           el('td', {}, [el('span', { class: f.review_status === 'approved' ? 'chip ok' : 'chip',
             text: REVIEW_RU[f.review_status] || f.review_status })]),
+          el('td', {}, f.review_status === 'draft' || f.review_status === 'under_review'
+            ? [
+              noteAction('Утвердить', 'что проверено', function (note) {
+                return api('/api/cases/' + state.caseId + '/findings/' + f.id + '/approve',
+                  { method: 'POST', body: { note: note } });
+              }),
+              noteAction('Отклонить', 'почему', function (note) {
+                return api('/api/cases/' + state.caseId + '/findings/' + f.id + '/reject',
+                  { method: 'POST', body: { note: note } });
+              }, { ghost: true }),
+            ]
+            : [el('span', { class: 'muted', text: '—' })]),
           el('td', {}, f.defence_review_verdict
             ? [el('span', { class: f.defence_review_verdict === 'conclusions_should_not_stand' ? 'chip danger' : 'chip warn',
               text: f.defence_review_verdict === 'conclusions_hold' ? 'выдерживает'
@@ -805,12 +974,36 @@ async function viewReport(root) {
       ]);
     }));
 
+  const approvedCount = findings.findings.filter(function (f) { return f.review_status === 'approved'; }).length;
+  const draftReport = reports.reports.find(function (r) { return r.status === 'draft'; });
+
+  const reportActions = el('div', { class: 'filters' }, [
+    action('Составить отчёт', function () {
+      return api('/api/cases/' + state.caseId + '/report', { method: 'POST', body: {} });
+    }),
+    draftReport ? action('Запросить выпуск', function () {
+      return api('/api/cases/' + state.caseId + '/reports/' + draftReport.id + '/request-release',
+        { method: 'POST', body: {} });
+    }, { ghost: true }) : null,
+    draftReport ? action('Выпустить отчёт', async function () {
+      await api('/api/cases/' + state.caseId + '/reports/' + draftReport.id + '/release',
+        { method: 'POST', body: {} });
+      return { message: 'Отчёт выпущен, дело закрыто.', reload: true };
+    }, { ghost: true }) : null,
+  ]);
+
   setChildren(root, [
     el('h1', { text: 'Выводы и отчёт' }),
     el('p', { class: 'muted', text: 'Установленный факт всегда имеет ссылку на доказательство; '
       + 'неразрешённые вопросы не сокращаются ради связности.' }),
     list,
     el('h2', { text: 'Отчёты' }),
+    // Отчёт составляется только из утверждённых выводов, поэтому счётчик стоит
+    // рядом с кнопкой: иначе отказ «нет утверждённых выводов» выглядит как поломка.
+    el('p', { class: 'muted', text: 'Утверждённых выводов: ' + approvedCount
+      + ' из ' + findings.findings.length + '. Выпуск отчёта требует утверждения человеком '
+      + 'и закрывает дело.' }),
+    reportActions,
     reportBlocks,
   ]);
 }

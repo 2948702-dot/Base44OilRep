@@ -141,6 +141,26 @@ try {
     Object.values(views).every((v) => v.status === 200),
     Object.entries(views).filter(([, v]) => v.status !== 200).map(([k]) => k).join(', ') || 'все 200');
 
+  // Действия с экранов: запросы, которые кнопки шлют на самом деле.
+  const badResolve = await call('POST', `/api/cases/${caseId}/contradictions/00000000-0000-0000-0000-000000000000/resolve`, {
+    token: tokenA,
+    body: { status: 'resolved', note: 'проверено' },
+  });
+  check('Разрешение несуществующего противоречия отклонено', badResolve.status === 404);
+
+  const noteless = await call('POST', `/api/cases/${caseId}/contradictions/00000000-0000-0000-0000-000000000000/resolve`, {
+    token: tokenA,
+    body: { status: 'resolved' },
+  });
+  check('Закрыть противоречие без объяснения нельзя', noteless.status === 400,
+    noteless.body?.error ?? '');
+
+  const badTask = await call('POST', `/api/cases/${caseId}/tasks/00000000-0000-0000-0000-000000000000/status`, {
+    token: tokenA,
+    body: { status: 'выдумано' },
+  });
+  check('Недопустимое состояние задачи отклонено', badTask.status === 400);
+
   const foreignMatrix = await call('GET', `/api/cases/${caseId}/matrix`, { token: tokenB });
   check('Экраны чужого дела недоступны', foreignMatrix.status === 200
     && foreignMatrix.body.rows.length === 0 && foreignMatrix.body.evidence.length === 0,
