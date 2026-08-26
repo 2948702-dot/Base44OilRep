@@ -288,10 +288,16 @@ export function createInterviewService({ repositories, scope, llm, approvals, so
       let originalSourceId = input.originalSourceId ?? null;
       let audioSourceId = input.audioSourceId ?? null;
 
+      // Имя источника видит следователь в матрице доказательств: идентификатор вопроса
+      // там бесполезен, а имя человека и номер вопроса позволяют найти оригинал сразу.
+      const person = input.personId ? await repositories.persons.get(input.personId) : null;
+      const sourceTitle = `Ответ ${person?.name ?? 'участника'} на вопрос ${question.sequence ?? '?'}`
+        + ` (раунд ${(await repositories.interviews.get(question.interview_id))?.round ?? '?'})`;
+
       if (input.audio && !audioSourceId) {
         const audioSource = await sources.ingestFile(input.audio, {
           type: 'interview_audio',
-          title: `Голосовой ответ на вопрос ${input.questionId}`,
+          title: `Голосовой ${sourceTitle.toLowerCase()}`,
           filename: input.audioFilename ?? 'answer.webm',
           mimeType: input.audioMimeType ?? 'audio/webm',
           sourcePersonId: input.personId,
@@ -303,7 +309,7 @@ export function createInterviewService({ repositories, scope, llm, approvals, so
       if (!originalSourceId && input.text) {
         const source = await sources.ingestText(input.text, {
           type: 'interview_transcript',
-          title: `Ответ на вопрос ${input.questionId}`,
+          title: sourceTitle,
           sourcePersonId: input.personId,
         });
         originalSourceId = source.id;

@@ -15,10 +15,15 @@ import { registerCaseRoutes } from './routes/cases.js';
 import { registerParticipantRoutes } from './routes/participant.js';
 import { registerAnalysisRoutes } from './routes/analysis.js';
 import { registerReportRoutes } from './routes/reports.js';
+import { registerViewRoutes } from './routes/views.js';
 import { createJobRunner } from './jobRunner.js';
+import { renderWorkspacePage } from './workspacePage.js';
 
 /** Маршруты, доступные без сессии платформы. */
 const PUBLIC_PREFIXES = ['/api/auth/login', '/api/participant', '/interview/', '/healthz'];
+
+/** Страница рабочего места отдаётся без сессии; данные — только по токену. */
+const PUBLIC_EXACT = ['/'];
 
 /**
  * @param {{pool?: Object, logger?: boolean, jobs?: boolean, llm?: Object}} [options]
@@ -56,6 +61,8 @@ export function createServer(options = {}) {
   );
 
   app.addHook('onRequest', async (request, reply) => {
+    const path = request.url.split('?')[0];
+    if (PUBLIC_EXACT.includes(path)) return;
     if (PUBLIC_PREFIXES.some((prefix) => request.url.startsWith(prefix))) return;
 
     const header = request.headers.authorization ?? '';
@@ -80,6 +87,22 @@ export function createServer(options = {}) {
     });
   });
 
+  /**
+   * Рабочее место следователя. Страница отдаётся без проверки сессии: она сама
+   * показывает форму входа, а данные без токена не отдаёт ни один маршрут API.
+   */
+  app.get('/', async (request, reply) => reply
+    .header('content-type', 'text/html; charset=utf-8')
+    .header('cache-control', 'no-store')
+    .header('referrer-policy', 'no-referrer')
+    .header('x-frame-options', 'DENY')
+    .header(
+      'content-security-policy',
+      "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
+      + "connect-src 'self'; base-uri 'none'; form-action 'none'",
+    )
+    .send(renderWorkspacePage()));
+
   app.get('/healthz', async () => {
     const result = await pool.query('select 1 as ok');
     return { status: 'ok', database: result.rows[0].ok === 1 };
@@ -89,6 +112,7 @@ export function createServer(options = {}) {
   registerCaseRoutes(app);
   registerAnalysisRoutes(app);
   registerReportRoutes(app);
+  registerViewRoutes(app);
   registerParticipantRoutes(app);
 
   // Исполнитель очереди живёт в том же процессе: отдельный воркер добавит эксплуатацию

@@ -64,6 +64,14 @@ async function call(method, url, { token, body } = {}) {
 }
 
 try {
+  const workspace = await app.inject({ method: 'GET', url: '/' });
+  check('Рабочее место следователя открывается',
+    workspace.statusCode === 200 && workspace.headers['content-type']?.includes('text/html'));
+  check('Рабочее место не загружает внешние ресурсы',
+    !/https?:\/\//.test(workspace.body));
+  check('Рабочее место закрыто от индексации и встраивания',
+    workspace.headers['x-frame-options'] === 'DENY' && workspace.body.includes('noindex'));
+
   const health = await call('GET', '/healthz');
   check('Проверка здоровья отвечает и видит базу', health.status === 200 && health.body.database);
 
@@ -122,6 +130,21 @@ try {
   const dashboard = await call('GET', `/api/cases/${caseId}/dashboard`, { token: tokenA });
   check('Дашборд дела собирается',
     dashboard.status === 200 && Array.isArray(dashboard.body.recommended_next_actions));
+
+  // Экраны следователя должны отвечать даже на пустом деле: пустая матрица — это
+  // нормальное состояние в начале расследования, а не ошибка.
+  const views = {};
+  for (const view of ['matrix', 'timeline', 'contradictions', 'hypotheses', 'money-flow', 'persons', 'tasks']) {
+    views[view] = await call('GET', `/api/cases/${caseId}/${view}`, { token: tokenA });
+  }
+  check('Все экраны следователя отвечают на пустом деле',
+    Object.values(views).every((v) => v.status === 200),
+    Object.entries(views).filter(([, v]) => v.status !== 200).map(([k]) => k).join(', ') || 'все 200');
+
+  const foreignMatrix = await call('GET', `/api/cases/${caseId}/matrix`, { token: tokenB });
+  check('Экраны чужого дела недоступны', foreignMatrix.status === 200
+    && foreignMatrix.body.rows.length === 0 && foreignMatrix.body.evidence.length === 0,
+    'чужое дело отдаёт пустой набор, а не данные');
 
   const source = await call('POST', `/api/cases/${caseId}/sources/text`, {
     token: tokenA,
