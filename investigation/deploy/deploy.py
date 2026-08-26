@@ -34,9 +34,11 @@ REMOTE_DIR = "/opt/investigation"
 CONTAINER = "investigation-api"
 IMAGE = "investigation-api:latest"
 DB_CONTAINER = "investigation-db"
+WHISPER_CONTAINER = "investigation-whisper"
 NETWORK = "investigation-net"
 FILE_VOLUME = "investigation-sources"
 DB_VOLUME = "investigation-pgdata"
+WHISPER_VOLUME = "investigation-whisper-cache"
 
 PAYLOAD = [
     "package.json",
@@ -61,6 +63,8 @@ def build_env_file() -> str:
     password = values["POSTGRES_PASSWORD"]
     lines = {
         "DATABASE_URL": f"postgres://investigation_app:{password}@{DB_CONTAINER}:5432/investigation",
+        "WHISPER_URL": f"http://{WHISPER_CONTAINER}:9000",
+        "WHISPER_LANGUAGE": os.environ.get("WHISPER_LANGUAGE", "ru"),
         "ANTHROPIC_API_KEY": values["ANTHROPIC_API_KEY"],
         "INVESTIGATION_FILE_ROOT": "/var/lib/investigation/sources",
         "NODE_ENV": "production",
@@ -115,6 +119,48 @@ def ensure_database(client):
     ))
 
 
+def ensure_whisper(client):
+    """Поднимает распознавание речи на этом же сервере.
+
+    Голос сотрудника не уезжает к внешнему провайдеру — для платформы, работающей
+    с персональными данными, это условие, а не удобство. Плата за это — процессорное
+    время, поэтому контейнер ограничен по ядрам и памяти: на сервере уже живут n8n
+    и телеграм-боты, и распознавание не должно их вытеснять.
+    """
+    code, out, _ = run(client, f"docker ps -a --filter name=^{WHISPER_CONTAINER}$ --format '{{{{.Names}}}}'",
+                       check=False, quiet=True)
+    if WHISPER_CONTAINER in out:
+        run(client, f"docker start {WHISPER_CONTAINER}", check=False, quiet=True)
+        return
+
+    # Модель выбирается по доступной памяти: small требует около 2 ГБ и распознаёт
+    # русскую речь приемлемо, medium заметно лучше, но требует около 5 ГБ.
+    _, mem_out, _ = run(client, "free -m | awk '/^Mem:/ {print $2}'", check=False, quiet=True)
+    try:
+        total_mb = int(mem_out.strip())
+    except (TypeError, ValueError):
+        total_mb = 0
+
+    model = os.environ.get("WHISPER_MODEL", "").strip()
+    if not model:
+        model = "medium" if total_mb >= 8192 else ("small" if total_mb >= 4096 else "base")
+    print(f"память сервера: {total_mb} МБ, модель распознавания: {model}")
+
+    cpus = os.environ.get("WHISPER_CPUS", "2")
+    run(client, f"docker volume create {WHISPER_VOLUME}", quiet=True)
+    # Порт наружу не публикуется: служба доступна только внутри сети контейнеров.
+    run(client, (
+        f"docker run -d --name {WHISPER_CONTAINER} --restart unless-stopped "
+        f"--network {NETWORK} "
+        f"--cpus={cpus} --memory=6g "
+        f"-e ASR_MODEL={model} "
+        f"-e ASR_ENGINE=faster_whisper "
+        f"-v {WHISPER_VOLUME}:/root/.cache "
+        f"onerahmet/openai-whisper-asr-webservice:latest"
+    ))
+    print("распознавание речи поднято; первая загрузка модели занимает несколько минут")
+
+
 def main():
     env_file = build_env_file()
     client = connect()
@@ -140,6 +186,7 @@ def main():
             sftp.close()
 
         ensure_database(client)
+        ensure_whisper(client)
 
         run(client, f"docker volume create {FILE_VOLUME}", quiet=True)
         run(client, f"cd {REMOTE_DIR} && docker build -f investigation/deploy/Dockerfile -t {IMAGE} .")

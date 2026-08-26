@@ -7,6 +7,7 @@
  */
 
 import Fastify from 'fastify';
+import multipart from '@fastify/multipart';
 import { createPool } from '../repositories/index.js';
 import { resolveSession } from './auth.js';
 import { registerAuthRoutes } from './routes/auth.js';
@@ -31,6 +32,12 @@ export function createServer(options = {}) {
   });
 
   app.decorate('pool', pool);
+
+  // Голосовые ответы приходят файлом. Предел намеренно щедрый: длинный рассказ
+  // в записи — это нормальный ответ, и обрезать его на середине недопустимо.
+  app.register(multipart, {
+    limits: { fileSize: 64 * 1024 * 1024, files: 1, fields: 8 },
+  });
 
   // Пустое тело при content-type: application/json — обычное поведение клиентов на
   // операциях без полезной нагрузки (выход из системы). Стандартный разбор отвечает на

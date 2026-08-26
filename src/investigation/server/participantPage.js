@@ -47,6 +47,14 @@ button {
   cursor: pointer;
 }
 button:disabled { opacity: .5; cursor: default; }
+button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+.row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+.rec-dot {
+  display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
+  background: var(--warn); margin-right: .4rem;
+}
+audio { width: 100%; margin-top: .7rem; }
+.pending { color: var(--warn); }
 .answered { border-left: 3px solid var(--accent); }
 .answer-body { white-space: pre-wrap; color: var(--muted); }
 .notice { border-left: 3px solid var(--warn); padding-left: .8rem; color: var(--muted); }
@@ -60,6 +68,12 @@ ul.rules li { margin: .3rem 0; }
 const SCRIPT = `
 const token = location.pathname.split('/').filter(Boolean).pop();
 const root = document.getElementById('root');
+
+// Запись голоса доступна не везде: старый браузер или доступ по http вместо https
+// оставят участника только с текстовым полем, и это должно работать без ошибок.
+const voiceSupported = Boolean(
+  navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder,
+);
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -95,14 +109,182 @@ function renderError(message) {
   );
 }
 
+function formatDuration(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+/** Блок записи голоса. Возвращает null, если запись недоступна. */
+function voiceBlock(questionId, status, onSent) {
+  if (!voiceSupported) return null;
+
+  let recorder = null;
+  let chunks = [];
+  let blob = null;
+  let ticker = null;
+  let seconds = 0;
+
+  const timer = el('span', { text: '' });
+  const preview = el('audio', { controls: 'controls', hidden: 'hidden' });
+  const startBtn = el('button', { type: 'button', class: 'secondary', text: 'Записать голосом' });
+  const stopBtn = el('button', { type: 'button', text: 'Остановить запись', hidden: 'hidden' });
+  const sendBtn = el('button', { type: 'button', text: 'Отправить запись', hidden: 'hidden' });
+  const againBtn = el('button', { type: 'button', class: 'secondary', text: 'Записать заново', hidden: 'hidden' });
+
+  function reset() {
+    blob = null;
+    chunks = [];
+    seconds = 0;
+    preview.hidden = true;
+    preview.removeAttribute('src');
+    sendBtn.hidden = true;
+    againBtn.hidden = true;
+    startBtn.hidden = false;
+    timer.textContent = '';
+  }
+
+  startBtn.addEventListener('click', async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recorder = new MediaRecorder(stream);
+      chunks = [];
+      recorder.addEventListener('dataavailable', (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      });
+      recorder.addEventListener('stop', () => {
+        stream.getTracks().forEach((track) => track.stop());
+        blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+        preview.src = URL.createObjectURL(blob);
+        preview.hidden = false;
+        sendBtn.hidden = false;
+        againBtn.hidden = false;
+      });
+      recorder.start();
+      startBtn.hidden = true;
+      stopBtn.hidden = false;
+      seconds = 0;
+      timer.innerHTML = '';
+      timer.appendChild(el('span', { class: 'rec-dot' }));
+      timer.appendChild(document.createTextNode('идёт запись 0:00'));
+      ticker = setInterval(() => {
+        seconds += 1;
+        timer.innerHTML = '';
+        timer.appendChild(el('span', { class: 'rec-dot' }));
+        timer.appendChild(document.createTextNode('идёт запись ' + formatDuration(seconds)));
+      }, 1000);
+    } catch (error) {
+      status.textContent = 'Не удалось получить доступ к микрофону. Ответьте, пожалуйста, текстом.';
+      status.className = 'status error';
+      startBtn.hidden = true;
+    }
+  });
+
+  stopBtn.addEventListener('click', () => {
+    if (ticker) clearInterval(ticker);
+    stopBtn.hidden = true;
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+    timer.textContent = 'записано ' + formatDuration(seconds);
+  });
+
+  againBtn.addEventListener('click', reset);
+
+  sendBtn.addEventListener('click', async () => {
+    if (!blob) return;
+    sendBtn.disabled = true;
+    status.className = 'status';
+    status.textContent = 'Отправляю запись…';
+    try {
+      const form = new FormData();
+      form.append('questionId', questionId);
+      form.append('duration', String(seconds));
+      form.append('audio', blob, 'answer.webm');
+      await api('/answers', { method: 'POST', body: form });
+      status.textContent = 'Запись принята, готовится расшифровка.';
+      await onSent();
+    } catch (error) {
+      status.textContent = error.message;
+      status.className = 'status error';
+      sendBtn.disabled = false;
+    }
+  });
+
+  return el('div', {}, [
+    el('div', { class: 'row' }, [startBtn, stopBtn, sendBtn, againBtn, timer]),
+    preview,
+  ]);
+}
+
+/** Карточка отвеченного вопроса, включая подтверждение расшифровки. */
+function answeredCard(item, saved) {
+  const nodes = [
+    el('div', { class: 'q-num', text: 'Вопрос ' + item.sequence + ' · ответ сохранён' }),
+    el('div', { class: 'q-text', text: item.question }),
+  ];
+
+  if (saved && saved.transcription_pending) {
+    nodes.push(el('p', {
+      class: 'pending',
+      text: 'Голосовой ответ принят. Расшифровка готовится — вернитесь по этой же ссылке '
+        + 'чуть позже, чтобы проверить текст.',
+    }));
+    return el('section', { class: 'card answered' }, nodes);
+  }
+
+  if (saved && saved.is_voice && saved.transcript && !saved.transcript_confirmed) {
+    // Машинная расшифровка не считается тем, что сказал человек, пока он это
+    // не признал. Обе версии остаются в деле в любом случае.
+    const area = el('textarea', { 'aria-label': 'Расшифровка вашего ответа' });
+    area.value = saved.transcript;
+    const status = el('div', { class: 'status', role: 'status' });
+    const confirm = el('button', { type: 'button', text: 'Всё верно' });
+    const correct = el('button', { type: 'button', class: 'secondary', text: 'Сохранить исправление' });
+
+    async function send(body) {
+      confirm.disabled = true;
+      correct.disabled = true;
+      status.className = 'status';
+      status.textContent = 'Сохраняю…';
+      try {
+        await api('/answers/' + saved.id + '/transcript', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        await load();
+      } catch (error) {
+        status.textContent = error.message;
+        status.className = 'status error';
+        confirm.disabled = false;
+        correct.disabled = false;
+      }
+    }
+
+    confirm.addEventListener('click', () => send({}));
+    correct.addEventListener('click', () => send({ text: area.value }));
+
+    nodes.push(
+      el('p', {
+        text: 'Мы расшифровали вашу запись. Проверьте текст: если что-то распознано неверно, '
+          + 'поправьте. Сама запись сохраняется в любом случае.',
+      }),
+      area,
+      el('div', { class: 'row' }, [confirm, correct]),
+      status,
+    );
+    return el('section', { class: 'card answered' }, nodes);
+  }
+
+  nodes.push(el('div', {
+    class: 'answer-body',
+    text: (saved && (saved.transcript || saved.text)) || '',
+  }));
+  return el('section', { class: 'card answered' }, nodes);
+}
+
 function questionCard(item, state) {
   if (item.answered) {
-    const saved = state.answers.find((a) => a.question_id === item.id);
-    return el('section', { class: 'card answered' }, [
-      el('div', { class: 'q-num', text: 'Вопрос ' + item.sequence + ' · ответ сохранён' }),
-      el('div', { class: 'q-text', text: item.question }),
-      el('div', { class: 'answer-body', text: (saved && (saved.text || saved.transcript)) || '' }),
-    ]);
+    return answeredCard(item, state.answers.find((a) => a.question_id === item.id));
   }
 
   const area = el('textarea', {
@@ -120,6 +302,7 @@ function questionCard(item, state) {
       return;
     }
     button.disabled = true;
+    status.className = 'status';
     status.textContent = 'Отправляю…';
     try {
       await api('/answers', {
@@ -136,15 +319,31 @@ function questionCard(item, state) {
     }
   });
 
+  const voice = voiceBlock(item.id, status, load);
+
   return el('section', { class: 'card' }, [
     el('div', { class: 'q-num', text: 'Вопрос ' + item.sequence }),
     el('div', { class: 'q-text', text: item.question }),
-    area, button, status,
+    area,
+    el('div', { class: 'row' }, [button]),
+    voice ? el('p', { class: 'q-num', text: 'или ответьте голосом' }) : null,
+    voice,
+    status,
   ]);
 }
 
 function render(state) {
   const pending = state.questions.filter((q) => !q.answered);
+  const rules = [
+    'Отвечайте так, как помните. Если не уверены — напишите «не помню точно»: это нормальный и полезный ответ.',
+    'Не додумывайте детали, чтобы ответ выглядел полнее. Приблизительное «около семи» лучше выдуманного точного времени.',
+    'Ваши ответы видит только тот, кто ведёт разбирательство. Другим участникам они не показываются.',
+    'Ответ сохраняется в том виде, в каком вы его отправили, и не переписывается.',
+  ];
+  if (voiceSupported) {
+    rules.push('Можно ответить голосом. Запись сохраняется целиком, а расшифровку вы сможете проверить и поправить.');
+  }
+
   const nodes = [
     el('h1', { text: 'Здравствуйте, ' + state.person_name }),
     el('p', {
@@ -154,12 +353,7 @@ function render(state) {
     }),
     el('section', { class: 'card' }, [
       el('h2', { text: 'Как это устроено' }),
-      el('ul', { class: 'rules' }, [
-        el('li', { text: 'Отвечайте так, как помните. Если не уверены — напишите «не помню точно»: это нормальный и полезный ответ.' }),
-        el('li', { text: 'Не додумывайте детали, чтобы ответ выглядел полнее. Приблизительное «около семи» лучше выдуманного точного времени.' }),
-        el('li', { text: 'Ваши ответы видит только тот, кто ведёт разбирательство. Другим участникам они не показываются.' }),
-        el('li', { text: 'Ответ сохраняется в том виде, в каком вы его отправили, и не переписывается.' }),
-      ]),
+      el('ul', { class: 'rules' }, rules.map((text) => el('li', { text }))),
     ]),
   ];
 

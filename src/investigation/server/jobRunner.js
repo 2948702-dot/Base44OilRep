@@ -16,6 +16,7 @@
 
 import { withTenant } from '../repositories/postgres/pool.js';
 import { createInvestigationServices } from '../services/index.js';
+import { createWhisperClient } from './transcription.js';
 
 const MAX_ATTEMPTS = 3;
 const DEFAULT_INTERVAL_MS = 5000;
@@ -98,6 +99,7 @@ async function enqueue(pool, { organizationId, caseId, jobType, payload = {} }) 
 export function createJobRunner(options) {
   const { pool, llm, logger = console } = options;
   const intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
+  const transcription = options.transcription ?? createWhisperClient();
 
   let running = false;
   let timer = null;
@@ -168,10 +170,57 @@ export function createJobRunner(options) {
       };
     },
 
-    async transcription() {
-      // Транскрипция появится вместе с приёмом аудио; молча делать вид, что задача
-      // выполнена, нельзя — это потеря материала.
-      throw new Error('Транскрипция ещё не реализована: см. mvp-plan.md');
+    /**
+     * Расшифровка голосового ответа.
+     *
+     * Оригинал записи не изменяется: расшифровка сохраняется отдельным производным
+     * источником, а в ответе появляется текст, который участник затем подтверждает
+     * или правит (§64 ТЗ). Разбор на утверждения ставится в очередь только после того,
+     * как текст появился.
+     */
+    async transcription(job, services) {
+      const { answer_id: answerId, source_id: sourceId } = job.payload ?? {};
+      if (!answerId || !sourceId) throw new Error('transcription без answer_id или source_id');
+
+      const source = await services.repositories.sources.get(sourceId);
+      if (!source) throw new Error(`Источник ${sourceId} не найден`);
+      if (!source.original_file) throw new Error(`У источника ${sourceId} нет файла записи`);
+
+      const audio = await services.repositories.files.read(source.original_file);
+      const result = await transcription.transcribe(audio, {
+        filename: source.original_filename ?? 'answer.webm',
+        mimeType: source.mime_type ?? 'audio/webm',
+      });
+
+      const derived = await services.sources.createDerivedSource(sourceId, {
+        type: 'interview_transcript',
+        text: result.text,
+        method: 'whisper',
+        meta: { title: `Расшифровка ${source.title ?? source.original_filename ?? sourceId}` },
+      });
+
+      await services.repositories.answers.update(answerId, {
+        transcript: result.text,
+        original_version: result.text,
+        // Подтверждение остаётся за человеком: машинная расшифровка не считается
+        // тем, что он сказал, пока он это не признал.
+        transcript_confirmed: false,
+      });
+
+      await services.repositories.jobs.create({
+        case_id: job.case_id,
+        job_type: 'claim_extraction',
+        status: 'queued',
+        payload: { answer_id: answerId, reason: 'transcribed' },
+        attempts: 0,
+        scheduled_at: new Date().toISOString(),
+      });
+
+      return {
+        transcript_source_id: derived.id,
+        characters: result.text.length,
+        language: result.language,
+      };
     },
 
     async document_parse() {

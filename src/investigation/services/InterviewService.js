@@ -270,15 +270,37 @@ export function createInterviewService({ repositories, scope, llm, approvals, so
     /**
      * Сохраняет ответ участника. Исходная версия никогда не переписывается: правка
      * транскрипта создаёт новую версию рядом с оригиналом (§17, §64, §71 ТЗ).
+     *
+     * Голосовой ответ принимается наравне с текстовым: аудиозапись становится
+     * неизменяемым оригиналом, а расшифровка появится позже отдельным производным
+     * источником. Часть людей объясняется голосом охотнее, и заставлять их печатать
+     * значит терять подробности.
      */
     async submitAnswer(input) {
       const question = await repositories.questions.get(input.questionId);
       if (!question) throw new Error(`Вопрос ${input.questionId} не найден`);
+      if (!input.text && !input.audio && !input.audioSourceId) {
+        throw new Error('Ответ должен содержать текст или аудиозапись');
+      }
 
-      // Оригинал ответа обязан существовать как источник: текст, набранный участником,
-      // такой же первичный материал, как аудиозапись, и должен быть неизменяемым.
+      // Оригинал ответа обязан существовать как источник: и набранный текст,
+      // и аудиозапись — первичный материал, который не изменяется.
       let originalSourceId = input.originalSourceId ?? null;
-      if (!originalSourceId && !input.audioSourceId && input.text) {
+      let audioSourceId = input.audioSourceId ?? null;
+
+      if (input.audio && !audioSourceId) {
+        const audioSource = await sources.ingestFile(input.audio, {
+          type: 'interview_audio',
+          title: `Голосовой ответ на вопрос ${input.questionId}`,
+          filename: input.audioFilename ?? 'answer.webm',
+          mimeType: input.audioMimeType ?? 'audio/webm',
+          sourcePersonId: input.personId,
+        });
+        audioSourceId = audioSource.id;
+        originalSourceId = originalSourceId ?? audioSource.id;
+      }
+
+      if (!originalSourceId && input.text) {
         const source = await sources.ingestText(input.text, {
           type: 'interview_transcript',
           title: `Ответ на вопрос ${input.questionId}`,
@@ -293,7 +315,7 @@ export function createInterviewService({ repositories, scope, llm, approvals, so
         interview_id: question.interview_id,
         person_id: input.personId,
         text: input.text ?? null,
-        audio_source_id: input.audioSourceId ?? null,
+        audio_source_id: audioSourceId,
         transcript: input.transcript ?? null,
         transcript_confirmed: input.transcriptConfirmed ?? false,
         duration: input.duration ?? null,
@@ -309,10 +331,14 @@ export function createInterviewService({ repositories, scope, llm, approvals, so
         asked_at: question.asked_at ?? new Date().toISOString(),
       });
 
+      // Голосовой ответ сначала расшифровывается, и только затем разбирается на
+      // утверждения: извлекать утверждения не из чего, пока нет текста.
       await repositories.jobs.create({
-        job_type: 'claim_extraction',
+        job_type: audioSourceId && !input.text ? 'transcription' : 'claim_extraction',
         status: 'queued',
-        payload: { answer_id: answer.id },
+        payload: audioSourceId && !input.text
+          ? { answer_id: answer.id, source_id: audioSourceId }
+          : { answer_id: answer.id },
         attempts: 0,
         scheduled_at: new Date().toISOString(),
       });
@@ -321,18 +347,39 @@ export function createInterviewService({ repositories, scope, llm, approvals, so
     },
 
     /**
-     * Правка транскрипта участником. Обе версии сохраняются: исправленный текст
-     * не отменяет того, что было сказано.
+     * Правка транскрипта участником (§64 ТЗ). Обе версии сохраняются: исправленный
+     * текст не отменяет того, что было сказано, а машинная расшифровка не подменяет
+     * запись голоса — оригинал остаётся первичным материалом.
      */
     async correctTranscript(answerId, correctedText) {
       const answer = await repositories.answers.get(answerId);
       if (!answer) throw new Error(`Ответ ${answerId} не найден`);
-      return repositories.answers.update(answerId, {
+      const updated = await repositories.answers.update(answerId, {
         transcript: correctedText,
         transcript_confirmed: true,
         edited_by_person: true,
         original_version: answer.original_version ?? answer.transcript ?? answer.text,
       });
+
+      // Утверждения извлекаются заново из подтверждённого текста: разбор машинной
+      // расшифровки, которую человек поправил, дал бы утверждения, которых он не говорил.
+      await repositories.jobs.create({
+        job_type: 'claim_extraction',
+        status: 'queued',
+        payload: { answer_id: answerId, reason: 'transcript_corrected' },
+        attempts: 0,
+        scheduled_at: new Date().toISOString(),
+      });
+
+      return updated;
+    },
+
+    /** Подтверждение расшифровки без правки. */
+    async confirmTranscript(answerId) {
+      const answer = await repositories.answers.get(answerId);
+      if (!answer) throw new Error(`Ответ ${answerId} не найден`);
+      if (!answer.transcript) throw new Error('Расшифровка ещё не готова');
+      return repositories.answers.update(answerId, { transcript_confirmed: true });
     },
 
     /**

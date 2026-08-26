@@ -158,25 +158,64 @@ export function registerParticipantRoutes(app) {
           answered: answers.some((a) => a.question_id === q.id),
         })),
       answers: answers.map((a) => ({
+        id: a.id,
         question_id: a.question_id,
         text: a.text,
         transcript: a.transcript,
         transcript_confirmed: a.transcript_confirmed,
+        // Участник должен видеть, что голос принят и расшифровывается, а не гадать,
+        // дошёл ли ответ.
+        is_voice: Boolean(a.audio_source_id),
+        transcription_pending: Boolean(a.audio_source_id) && !a.transcript,
         received_at: a.received_at,
       })),
     };
   });
 
-  /** Ответ участника. Оригинал сохраняется как источник и больше не меняется. */
+  /**
+   * Ответ участника: текстом или голосом.
+   *
+   * Оригинал сохраняется как источник и больше не меняется. Голосовой ответ уходит
+   * в очередь на расшифровку; сам звук остаётся первичным материалом, а расшифровка
+   * появляется рядом отдельным производным источником.
+   */
   app.post('/api/participant/:token/answers', async (request, reply) => {
     const access = await resolveAccess(app.pool, request.params.token, {
       ip: request.ip,
       userAgent: request.headers['user-agent'],
     });
 
-    const { questionId, text } = request.body ?? {};
-    if (!questionId || !text) {
-      return reply.code(400).send({ error: 'Требуются вопрос и ответ' });
+    let questionId = null;
+    let text = null;
+    let audio = null;
+    let audioMimeType = null;
+    let audioFilename = null;
+    let duration = null;
+
+    if (request.isMultipart()) {
+      for await (const part of request.parts()) {
+        if (part.type === 'file') {
+          audio = await part.toBuffer();
+          audioMimeType = part.mimetype;
+          audioFilename = part.filename || 'answer.webm';
+        } else if (part.fieldname === 'questionId') {
+          questionId = String(part.value);
+        } else if (part.fieldname === 'text') {
+          text = String(part.value).trim() || null;
+        } else if (part.fieldname === 'duration') {
+          duration = Number(part.value) || null;
+        }
+      }
+    } else {
+      questionId = request.body?.questionId ?? null;
+      text = request.body?.text ?? null;
+    }
+
+    if (!questionId || (!text && !audio)) {
+      return reply.code(400).send({ error: 'Требуются вопрос и ответ — текстом или голосом' });
+    }
+    if (audio && audio.length === 0) {
+      return reply.code(400).send({ error: 'Запись пуста' });
     }
 
     const services = createInvestigationServices({
@@ -200,8 +239,54 @@ export function registerParticipantRoutes(app) {
       questionId,
       personId: access.person_id,
       text,
+      audio,
+      audioMimeType,
+      audioFilename,
+      duration,
     });
 
-    return reply.code(201).send({ status: 'accepted', answer_id: answer.id });
+    return reply.code(201).send({
+      status: 'accepted',
+      answer_id: answer.id,
+      // Участнику важно понимать, что запись принята, но расшифровка ещё готовится:
+      // иначе пустой текст выглядит как потерянный ответ.
+      transcription_pending: Boolean(audio && !text),
+    });
+  });
+
+  /**
+   * Подтверждение или правка расшифровки участником (§64 ТЗ).
+   *
+   * Обе версии сохраняются: исправленный текст не отменяет того, что было сказано,
+   * а запись голоса остаётся первичным материалом в любом случае.
+   */
+  app.post('/api/participant/:token/answers/:answerId/transcript', async (request, reply) => {
+    const access = await resolveAccess(app.pool, request.params.token, {
+      ip: request.ip,
+      userAgent: request.headers['user-agent'],
+    });
+
+    const services = createInvestigationServices({
+      scope: {
+        organizationId: access.organization_id,
+        caseId: access.case_id,
+        actorId: access.person_id,
+        actorType: 'participant',
+      },
+      pool: app.pool,
+      driver: 'postgres',
+    });
+
+    const answer = await services.repositories.answers.get(request.params.answerId);
+    if (!answer || answer.interview_id !== access.interview_id) {
+      return reply.code(404).send({ error: 'Ответ не найден' });
+    }
+
+    const corrected = request.body?.text?.trim();
+    const updated = corrected
+      ? await services.interviews.correctTranscript(answer.id, corrected)
+      : await services.interviews.confirmTranscript(answer.id);
+
+    return { status: 'ok', edited: Boolean(corrected), transcript: updated.transcript };
   });
 }

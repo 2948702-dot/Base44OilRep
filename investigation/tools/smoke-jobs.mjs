@@ -12,6 +12,7 @@ import { createPool, withTenant } from '../../src/investigation/repositories/ind
 import { createInvestigationServices } from '../../src/investigation/services/index.js';
 import { createJobRunner } from '../../src/investigation/server/jobRunner.js';
 import { createStubLlmClient } from '../../src/investigation/agents/framework/llmClient.js';
+import { createStubTranscriptionClient } from '../../src/investigation/server/transcription.js';
 import { MISSING_CASH_001 } from '../../src/investigation/fixtures/missingCash001.js';
 import * as stub from './fixtures/stub-outputs.mjs';
 
@@ -53,6 +54,7 @@ try {
     stub.PLAN_OUTPUT,
     stub.STRATEGY_IVANOV,
     stub.CLAIMS_IVANOV,
+    stub.CLAIMS_IVANOV,
   ]);
 
   const scope = { ...tenant, actorType: 'user' };
@@ -88,7 +90,16 @@ try {
     queued.some((j) => j.job_type === 'claim_extraction' && j.payload?.answer_id === answer.id),
     `в очереди: ${queued.length}`);
 
-  const runner = createJobRunner({ pool, llm, logger: silent });
+  const runner = createJobRunner({
+    pool,
+    llm,
+    logger: silent,
+    // Настоящая модель распознавания в проверке не нужна: проверяется поведение
+    // очереди и неизменяемость оригинала, а не качество расшифровки.
+    transcription: createStubTranscriptionClient([
+      'Около семи вечера я приехал на базу и передал деньги администратору.',
+    ]),
+  });
 
   const processed = await runner.processOne();
   check('Исполнитель взял задачу из очереди', processed === true);
@@ -105,29 +116,78 @@ try {
   const empty = await runner.processOne();
   check('Пустая очередь не создаёт лишней работы', empty === false);
 
+  // ───────────────── Голосовой ответ ─────────────────
+
+  const voiceAnswer = await app.interviews.submitAnswer({
+    questionId: planned.questions[0].id,
+    personId: ivanov.id,
+    audio: Buffer.from('фиктивная запись для проверки очереди'),
+    audioFilename: 'answer.webm',
+    audioMimeType: 'audio/webm',
+    duration: 42,
+  });
+  check('Голосовой ответ принят и сохранён как неизменяемый оригинал',
+    Boolean(voiceAnswer.audio_source_id) && voiceAnswer.transcript === null);
+
+  const voiceSource = await app.repositories.sources.get(voiceAnswer.audio_source_id);
+  check('Запись захэширована и помечена недоверенным материалом',
+    voiceSource.sha256?.length === 64 && voiceSource.type === 'interview_audio'
+      && voiceSource.untrusted_content === true);
+
+  const queuedTranscription = await app.repositories.jobs.list({ job_type: 'transcription' });
+  check('Голосовой ответ ставит в очередь расшифровку, а не разбор утверждений',
+    queuedTranscription.length === 1 && queuedTranscription[0].status === 'queued');
+
+  await runner.processOne();
+  const transcribed = await app.repositories.answers.get(voiceAnswer.id);
+  check('Расшифровка появилась в ответе', Boolean(transcribed.transcript),
+    (transcribed.transcript ?? '').slice(0, 40));
+  check('Расшифровка НЕ считается подтверждённой без человека',
+    transcribed.transcript_confirmed === false);
+
+  const derived = (await app.repositories.sources.list({ is_derived: true }))
+    .find((s) => s.derived_from_source_id === voiceSource.id);
+  check('Расшифровка сохранена отдельным производным источником',
+    Boolean(derived) && derived.derivation_method === 'whisper');
+
+  const originalAfter = await app.repositories.sources.get(voiceAnswer.audio_source_id);
+  check('Оригинал записи не изменён расшифровкой',
+    originalAfter.sha256 === voiceSource.sha256 && originalAfter.is_derived === false);
+
+  const afterTranscription = await app.repositories.jobs.list({ job_type: 'claim_extraction' });
+  check('После расшифровки поставлен разбор на утверждения',
+    afterTranscription.some((j) => j.payload?.reason === 'transcribed'));
+
+  // Очередь дорабатывается до конца: разбор расшифрованного ответа уже стоит в ней
+  // и был бы взят раньше следующей задачи.
+  let drainedAfterVoice = 0;
+  while (await runner.processOne()) drainedAfterVoice += 1;
+  check('Очередь дорабатывается до пустоты', drainedAfterVoice >= 1,
+    `обработано: ${drainedAfterVoice}`);
+
   // Нереализованный обработчик обязан вернуть задачу в очередь, а не выбросить материал.
   await runner.enqueue({
     organizationId: tenant.organizationId,
     caseId,
-    jobType: 'transcription',
+    jobType: 'document_parse',
     payload: { source_id: null },
   });
   await runner.processOne();
-  const transcription = (await app.repositories.jobs.list({ job_type: 'transcription' }))[0];
+  const parseJob = (await app.repositories.jobs.list({ job_type: 'document_parse' }))[0];
   check('Отказ обработчика возвращает задачу в очередь с отсрочкой',
-    transcription?.status === 'queued' && Number(transcription?.attempts) === 1,
-    `${transcription?.status}, попыток: ${transcription?.attempts}`);
+    parseJob?.status === 'queued' && Number(parseJob?.attempts) === 1,
+    `${parseJob?.status}, попыток: ${parseJob?.attempts}`);
   check('Причина отказа сохранена, а не потеряна',
-    String(transcription?.error ?? '').includes('не реализована'),
-    transcription?.error ?? '');
+    String(parseJob?.error ?? '').includes('не реализован'),
+    parseJob?.error ?? '');
 
   // После исчерпания попыток задача становится проваленной, а не крутится вечно.
   await withTenant(pool, { organizationId: tenant.organizationId }, (client) => client.query(
     "update investigation_job set attempts = 3, scheduled_at = now() where id = $1",
-    [transcription.id],
+    [parseJob.id],
   ));
   await runner.processOne();
-  const failed = (await app.repositories.jobs.list({ job_type: 'transcription' }))[0];
+  const failed = (await app.repositories.jobs.list({ job_type: 'document_parse' }))[0];
   check('Исчерпание попыток переводит задачу в failed, а не в бесконечный повтор',
     failed?.status === 'failed', `${failed?.status}, попыток: ${failed?.attempts}`);
 
