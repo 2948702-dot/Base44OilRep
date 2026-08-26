@@ -13,6 +13,7 @@
 import { createHash } from 'node:crypto';
 import { withTenant } from '../../repositories/postgres/pool.js';
 import { createInvestigationServices } from '../../services/index.js';
+import { renderParticipantPage } from '../participantPage.js';
 
 function hashToken(token) {
   return createHash('sha256').update(token).digest('hex');
@@ -61,6 +62,23 @@ async function resolveAccess(pool, token, { ip, userAgent }) {
 }
 
 export function registerParticipantRoutes(app) {
+  /**
+   * Экран участника. Страница отдаётся всегда: существование интервью проверяет уже
+   * запрос данных. Иначе сам факт «страница открылась» подсказывал бы, что человек
+   * фигурирует в разбирательстве.
+   */
+  app.get('/interview/:token', async (request, reply) => reply
+    .header('content-type', 'text/html; charset=utf-8')
+    .header('cache-control', 'no-store')
+    .header('referrer-policy', 'no-referrer')
+    .header('x-frame-options', 'DENY')
+    .header(
+      'content-security-policy',
+      "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
+      + "connect-src 'self'; base-uri 'none'; form-action 'none'",
+    )
+    .send(renderParticipantPage()));
+
   /** Экран участника: инструкция, текущие вопросы, его собственные ответы. */
   app.get('/api/participant/:token', async (request) => {
     const access = await resolveAccess(app.pool, request.params.token, {

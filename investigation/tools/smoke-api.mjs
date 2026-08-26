@@ -11,6 +11,7 @@
 
 import { createServer } from '../../src/investigation/server/index.js';
 import { createPool, withTenant } from '../../src/investigation/repositories/index.js';
+import { createInvestigationServices } from '../../src/investigation/services/index.js';
 import { hashPassword } from '../../src/investigation/server/auth.js';
 
 const results = [];
@@ -32,15 +33,15 @@ async function createTenant(label) {
       [`Организация ${label}`, `smoke-${label}-${stamp}`],
     );
     const organizationId = org.rows[0].id;
-    await client.query(
+    const user = await client.query(
       `insert into app_user (organization_id, role, full_name, email, password_hash, status)
-       values ($1, 'investigation_manager', $2, $3, $4, 'active')`,
+       values ($1, 'investigation_manager', $2, $3, $4, 'active') returning id`,
       [organizationId, `Следователь ${label}`, email, passwordHash],
     );
-    return organizationId;
+    return { organizationId, userId: user.rows[0].id };
   });
 
-  return { organizationId: created, email, password };
+  return { ...created, email, password };
 }
 
 // Фоновый исполнитель в дымовом прогоне не нужен: он проверяется отдельно.
@@ -151,6 +152,88 @@ try {
   const badToken = await call('GET', '/api/participant/00000000000000000000000000000000badtoken');
   check('Недействительная ссылка участника не раскрывает существование интервью',
     badToken.status === 404);
+
+  // ───────────────── Контур участника интервью ─────────────────
+  //
+  // Интервью и вопрос создаются напрямую через сервисы: контур участника проверяется
+  // без запуска агентов, чтобы проверка не зависела от доступности модели.
+
+  const services = createInvestigationServices({
+    scope: {
+      organizationId: tenantA.organizationId,
+      caseId,
+      actorId: tenantA.userId,
+      actorType: 'user',
+    },
+    pool,
+    driver: 'postgres',
+  });
+
+  const person = await services.repositories.persons.create({
+    case_id: caseId, name: 'Иванов Сергей', participant_type: 'witness', job_title: 'капитан',
+  });
+  const interview = await services.interviews.createInterview({
+    personId: person.id, channel: 'web', round: 1,
+  });
+  const questions = await services.interviews.addQuestions(interview.id, [{
+    question: 'Расскажите своими словами, что вам известно об этой ситуации.',
+    question_type: 'open',
+    purpose: 'СЛУЖЕБНАЯ ЦЕЛЬ: проверить версию H-001',
+    hypothesis_ids: ['H-001'],
+  }]);
+  await services.repositories.questions.update(questions[0].id, { status: 'approved' });
+
+  const otherInterview = await services.interviews.createInterview({
+    personId: person.id, channel: 'web', round: 2,
+  });
+  const otherQuestions = await services.interviews.addQuestions(otherInterview.id, [{
+    question: 'Вопрос другого интервью.', question_type: 'open',
+  }]);
+
+  const dispatch = await services.cases.requestInterviewDispatchApproval(caseId, [interview.id]);
+  await services.approvals.decide(dispatch.id, 'approved', 'Первый раунд проверен');
+  const issued = await services.interviews.issueAccessToken(interview.id, {
+    baseUrl: 'https://investigation.example.test',
+  });
+
+  const page = await app.inject({ method: 'GET', url: `/interview/${issued.token}` });
+  check('Экран участника открывается по ссылке без входа в систему',
+    page.statusCode === 200 && page.headers['content-type']?.includes('text/html'));
+  check('Страница участника не загружает внешние ресурсы',
+    !/https?:\/\//.test(page.body), 'внешних ссылок нет');
+  check('Страница участника закрыта от индексации и встраивания',
+    page.headers['x-frame-options'] === 'DENY' && page.body.includes('noindex'));
+
+  const view = await call('GET', `/api/participant/${issued.token}`);
+  check('Участник видит своё интервью и свой вопрос',
+    view.status === 200 && view.body.person_name === 'Иванов Сергей'
+      && view.body.questions.length === 1);
+
+  const serialized = JSON.stringify(view.body);
+  check('Участнику не отдаются служебные поля вопроса',
+    !serialized.includes('СЛУЖЕБНАЯ ЦЕЛЬ') && !serialized.includes('H-001'),
+    'цель и версии скрыты');
+
+  const submitted = await call('POST', `/api/participant/${issued.token}/answers`, {
+    body: { questionId: questions[0].id, text: 'Около семи я приехал на базу.' },
+  });
+  check('Участник может отправить ответ', submitted.status === 201);
+
+  const foreign = await call('POST', `/api/participant/${issued.token}/answers`, {
+    body: { questionId: otherQuestions[0].id, text: 'Попытка ответить не на свой вопрос' },
+  });
+  check('Вопрос чужого интервью для участника не существует', foreign.status === 404);
+
+  const afterAnswer = await call('GET', `/api/participant/${issued.token}`);
+  check('Отправленный ответ виден участнику и помечен как сохранённый',
+    afterAnswer.body.questions[0].answered === true && afterAnswer.body.answers.length === 1);
+
+  const revoked = await withTenant(pool, { organizationId: tenantA.organizationId }, (client) =>
+    client.query('update interview_access_token set revoked_at = now() where interview_id = $1',
+      [interview.id]));
+  check('Ссылка отзывается', revoked.rowCount === 1);
+  const afterRevoke = await call('GET', `/api/participant/${issued.token}`);
+  check('Отозванная ссылка перестаёт работать', afterRevoke.status === 404);
 
   await call('POST', '/api/auth/logout', { token: tokenA });
   const afterLogout = await call('GET', '/api/cases', { token: tokenA });

@@ -16,7 +16,7 @@ import { registerAnalysisRoutes } from './routes/analysis.js';
 import { createJobRunner } from './jobRunner.js';
 
 /** Маршруты, доступные без сессии платформы. */
-const PUBLIC_PREFIXES = ['/api/auth/login', '/api/participant', '/healthz'];
+const PUBLIC_PREFIXES = ['/api/auth/login', '/api/participant', '/interview/', '/healthz'];
 
 /**
  * @param {{pool?: Object, logger?: boolean, jobs?: boolean, llm?: Object}} [options]

@@ -48,6 +48,7 @@ Red Team Investigator.
 | Второй раунд интервью | готово | `services/InterviewService.js` |
 | Исполнитель очереди задач | готово | `server/jobRunner.js` |
 | Маршруты цикла, интервью и очереди | готово | `server/routes/analysis.js` |
+| Экран участника интервью | готово | `server/participantPage.js` |
 | Резервное копирование с проверкой восстановления | готово | `investigation/deploy/backup.py` |
 | Перевод доступа к серверу на ключи | готово, требует запуска владельцем | `investigation/deploy/harden-server.py` |
 
@@ -60,7 +61,7 @@ Red Team Investigator.
 |---|---|---|
 | P0 | Развернуть на сервере: поддомен, секреты, первый прогон Action | инфраструктура готова |
 | P0 | Запустить укрепление доступа: `SETUP - harden investigation server access` (`KI-018`) | ключи владельца |
-| P0 | Веб-экран участника интервью поверх готового API | HTTP-контур |
+| P0 | Приём голосовых ответов и вложений от участника (`KI-025`) | обработчик транскрипции |
 | P1 | Транскрипция аудио как задача очереди, обе версии текста | обработчик в jobRunner |
 | P1 | Agent 04 Document Analyst с обязательным `source_locator` | SourceService |
 | P1 | Agent 10 Evidence Corroboration и связи Claim ↔ Evidence | Evidence |
