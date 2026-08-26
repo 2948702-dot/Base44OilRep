@@ -10,7 +10,7 @@
  */
 
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { assertImplements } from '../contracts.js';
 import { sha256Hex } from '../../domain/hash.js';
 
@@ -18,7 +18,9 @@ import { sha256Hex } from '../../domain/hash.js';
  * @param {{root?: string}} [options]
  */
 export function createFileRepository(options = {}) {
-  const root = options.root ?? process.env.INVESTIGATION_FILE_ROOT ?? '/var/lib/investigation/sources';
+  const root = resolve(
+    options.root ?? process.env.INVESTIGATION_FILE_ROOT ?? '/var/lib/investigation/sources',
+  );
 
   function pathFor(sha256) {
     return join(root, sha256.slice(0, 2), sha256.slice(2, 4), sha256);
@@ -48,9 +50,14 @@ export function createFileRepository(options = {}) {
     },
 
     async read(uri) {
-      const path = uri.startsWith('file://') ? uri.slice('file://'.length) : uri;
-      if (!path.startsWith(root)) {
-        throw new Error(`Отказано: путь ${path} вне хранилища источников`);
+      const raw = uri.startsWith('file://') ? uri.slice('file://'.length) : uri;
+      // Сравнение строк здесь недостаточно: «<root>/../../etc/shadow» начинается с root
+      // и проходит проверку, а readFile честно разрешит «..». Путь сначала приводится
+      // к нормальному виду, и только потом сравнивается — с разделителем на конце,
+      // чтобы «<root>-backup» не считался тем же хранилищем.
+      const path = resolve(raw);
+      if (path !== root && !path.startsWith(root.endsWith(sep) ? root : root + sep)) {
+        throw new Error(`Отказано: путь ${raw} вне хранилища источников`);
       }
       const buffer = await readFile(path);
       return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);

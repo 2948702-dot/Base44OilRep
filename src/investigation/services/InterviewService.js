@@ -22,8 +22,91 @@ function generateToken() {
   return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** Состояния вопроса, в которых участник вправе его видеть и на него отвечать. */
+export const PARTICIPANT_VISIBLE_STATUSES = ['approved', 'asked', 'answered'];
+
 export function createInterviewService({ repositories, scope, llm, approvals, sources }) {
+  /**
+   * Утверждение отправки, охватывающее именно это интервью.
+   *
+   * Раньше достаточно было любого утверждённого interview_dispatch в организации:
+   * одно решение человека по одному делу открывало ссылки участникам всех остальных
+   * дел. Утверждение теперь привязано к делу и к перечню интервью, ради которых
+   * человек его и принимал.
+   */
+  async function findDispatchApproval(interview) {
+    const candidates = await repositories.approvals.list({
+      approval_type: 'interview_dispatch',
+      status: 'approved',
+    });
+    return candidates.find((approval) => {
+      if (approval.case_id && interview.case_id && approval.case_id !== interview.case_id) {
+        return false;
+      }
+      if (approval.object_id && approval.object_id === interview.id) return true;
+      const ids = approval.payload?.interview_ids ?? [];
+      return ids.includes(interview.id);
+    }) ?? null;
+  }
+
+  /**
+   * Открывает участнику утверждённые вопросы интервью.
+   *
+   * Чувствительный вопрос — тот, что раскрывает человеку чужие показания или ход
+   * расследования, — остаётся черновиком: его открывает следователь отдельным решением.
+   *
+   * @returns {Promise<number>} сколько вопросов доступно участнику после вызова
+   */
+  async function openQuestionsForParticipant(interviewId) {
+    const questions = await repositories.questions.list({ interview_id: interviewId });
+    let available = 0;
+    for (const question of questions) {
+      if (PARTICIPANT_VISIBLE_STATUSES.includes(question.status)) {
+        available += 1;
+        continue;
+      }
+      if (question.status !== 'draft' || question.sensitive) continue;
+      await repositories.questions.update(question.id, { status: 'asked' });
+      available += 1;
+    }
+    return available;
+  }
+
   return {
+    /**
+     * Открывает участнику чувствительные вопросы поимённо (§42 ТЗ).
+     *
+     * Отдельный шаг существует потому, что чувствительный вопрос — это решение о том,
+     * что человеку можно сообщить ход расследования. Такое решение принимает человек
+     * и объясняет его: обоснование попадает в журнал.
+     */
+    async approveQuestions(interviewId, questionIds, reason) {
+      if (!reason) {
+        throw new Error('Открытие вопроса участнику требует обоснования: оно идёт в журнал');
+      }
+      if (scope.actorType && scope.actorType !== 'user') {
+        throw new Error('Вопросы участнику открывает человек, а не агент');
+      }
+
+      const updated = [];
+      for (const questionId of questionIds ?? []) {
+        const question = await repositories.questions.get(questionId);
+        if (!question || question.interview_id !== interviewId) {
+          throw new Error(`Вопрос ${questionId} не относится к интервью ${interviewId}`);
+        }
+        if (PARTICIPANT_VISIBLE_STATUSES.includes(question.status)) {
+          updated.push(question);
+          continue;
+        }
+        updated.push(await repositories.questions.update(questionId, {
+          status: 'approved',
+          approved_by: scope.actorId,
+          approved_at: new Date().toISOString(),
+        }));
+      }
+      return updated;
+    },
+
     /**
      * @param {{personId: string, round?: number, channel: string, plan?: Object}} input
      */
@@ -48,10 +131,16 @@ export function createInterviewService({ repositories, scope, llm, approvals, so
      * Нарушение отклоняется здесь, а не остаётся на усмотрение генератора вопросов.
      */
     async addQuestions(interviewId, questions) {
-      const existing = await repositories.questions.list({ interview_id: interviewId });
-      const startSequence = existing.length;
+      // Нумерация считается по всем вопросам, включая мягко удалённые: номер вопроса
+      // уникален в пределах интервью на уровне базы, и повторное использование номера
+      // удалённого вопроса — отказ записи на ровном месте.
+      const all = await repositories.questions.list(
+        { interview_id: interviewId }, { includeDeleted: true },
+      );
+      const startSequence = all.reduce((max, q) => Math.max(max, Number(q.sequence ?? 0)), 0);
+      const live = all.filter((q) => !q.deleted_at);
 
-      if (startSequence === 0 && questions[0]?.question_type !== 'open') {
+      if (live.length === 0 && questions[0]?.question_type !== 'open') {
         throw new Error(
           'Первый содержательный вопрос интервью обязан быть открытым: '
           + 'обвинительное или уточняющее начало разрушает свободный рассказ',
@@ -72,6 +161,9 @@ export function createInterviewService({ repositories, scope, llm, approvals, so
           generated_by_agent: question.generated_by_agent ?? null,
           agent_run_id: question.agent_run_id ?? null,
           sensitive: question.sensitive ?? false,
+          // Вопрос рождается черновиком и становится виден участнику только после
+          // утверждения человеком (§42 ТЗ). Раньше это состояние никем не снималось,
+          // и участник открывал ссылку с пустым списком вопросов.
           status: 'draft',
         }));
       }
@@ -240,10 +332,22 @@ export function createInterviewService({ repositories, scope, llm, approvals, so
       const interview = await repositories.interviews.get(interviewId);
       if (!interview) throw new Error(`Интервью ${interviewId} не найдено`);
 
-      const approval = await approvals.findApproved({ approvalType: 'interview_dispatch' });
+      const approval = await findDispatchApproval(interview);
       if (!approval) {
         throw new Error(
-          'Отправка интервью не утверждена: требуется approved-запрос interview_dispatch',
+          `Отправка интервью ${interviewId} не утверждена: требуется approved-запрос `
+          + 'interview_dispatch, охватывающий это интервью',
+        );
+      }
+
+      // Утверждён состав раунда — значит утверждены и вопросы этого раунда, кроме
+      // чувствительных: их человек открывает отдельно и осознанно. Без этого шага
+      // участник получал ссылку на интервью, в котором ему нечего было увидеть.
+      const opened = await openQuestionsForParticipant(interviewId);
+      if (opened === 0) {
+        throw new Error(
+          `Интервью ${interviewId} не содержит ни одного вопроса, доступного участнику: `
+          + 'ссылка на пустое интервью бесполезна',
         );
       }
 
@@ -255,7 +359,9 @@ export function createInterviewService({ repositories, scope, llm, approvals, so
         channel,
         issued_at: new Date().toISOString(),
         expires_at: new Date(Date.now() + ttlHours * 3600 * 1000).toISOString(),
-        max_uses: 20,
+        // Лимит считает отправленные ответы, а не открытия страницы: участник
+        // возвращается к своей ссылке столько раз, сколько ему нужно.
+        max_uses: 60,
         use_count: 0,
       });
 
@@ -279,6 +385,12 @@ export function createInterviewService({ repositories, scope, llm, approvals, so
     async submitAnswer(input) {
       const question = await repositories.questions.get(input.questionId);
       if (!question) throw new Error(`Вопрос ${input.questionId} не найден`);
+      if (!PARTICIPANT_VISIBLE_STATUSES.includes(question.status)) {
+        throw new Error(
+          `Вопрос ${input.questionId} не открыт участнику (состояние ${question.status}): `
+          + 'ответ на неутверждённый вопрос обошёл бы утверждение человеком',
+        );
+      }
       if (!input.text && !input.audio && !input.audioSourceId) {
         throw new Error('Ответ должен содержать текст или аудиозапись');
       }

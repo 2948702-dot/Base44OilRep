@@ -290,10 +290,18 @@ export function registerViewRoutes(app) {
   app.get('/api/cases/:caseId/persons', async (request) => {
     const { caseId } = request.params;
     const services = servicesFor(app, request, caseId);
-    const [persons, interviews] = await Promise.all([
+    const [persons, interviews, questions, approvals] = await Promise.all([
       services.repositories.persons.list({ case_id: caseId }),
       services.repositories.interviews.list({ case_id: caseId }),
+      services.repositories.questions.list({ case_id: caseId }),
+      services.repositories.approvals.list({
+        case_id: caseId, approval_type: 'interview_dispatch', status: 'approved',
+      }),
     ]);
+
+    const approvedInterviewIds = new Set(approvals.flatMap(
+      (a) => [a.object_id, ...(a.payload?.interview_ids ?? [])].filter(Boolean),
+    ));
 
     return {
       persons: persons.map((p) => ({
@@ -304,7 +312,26 @@ export function registerViewRoutes(app) {
         relationship_to_incident: p.relationship_to_incident,
         interviews: interviews
           .filter((i) => i.person_id === p.id)
-          .map((i) => ({ id: i.id, round: i.round, status: i.status, channel: i.channel })),
+          .map((i) => {
+            const own = questions.filter((q) => q.interview_id === i.id);
+            return {
+              id: i.id,
+              round: i.round,
+              status: i.status,
+              channel: i.channel,
+              // Следователю нужно видеть не только что интервью создано, но и что из
+              // него дошло до участника: интервью с утверждённой отправкой и нулём
+              // открытых вопросов — это ссылка на пустой экран.
+              questions_total: own.length,
+              questions_open: own.filter(
+                (q) => ['approved', 'asked', 'answered'].includes(q.status),
+              ).length,
+              questions_sensitive_pending: own.filter(
+                (q) => q.sensitive && q.status === 'draft',
+              ).length,
+              dispatch_approved: approvedInterviewIds.has(i.id),
+            };
+          }),
       })),
     };
   });

@@ -13,7 +13,7 @@ import { query } from './pool.js';
 const SYSTEM_COLUMNS = new Set(['id', 'created_at', 'updated_at']);
 
 /** Таблицы, которые база запрещает изменять после записи. */
-const APPEND_ONLY = new Set(['audit_event', 'agent_run', 'hypothesis_revision']);
+const APPEND_ONLY = new Set(['audit_event', 'agent_run', 'hypothesis_revision', 'benchmark_result']);
 
 /**
  * @param {Object} params
@@ -44,8 +44,14 @@ export function createEntityRepository({
     return value === null || value === undefined ? null : JSON.stringify(value);
   }
 
-  /** Оставляет только известные схеме колонки и не даёт подменить организацию. */
-  function sanitize(data) {
+  /**
+   * Оставляет только известные схеме колонки и не даёт подменить организацию.
+   *
+   * Принадлежность делу проставляется только при создании. При обновлении это было бы
+   * не удобством, а дырой: запрос к объекту чужого дела по его идентификатору переносил
+   * бы объект в дело вызывающего вместе со всем содержимым.
+   */
+  function sanitize(data, { forCreate = false } = {}) {
     const payload = {};
     for (const [key, value] of Object.entries(data ?? {})) {
       if (SYSTEM_COLUMNS.has(key)) continue;
@@ -54,10 +60,32 @@ export function createEntityRepository({
       payload[key] = jsonSet.has(key) ? toJsonParam(normalized) : normalized;
     }
     payload.organization_id = scope.organizationId;
-    if (caseScoped && scope.caseId && payload.case_id == null) {
+    if (forCreate && caseScoped && scope.caseId && payload.case_id == null) {
       payload.case_id = scope.caseId;
     }
+    if (!forCreate) delete payload.case_id;
     return payload;
+  }
+
+  /**
+   * Условие принадлежности строки области видимости вызывающего.
+   *
+   * Граница организации держится RLS базы. Границу дела база не знает: для неё
+   * `finding` дела A и дела B — строки одной таблицы одной организации. Поэтому она
+   * проверяется здесь, один раз для всех маршрутов, а не в каждом обработчике: пропуск
+   * в одном обработчике из двадцати — это и есть способ, которым такие проверки теряются.
+   *
+   * Строка без дела (журнал, задача очереди, документ методологии) остаётся доступной:
+   * она относится к организации, а не к делу.
+   */
+  function scopeCondition(startIndex) {
+    const conditions = [`organization_id = $${startIndex}`];
+    const params = [scope.organizationId];
+    if (caseScoped && scope.caseId) {
+      params.push(scope.caseId);
+      conditions.push(`(case_id is null or case_id = $${startIndex + 1})`);
+    }
+    return { sql: conditions.join(' and '), params };
   }
 
   function buildWhere(filter, { includeDeleted }) {
@@ -108,10 +136,11 @@ export function createEntityRepository({
 
   const repository = {
     async get(id) {
+      const { sql, params } = scopeCondition(2);
       const result = await query(
         db,
-        `select * from ${table} where id = $1 and deleted_at is null`,
-        [id],
+        `select * from ${table} where id = $1 and deleted_at is null and ${sql}`,
+        [id, ...params],
       );
       return result.rows[0] ?? null;
     },
@@ -144,7 +173,7 @@ export function createEntityRepository({
     },
 
     async create(data) {
-      const payload = sanitize(data);
+      const payload = sanitize(data, { forCreate: true });
       const keys = Object.keys(payload);
       const placeholders = keys.map((_, index) => `$${index + 1}`);
       const result = await query(
@@ -200,13 +229,14 @@ export function createEntityRepository({
     },
 
     async restore(id, reason) {
+      const { sql, params } = scopeCondition(2);
       const result = await query(
         db,
         `update ${table} set deleted_at = null, deleted_by = null, deletion_reason = null
-         where id = $1 returning *`,
-        [id],
+         where id = $1 and ${sql} returning *`,
+        [id, ...params],
       );
-      if (!result.rows[0]) throw new Error(`${table}/${id} не найден`);
+      if (!result.rows[0]) throw new Error(`${table}/${id} не найден в области видимости вызывающего`);
       await recordAudit('restore', id, null, null, reason);
       return result.rows[0];
     },

@@ -33,7 +33,14 @@ export function createServer(options = {}) {
   const app = Fastify({
     logger: options.logger ?? true,
     bodyLimit: 32 * 1024 * 1024,
-    trustProxy: true,
+    // Доверенными считаются только адреса самого сервера и внутренней сети — там,
+    // где стоит наш Caddy. При trustProxy: true клиент, приславший свой
+    // X-Forwarded-For, назначал бы себе адрес сам: ограничитель частоты обходится
+    // сменой заголовка, а last_ip в материалах дела становится выдумкой того, кого
+    // проверяют. Caddy свой X-Forwarded-For дописывает справа, поэтому разбор,
+    // идущий справа налево до первого недоверенного адреса, берёт настоящий адрес
+    // клиента и не может взять подставленный им слева.
+    trustProxy: process.env.TRUSTED_PROXIES ?? 'loopback, uniquelocal',
   });
 
   app.decorate('pool', pool);

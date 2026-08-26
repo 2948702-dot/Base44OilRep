@@ -271,6 +271,7 @@ export function createReportService({ repositories, scope, llm, approvals }) {
         approvalType: 'finding_approval',
         objectType: 'Finding',
         objectId: findingId,
+        requestedBy: finding.created_by_agent ?? finding.agent_run_id ?? null,
       });
       await approvals.decide(approval.id, 'approved', note);
       return repositories.findings.update(findingId, {

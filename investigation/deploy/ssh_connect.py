@@ -82,9 +82,18 @@ def connect(*, host: str | None = None, prefer_root: bool = False) -> paramiko.S
     sys.exit(1)
 
 
-def run(client, command, *, check=True, quiet=False):
-    """Выполняет команду. Возвращает код, stdout и stderr."""
-    _, stdout, stderr = client.exec_command(command)
+def run(client, command, *, check=True, quiet=False, stdin_data=None):
+    """Выполняет команду. Возвращает код, stdout и stderr.
+
+    stdin_data передаётся команде стандартным вводом. Это единственный способ отдать
+    секрет удалённой команде, не оставив его в списке процессов сервера и в истории
+    оболочки: аргументы командной строки видны всем, кто на сервере есть.
+    """
+    stdin, stdout, stderr = client.exec_command(command)
+    if stdin_data is not None:
+        stdin.write(stdin_data)
+        stdin.flush()
+        stdin.channel.shutdown_write()
     code = stdout.channel.recv_exit_status()
     out = stdout.read().decode("utf-8", "replace")
     err = stderr.read().decode("utf-8", "replace")

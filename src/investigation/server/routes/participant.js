@@ -55,7 +55,7 @@ function tooManyRequests(ip) {
  * Проверяет ссылку и возвращает контекст интервью.
  * Токен ищется под системным флагом: организация до проверки ещё не известна.
  */
-async function resolveAccess(pool, token, { ip, userAgent }) {
+async function resolveAccess(pool, token, { ip, userAgent, consume = false }) {
   if (ip && tooManyRequests(ip)) {
     throw Object.assign(
       new Error('Слишком много обращений. Подождите минуту и обновите страницу.'),
@@ -72,7 +72,7 @@ async function resolveAccess(pool, token, { ip, userAgent }) {
        from interview_access_token t
        join interview i on i.id = t.interview_id
        join person p on p.id = t.person_id
-       where t.token_hash = $1`,
+       where t.token_hash = $1 and t.deleted_at is null and i.deleted_at is null`,
       [hashToken(token)],
     );
     return result.rows[0] ?? null;
@@ -89,11 +89,24 @@ async function resolveAccess(pool, token, { ip, userAgent }) {
     throw Object.assign(new Error('Ссылка недействительна или истекла'), { statusCode: 404 });
   }
 
+  // Закрытое интервью можно перечитать, но нельзя дополнить: человек вправе видеть,
+  // что он сказал, и после того, как раунд закрыт.
+  if (consume && ['completed', 'cancelled'].includes(row.interview_status)) {
+    throw Object.assign(
+      new Error('Интервью завершено. Если нужно что-то добавить, свяжитесь с тем, кто прислал ссылку.'),
+      { statusCode: 409 },
+    );
+  }
+
+  // Счётчик увеличивается только при отправке ответа. Раньше он рос и на каждом
+  // открытии страницы, а страница перезагружает данные после каждого действия:
+  // участник с десятью вопросами упирался в лимит на середине интервью и видел
+  // «ссылка недействительна» вместо оставшихся вопросов.
   await withTenant(pool, { organizationId: row.organization_id }, (client) => client.query(
     `update interview_access_token
-     set use_count = coalesce(use_count, 0) + 1, used_at = now(), last_ip = $2, last_user_agent = $3
+     set use_count = coalesce(use_count, 0) + $4, used_at = now(), last_ip = $2, last_user_agent = $3
      where id = $1`,
-    [row.id, ip ?? null, userAgent ?? null],
+    [row.id, ip ?? null, userAgent ?? null, consume ? 1 : 0],
   ));
 
   return row;
@@ -183,6 +196,7 @@ export function registerParticipantRoutes(app) {
     const access = await resolveAccess(app.pool, request.params.token, {
       ip: request.ip,
       userAgent: request.headers['user-agent'],
+      consume: true,
     });
 
     let questionId = null;
@@ -264,6 +278,7 @@ export function registerParticipantRoutes(app) {
     const access = await resolveAccess(app.pool, request.params.token, {
       ip: request.ip,
       userAgent: request.headers['user-agent'],
+      consume: true,
     });
 
     const services = createInvestigationServices({

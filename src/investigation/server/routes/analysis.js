@@ -38,23 +38,84 @@ export function registerAnalysisRoutes(app) {
     });
   });
 
-  app.post('/api/interviews/:interviewId/continue', async (request) => {
+  /**
+   * Запрос человеческого утверждения на отправку интервью (§42 ТЗ).
+   *
+   * Без этого шага ссылка участнику не выдаётся, а значит и весь контур интервью
+   * недоступен: маршрута для запроса раньше не существовало вовсе.
+   */
+  app.post('/api/cases/:caseId/interviews/dispatch-approval', async (request, reply) => {
     assertCanWrite(request.scope);
-    const services = createInvestigationServices({
-      scope: request.scope, pool: app.pool, driver: 'postgres',
-    });
-    return services.interviews.continueInterview(request.params.interviewId);
+    const { caseId } = request.params;
+    const interviewIds = request.body?.interviewIds ?? [];
+
+    if (!Array.isArray(interviewIds) || interviewIds.length === 0) {
+      return reply.code(400).send({ error: 'Требуется список interviewIds' });
+    }
+
+    const services = servicesFor(app, request, caseId);
+    for (const interviewId of interviewIds) {
+      const interview = await services.repositories.interviews.get(interviewId);
+      if (!interview) return reply.code(404).send({ error: `Интервью ${interviewId} не найдено` });
+    }
+
+    const approval = await services.cases.requestInterviewDispatchApproval(caseId, interviewIds);
+    return reply.code(201).send({ approval });
+  });
+
+  /**
+   * Открывает участнику чувствительные вопросы поимённо.
+   *
+   * Нечувствительные вопросы открываются вместе с выдачей ссылки: их состав человек
+   * уже утвердил, когда утверждал отправку раунда. Отдельное решение нужно там, где
+   * вопрос раскрывает участнику ход расследования.
+   */
+  app.post('/api/cases/:caseId/interviews/:interviewId/questions/approve', async (request, reply) => {
+    assertCanWrite(request.scope);
+    const { caseId, interviewId } = request.params;
+    const { questionIds, reason } = request.body ?? {};
+
+    if (!Array.isArray(questionIds) || questionIds.length === 0) {
+      return reply.code(400).send({ error: 'Требуется список questionIds' });
+    }
+    if (!reason) {
+      return reply.code(400).send({ error: 'Требуется обоснование: оно попадает в журнал' });
+    }
+
+    const services = servicesFor(app, request, caseId);
+    const interview = await services.repositories.interviews.get(interviewId);
+    if (!interview) return reply.code(404).send({ error: 'Интервью не найдено' });
+
+    const questions = await services.interviews.approveQuestions(interviewId, questionIds, reason);
+    return { questions };
+  });
+
+  app.post('/api/cases/:caseId/interviews/:interviewId/continue', async (request, reply) => {
+    assertCanWrite(request.scope);
+    const { caseId, interviewId } = request.params;
+    const services = servicesFor(app, request, caseId);
+
+    const interview = await services.repositories.interviews.get(interviewId);
+    if (!interview) return reply.code(404).send({ error: 'Интервью не найдено' });
+
+    return services.interviews.continueInterview(interviewId);
   });
 
   /**
    * Персональная ссылка участника. Возвращается один раз: в базе остаётся только хэш.
+   *
+   * Маршрут живёт внутри дела не для красоты адреса: без дела в области видимости
+   * созданный токен и созданные вопросы остаются без case_id, а схема этого не
+   * допускает — прежний маршрут вне дела всегда отвечал ошибкой на настоящей базе.
    */
-  app.post('/api/interviews/:interviewId/link', async (request, reply) => {
+  app.post('/api/cases/:caseId/interviews/:interviewId/link', async (request, reply) => {
     assertCanWrite(request.scope);
-    const interviewId = request.params.interviewId;
-    const services = createInvestigationServices({
-      scope: request.scope, pool: app.pool, driver: 'postgres',
-    });
+    const { caseId, interviewId } = request.params;
+    const services = servicesFor(app, request, caseId);
+
+    const interview = await services.repositories.interviews.get(interviewId);
+    if (!interview) return reply.code(404).send({ error: 'Интервью не найдено' });
+
     const baseUrl = request.body?.baseUrl ?? process.env.PARTICIPANT_BASE_URL;
     if (!baseUrl) return reply.code(400).send({ error: 'Не задан базовый адрес ссылки' });
 

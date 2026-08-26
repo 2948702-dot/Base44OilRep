@@ -75,6 +75,7 @@ button {
 button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
 button:disabled { opacity: .5; cursor: default; }
 .filters { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-bottom: .8rem; }
+.stack { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; margin-top: .45rem; }
 .board { display: grid; gap: .8rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); align-items: start; }
 .board section { background: var(--panel); border: 1px solid var(--line); border-radius: .5rem; padding: .7rem; }
 .board h3 { margin: 0 0 .5rem; font-size: .85rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
@@ -494,7 +495,7 @@ async function viewOverview(root) {
           el('td', {}, [action('Подготовить интервью', function () {
             return api('/api/cases/' + state.caseId + '/interviews',
               { method: 'POST', body: { personId: p.id } });
-          }, { ghost: true })]),
+          }, { ghost: true })].concat((p.interviews || []).map(interviewRow))),
         ]);
       })),
     ])]);
@@ -511,6 +512,47 @@ async function viewOverview(root) {
     el('h2', { text: 'Участники' }),
     people,
   ]);
+}
+
+
+/**
+ * Состояние интервью и то, что с ним можно сделать прямо сейчас.
+ *
+ * Порядок действий повторяет §42: сначала человек утверждает отправку, только потом
+ * выдаётся персональная ссылка, и лишь отдельным решением открываются чувствительные
+ * вопросы. Показывается и то, сколько вопросов дошло до участника: интервью с
+ * утверждённой отправкой и нулём открытых вопросов — это ссылка на пустой экран.
+ */
+function interviewRow(i) {
+  var state_ru = { planned: 'подготовлено', invited: 'ссылка выдана', in_progress: 'идёт',
+    completed: 'завершено', cancelled: 'отменено', declined: 'отказ' };
+  var parts = [
+    el('span', { class: 'chip', text: 'раунд ' + i.round + ' · ' + (state_ru[i.status] || i.status) }),
+    el('span', { class: 'muted', text: ' вопросов: ' + i.questions_open + ' из ' + i.questions_total }),
+  ];
+
+  if (!i.dispatch_approved) {
+    parts.push(action('Запросить отправку', function () {
+      return api('/api/cases/' + state.caseId + '/interviews/dispatch-approval',
+        { method: 'POST', body: { interviewIds: [i.id] } })
+        .then(function () { return { message: 'Запрос ушёл на утверждение.', reload: true }; });
+    }, { ghost: true }));
+  } else {
+    parts.push(action('Выдать ссылку участнику', function () {
+      return api('/api/cases/' + state.caseId + '/interviews/' + i.id + '/link',
+        { method: 'POST', body: { baseUrl: location.origin } })
+        .then(function (r) {
+          return { message: 'Ссылка показывается один раз:', link: r.url, reload: false };
+        });
+    }, { ghost: true }));
+  }
+
+  if (i.questions_sensitive_pending > 0) {
+    parts.push(el('span', { class: 'muted',
+      text: ' закрыто чувствительных вопросов: ' + i.questions_sensitive_pending }));
+  }
+
+  return el('div', { class: 'stack' }, parts);
 }
 
 /** §44 ТЗ: хронология с фильтрами; конкурирующие версии времени видны сразу. */

@@ -19,6 +19,56 @@ const SESSION_TTL_HOURS = 12;
 const KEY_LENGTH = 64;
 
 /**
+ * Ограничение частоты попыток входа.
+ *
+ * Счётчик живёт в памяти процесса: этого достаточно против перебора и не требует
+ * ещё одного хранилища. При нескольких экземплярах приложения предел становится
+ * кратно мягче — тогда ограничение переносится на общий слой; здесь важно, что
+ * неограниченного перебора не остаётся вовсе.
+ */
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 8;
+const loginFailures = new Map();
+
+function loginKey(email, ip) {
+  return `${String(email ?? '').toLowerCase()}|${ip ?? ''}`;
+}
+
+function assertLoginAllowed(email, ip) {
+  const record = loginFailures.get(loginKey(email, ip));
+  if (!record) return;
+  if (Date.now() - record.first > LOGIN_WINDOW_MS) {
+    loginFailures.delete(loginKey(email, ip));
+    return;
+  }
+  if (record.count >= LOGIN_MAX_FAILURES) {
+    throw Object.assign(
+      new Error('Слишком много попыток входа. Повторите через несколько минут.'),
+      { statusCode: 429 },
+    );
+  }
+}
+
+function recordLoginFailure(email, ip) {
+  const key = loginKey(email, ip);
+  const record = loginFailures.get(key);
+  if (!record || Date.now() - record.first > LOGIN_WINDOW_MS) {
+    loginFailures.set(key, { first: Date.now(), count: 1 });
+    return;
+  }
+  record.count += 1;
+}
+
+/**
+ * Хэш-пустышка для несуществующего адреса.
+ *
+ * Без него проверка пароля при неизвестном адресе не выполняется вовсе, ответ приходит
+ * заметно быстрее, и форма входа снова становится справочником сотрудников — только
+ * по времени ответа, а не по его тексту.
+ */
+const DUMMY_PASSWORD_HASH = `scrypt$${randomBytes(16).toString('hex')}$${randomBytes(KEY_LENGTH).toString('hex')}`;
+
+/**
  * @param {string} password
  * @returns {Promise<string>} строка вида scrypt$<salt>$<hash>
  */
@@ -62,6 +112,8 @@ export function generateToken() {
  * @returns {Promise<{token: string, user: Object, expiresAt: string}>}
  */
 export async function login(pool, input) {
+  assertLoginAllowed(input.email, input.ip);
+
   // Поиск пользователя идёт до того, как организация известна, поэтому запрос
   // выполняется под системным флагом и ограничен одной строкой по адресу.
   const found = await withTenant(pool, { organizationId: null, isSystemAdmin: true }, async (client) => {
@@ -73,15 +125,22 @@ export async function login(pool, input) {
     return result.rows[0] ?? null;
   });
 
-  const ok = found?.status === 'active'
-    && found.password_hash
-    && await verifyPassword(input.password, found.password_hash);
+  // Проверка пароля выполняется всегда, в том числе против пустышки: одинаков должен
+  // быть не только текст ответа, но и время до него.
+  const passwordMatches = await verifyPassword(
+    input.password ?? '',
+    found?.password_hash ?? DUMMY_PASSWORD_HASH,
+  );
+  const ok = Boolean(found) && found.status === 'active' && found.password_hash && passwordMatches;
 
   if (!ok) {
+    recordLoginFailure(input.email, input.ip);
     // Один и тот же ответ на несуществующий адрес и на неверный пароль:
     // иначе форма входа превращается в справочник сотрудников организации.
     throw Object.assign(new Error('Неверный адрес или пароль'), { statusCode: 401 });
   }
+
+  loginFailures.delete(loginKey(input.email, input.ip));
 
   const token = generateToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_HOURS * 3600 * 1000).toISOString();

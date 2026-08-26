@@ -180,6 +180,36 @@ try {
     source.body?.injection_scan?.suspicious === true,
     (source.body?.injection_scan?.markers ?? []).length + ' маркеров');
 
+  // ───────────────── Граница дела внутри одной организации ─────────────────
+  //
+  // Организации разделяет RLS базы. Дела внутри организации она не разделяет: для
+  // базы это строки одной таблицы одного арендатора. Поэтому граница дела проверяется
+  // отдельно и на живых маршрутах — именно там она и терялась.
+  const secondCase = await call('POST', '/api/cases', {
+    token: tokenA,
+    body: { title: 'Второе дело той же организации', description: 'Материалы не должны смешиваться' },
+  });
+  const secondCaseId = secondCase.body.id;
+
+  const foreignSource = await call('POST', `/api/cases/${secondCaseId}/sources/${source.body.source.id}/evidence`, {
+    token: tokenA,
+    body: { type: 'document', description: 'Материал соседнего дела', relevance: 'high' },
+  });
+  check('Материал одного дела нельзя приобщить к другому',
+    foreignSource.status >= 400,
+    `${foreignSource.status}: ${String(foreignSource.body?.error ?? '').slice(0, 70)}`);
+
+  const sourceRow = await withTenant(pool, { organizationId: tenantA.organizationId }, (client) =>
+    client.query('select case_id from source where id = $1', [source.body.source.id]));
+  check('Материал остался в своём деле и не переехал в соседнее',
+    sourceRow.rows[0]?.case_id === caseId,
+    `дело материала: ${sourceRow.rows[0]?.case_id === caseId ? 'исходное' : 'изменилось'}`);
+
+  const foreignEvidence = await withTenant(pool, { organizationId: tenantA.organizationId }, (client) =>
+    client.query('select count(*)::int as n from evidence where case_id = $1', [secondCaseId]));
+  check('Соседнее дело не получило чужого доказательства',
+    foreignEvidence.rows[0].n === 0, `доказательств: ${foreignEvidence.rows[0].n}`);
+
   const badStage = await call('POST', `/api/cases/${caseId}/stage`, {
     token: tokenA,
     body: { stage: 'reporting', reason: 'хочу быстрее' },
@@ -218,13 +248,19 @@ try {
   const interview = await services.interviews.createInterview({
     personId: person.id, channel: 'web', round: 1,
   });
-  const questions = await services.interviews.addQuestions(interview.id, [{
-    question: 'Расскажите своими словами, что вам известно об этой ситуации.',
-    question_type: 'open',
-    purpose: 'СЛУЖЕБНАЯ ЦЕЛЬ: проверить версию H-001',
-    hypothesis_ids: ['H-001'],
-  }]);
-  await services.repositories.questions.update(questions[0].id, { status: 'approved' });
+  const questions = await services.interviews.addQuestions(interview.id, [
+    {
+      question: 'Расскажите своими словами, что вам известно об этой ситуации.',
+      question_type: 'open',
+      purpose: 'СЛУЖЕБНАЯ ЦЕЛЬ: проверить версию H-001',
+      hypothesis_ids: ['H-001'],
+    },
+    {
+      question: 'Петрова говорит, что денег не получала. Что вы на это скажете?',
+      question_type: 'challenge',
+      sensitive: true,
+    },
+  ]);
 
   const otherInterview = await services.interviews.createInterview({
     personId: person.id, channel: 'web', round: 2,
@@ -233,11 +269,36 @@ try {
     question: 'Вопрос другого интервью.', question_type: 'open',
   }]);
 
-  const dispatch = await services.cases.requestInterviewDispatchApproval(caseId, [interview.id]);
-  await services.approvals.decide(dispatch.id, 'approved', 'Первый раунд проверен');
-  const issued = await services.interviews.issueAccessToken(interview.id, {
-    baseUrl: 'https://investigation.example.test',
+  // Утверждение отправки и выдача ссылки идут через настоящие маршруты: контур
+  // участника ломался именно на стыке, где вопрос оставался черновиком, а ссылка
+  // всё равно выдавалась. Проверка, ставящая статус вопроса руками, этого не видит.
+  const linkWithoutApproval = await call('POST', `/api/cases/${caseId}/interviews/${interview.id}/link`, {
+    token: tokenA,
+    body: { baseUrl: 'https://investigation.example.test' },
   });
+  check('Ссылка не выдаётся без утверждения отправки человеком',
+    linkWithoutApproval.status >= 400,
+    `${linkWithoutApproval.status}: ${String(linkWithoutApproval.body?.error ?? '').slice(0, 60)}`);
+
+  const dispatchRequest = await call('POST', `/api/cases/${caseId}/interviews/dispatch-approval`, {
+    token: tokenA,
+    body: { interviewIds: [interview.id] },
+  });
+  check('Запрос на отправку интервью создаётся с экрана', dispatchRequest.status === 201);
+
+  const decided = await call('POST', `/api/cases/${caseId}/approvals/${dispatchRequest.body.approval.id}/decide`, {
+    token: tokenA,
+    body: { decision: 'approved', note: 'Первый раунд проверен' },
+  });
+  check('Отправка интервью утверждается человеком', decided.status === 200 || decided.status === 201);
+
+  const link = await call('POST', `/api/cases/${caseId}/interviews/${interview.id}/link`, {
+    token: tokenA,
+    body: { baseUrl: 'https://investigation.example.test' },
+  });
+  check('Ссылка выдаётся после утверждения', link.status === 201 && Boolean(link.body.url));
+
+  const issued = { token: String(link.body.url).split('/interview/')[1] };
 
   const page = await app.inject({ method: 'GET', url: `/interview/${issued.token}` });
   check('Экран участника открывается по ссылке без входа в систему',
@@ -248,6 +309,33 @@ try {
     page.headers['x-frame-options'] === 'DENY' && page.body.includes('noindex'));
 
   const view = await call('GET', `/api/participant/${issued.token}`);
+  check('Чувствительный вопрос не доходит до участника без отдельного решения',
+    (await call('GET', `/api/participant/${issued.token}`)).body.questions.length === 1,
+    'открыт только неконфликтный вопрос');
+
+  const sensitiveQuestion = questions.find((q) => q.sensitive);
+  const openedWithoutReason = await call(
+    'POST', `/api/cases/${caseId}/interviews/${interview.id}/questions/approve`,
+    { token: tokenA, body: { questionIds: [sensitiveQuestion.id] } },
+  );
+  check('Чувствительный вопрос не открывается без обоснования',
+    openedWithoutReason.status === 400);
+
+  const opened = await call(
+    'POST', `/api/cases/${caseId}/interviews/${interview.id}/questions/approve`,
+    {
+      token: tokenA,
+      body: {
+        questionIds: [sensitiveQuestion.id],
+        reason: 'Показания второго участника уже собраны, расхождение можно предъявить',
+      },
+    },
+  );
+  check('Чувствительный вопрос открывается отдельным решением с обоснованием',
+    opened.status === 200
+      && (await call('GET', `/api/participant/${issued.token}`)).body.questions.length === 2,
+    opened.body?.error ?? '');
+
   check('Участник видит своё интервью и свой вопрос',
     view.status === 200 && view.body.person_name === 'Иванов Сергей'
       && view.body.questions.length === 1);

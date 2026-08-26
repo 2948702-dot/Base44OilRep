@@ -10,7 +10,11 @@
  */
 
 import { nextCode } from '../domain/codes.js';
-import { assertQualitativeConfidence, InvariantViolation } from '../engine/invariants.js';
+import {
+  assertQualitativeConfidence,
+  assertPrecisionNotInflated,
+  InvariantViolation,
+} from '../engine/invariants.js';
 import { FOLLOW_UP_PIPELINE, evaluateFollowUpNeed } from '../engine/followUpLoop.js';
 import { createAgentContext } from '../agents/framework/AgentContext.js';
 import { getAgent } from '../agents/registry.js';
@@ -51,7 +55,18 @@ export function createAnalysisService({ repositories, scope, llm, approvals }) {
       ]);
       const personByName = new Map(persons.map((p) => [p.name, p.id]));
       const codes = existing.map((e) => e.event_code);
-      const existingByDescription = new Map(existing.map((e) => [e.description, e]));
+
+      // Сопоставлять перестроенную хронологию можно только с живыми событиями.
+      // Удалённое событие, совпавшее описанием, прежде «оживало» скрытно: запись
+      // обновлялась, но оставалась невидимой, а нового события не появлялось —
+      // событие исчезало из хронологии совсем.
+      const live = existing.filter((e) => !e.deleted_at);
+      const claimsKey = (ids) => [...(ids ?? [])].sort().join('|');
+      const existingByClaims = new Map(
+        live.filter((e) => (e.source_claim_ids ?? []).length > 0)
+          .map((e) => [claimsKey(e.source_claim_ids), e]),
+      );
+      const existingByDescription = new Map(live.map((e) => [e.description, e]));
 
       const created = [];
       const updated = [];
@@ -88,13 +103,25 @@ export function createAnalysisService({ repositories, scope, llm, approvals }) {
           agent_run_id: result.run.id,
         };
 
-        const previous = existingByDescription.get(event.description);
+        // Опорой сопоставления служит набор утверждений, на которых стоит событие:
+        // формулировку описания агент меняет от прогона к прогону, и совпадение
+        // по строке теряет событие при любой переформулировке.
+        const previous = existingByClaims.get(claimsKey(payload.source_claim_ids))
+          ?? existingByDescription.get(event.description);
         if (previous) {
           // Прежняя версия времени сохраняется как конкурирующая, а не затирается.
           const preserved = [
             ...(previous.competing_versions ?? []),
             ...(payload.competing_versions ?? []),
           ];
+          // Повышение точности допустимо только на новом материале. Иначе второй
+          // прогон цикла тихо превращает «в тот день» в «14:30» — ровно то, что
+          // методология запрещает, и ровно то, чего никто не заметит.
+          const previousClaims = new Set(previous.source_claim_ids ?? []);
+          const restsOnNewClaims = (payload.source_claim_ids ?? [])
+            .some((id) => !previousClaims.has(id));
+          if (!restsOnNewClaims) assertPrecisionNotInflated(previous, payload);
+
           const timeChanged = previous.start_at !== payload.start_at
             || previous.end_at !== payload.end_at;
           if (timeChanged) {
@@ -435,7 +462,13 @@ export function createAnalysisService({ repositories, scope, llm, approvals }) {
         }
       }
 
-      const surviving = updated.filter((h) => h.status !== 'eliminated' && h.type !== 'primary');
+      // Выжившие считаются по всем версиям дела, а не по тем, которые агент упомянул
+      // в этом прогоне. Иначе анализ одной основной версии выглядел бы как исчезновение
+      // всех альтернатив и валил бы весь аналитический цикл на ровном месте.
+      const allHypotheses = await repositories.hypotheses.list({ case_id: caseId });
+      const surviving = allHypotheses.filter(
+        (h) => h.status !== 'eliminated' && h.type !== 'primary',
+      );
       if (updated.length > 0 && surviving.length === 0) {
         throw new InvariantViolation(
           'ALTERNATIVES_MUST_SURVIVE',

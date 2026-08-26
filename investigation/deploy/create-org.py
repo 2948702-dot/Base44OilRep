@@ -45,21 +45,25 @@ def main():
 
     client = connect()
     try:
-        # Пароль уходит переменной окружения контейнера, а не аргументом команды:
-        # аргументы видны в списке процессов сервера, переменные окружения — нет.
+        # Пароль передаётся стандартным вводом контейнера. Прежде он уходил
+        # аргументом `docker run -e ...`, а аргументы видны в `ps aux` любому,
+        # кто есть на сервере: комментарий обещал обратное, а строка делала ровно
+        # то, от чего обещал защитить.
         command = (
-            f"cd {REMOTE_DIR} && docker run --rm --network {NETWORK} "
+            f"cd {REMOTE_DIR} && docker run --rm -i --network {NETWORK} "
             f"--env-file {REMOTE_DIR}/.env "
-            f"-e BOOTSTRAP_PASSWORD={shlex.quote(required['OWNER_PASSWORD'])} "
             f"{IMAGE} node investigation/tools/bootstrap-org.mjs "
             f"--name {shlex.quote(required['ORG_NAME'])} "
             f"--slug {shlex.quote(required['ORG_SLUG'])} "
             f"--email {shlex.quote(required['OWNER_EMAIL'])} "
             f"--full-name {shlex.quote(full_name)} "
-            f"--role org_owner"
+            f"--role org_owner --password-stdin"
         )
 
-        code, out, err = run(client, command, check=False, quiet=True)
+        code, out, err = run(
+            client, command, check=False, quiet=True,
+            stdin_data=required["OWNER_PASSWORD"] + "\n",
+        )
 
         # Вывод печатается вручную и после проверки: в нём не должно быть пароля,
         # но полагаться на это без фильтра нельзя.

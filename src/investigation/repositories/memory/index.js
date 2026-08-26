@@ -14,7 +14,7 @@ import { assertImplements } from '../contracts.js';
 import { SCHEMA } from '../postgres/schema.generated.js';
 import { sha256Hex } from '../../domain/hash.js';
 
-const APPEND_ONLY = new Set(['AuditEvent', 'AgentRun', 'HypothesisRevision']);
+const APPEND_ONLY = new Set(['AuditEvent', 'AgentRun', 'HypothesisRevision', 'BenchmarkResult']);
 
 function matches(record, filter) {
   return Object.entries(filter ?? {}).every(([key, value]) => {
@@ -39,14 +39,17 @@ function createMemoryEntityRepository({ store, entity, scope, audit, caseScoped 
   const appendOnly = APPEND_ONLY.has(entity);
   const records = () => collection(store, entity);
 
-  function sanitize(data) {
+  function sanitize(data, { forCreate = false } = {}) {
     const payload = {};
     for (const [key, value] of Object.entries(data ?? {})) {
       if (columnSet.size > 0 && !columnSet.has(key)) continue;
       payload[key] = value === '' || value === undefined ? null : value;
     }
     payload.organization_id = scope.organizationId;
-    if (caseScoped && scope.caseId && payload.case_id == null) payload.case_id = scope.caseId;
+    if (forCreate && caseScoped && scope.caseId && payload.case_id == null) {
+      payload.case_id = scope.caseId;
+    }
+    if (!forCreate) delete payload.case_id;
     return payload;
   }
 
@@ -67,17 +70,24 @@ function createMemoryEntityRepository({ store, entity, scope, audit, caseScoped 
     });
   }
 
-  function owned(record) {
+  /**
+   * Строка видна вызывающему, если она принадлежит его организации и, для сущностей
+   * внутри дела, его делу. Поведение совпадает с PostgreSQL-драйвером: чужая строка
+   * не отличается от несуществующей. Расхождение здесь означало бы, что приёмка
+   * проверяет не то, что работает на сервере.
+   */
+  function visible(record) {
     if (!record) return null;
-    if (record.organization_id !== scope.organizationId) {
-      throw new Error(`Отказано: ${entity}/${record.id} принадлежит другой организации`);
+    if (record.organization_id !== scope.organizationId) return null;
+    if (caseScoped && scope.caseId && record.case_id != null && record.case_id !== scope.caseId) {
+      return null;
     }
     return record;
   }
 
   const repository = {
     async get(id) {
-      const record = owned(records().get(id));
+      const record = visible(records().get(id));
       if (!record || record.deleted_at) return null;
       return record;
     },
@@ -101,7 +111,7 @@ function createMemoryEntityRepository({ store, entity, scope, audit, caseScoped 
     async create(data) {
       store.sequence += 1;
       const id = `${SCHEMA[entity]?.table ?? entity.toLowerCase()}_${store.sequence}`;
-      const record = { ...sanitize(data), id, created_at: new Date().toISOString() };
+      const record = { ...sanitize(data, { forCreate: true }), id, created_at: new Date().toISOString() };
       records().set(id, record);
       await recordAudit('create', id, null, record);
       return record;
@@ -136,8 +146,8 @@ function createMemoryEntityRepository({ store, entity, scope, audit, caseScoped 
     },
 
     async restore(id, reason) {
-      const record = owned(records().get(id));
-      if (!record) throw new Error(`${entity}/${id} не найден`);
+      const record = visible(records().get(id));
+      if (!record) throw new Error(`${entity}/${id} не найден в области видимости вызывающего`);
       const updated = { ...record, deleted_at: null, deleted_by: null, deletion_reason: null };
       records().set(id, updated);
       await recordAudit('restore', id, record, null, reason);

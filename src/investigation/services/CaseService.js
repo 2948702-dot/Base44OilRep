@@ -132,13 +132,30 @@ export function createCaseService({ repositories, scope, llm, approvals }) {
         );
       }
 
-      return repositories.cases.update(caseId, {
+      const updated = await repositories.cases.update(caseId, {
         current_stage: nextStage,
         status: nextStage === 'closed' ? 'completed' : snapshot.investigationCase.status,
         finalized_at: nextStage === 'closed' ? new Date().toISOString() : null,
-        deletion_reason: undefined,
-        ...(reason ? {} : {}),
       });
+
+      // Обоснование перехода записывается в журнал отдельным событием. Раньше оно
+      // молча терялось: расследование продвигалось по стадиям, и почему — не знал
+      // никто, включая того, кто потом читает дело.
+      await repositories.audit.record({
+        organization_id: scope.organizationId,
+        case_id: caseId,
+        actor: scope.actorId,
+        actor_type: scope.actorType ?? 'user',
+        timestamp: new Date().toISOString(),
+        object_type: 'InvestigationCase',
+        object_id: caseId,
+        operation: 'status_change',
+        old_value: { current_stage: current },
+        new_value: { current_stage: nextStage },
+        reason: reason ?? null,
+      });
+
+      return updated;
     },
 
     /**

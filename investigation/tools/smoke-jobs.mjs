@@ -77,6 +77,18 @@ try {
   const ivanov = intake.persons.find((p) => p.name === 'Иванов Сергей');
   const planned = await app.interviews.planInterview({ personId: ivanov.id, round: 1 });
 
+  // Вопрос доходит до участника только после утверждения отправки человеком.
+  const dispatch = await app.cases.requestInterviewDispatchApproval(caseId, [planned.interview.id]);
+  await app.approvals.decide(dispatch.id, 'approved', 'Состав раунда проверен');
+  await app.interviews.issueAccessToken(planned.interview.id, { baseUrl: 'https://example.test' });
+
+  const openedQuestions = await app.repositories.questions.list({
+    interview_id: planned.interview.id,
+  });
+  check('После утверждения отправки вопросы открыты участнику',
+    openedQuestions.some((q) => ['approved', 'asked'].includes(q.status)),
+    openedQuestions.map((q) => q.status).join(', '));
+
   const answer = await app.interviews.submitAnswer({
     questionId: planned.questions[0].id,
     personId: ivanov.id,

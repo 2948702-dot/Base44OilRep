@@ -19,11 +19,30 @@ function arg(name, fallback = null) {
 const name = arg('name');
 const slug = arg('slug');
 const email = arg('email');
-const password = arg('password') ?? process.env.BOOTSTRAP_PASSWORD;
+/**
+ * Пароль читается со стандартного ввода, если передан --password-stdin.
+ *
+ * Аргумент командной строки виден в списке процессов сервера любому, кто на нём есть,
+ * и остаётся в истории оболочки. Переменная окружения процесса скрыта лучше, но
+ * `docker run -e ПАРОЛЬ=...` снова кладёт её в аргументы уже другого процесса.
+ * Стандартный ввод не попадает ни туда, ни туда.
+ */
+async function readStdin() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  return Buffer.concat(chunks).toString('utf-8').replace(/\r?\n$/, '');
+}
+
+const password = process.argv.includes('--password-stdin')
+  ? await readStdin()
+  : arg('password') ?? process.env.BOOTSTRAP_PASSWORD;
 const role = arg('role', 'org_owner');
 
 if (!name || !slug || !email || !password) {
-  console.error('Требуются --name, --slug, --email и --password (или BOOTSTRAP_PASSWORD)');
+  console.error(
+    'Требуются --name, --slug, --email и пароль: --password-stdin (предпочтительно), '
+    + '--password или BOOTSTRAP_PASSWORD',
+  );
   process.exit(1);
 }
 

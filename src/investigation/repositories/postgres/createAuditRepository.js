@@ -9,6 +9,11 @@
 import { assertImplements } from '../contracts.js';
 import { query } from './pool.js';
 
+/** Колонки журнала, по которым разрешено фильтровать. */
+const FILTERABLE_COLUMNS = new Set([
+  'case_id', 'actor', 'actor_type', 'object_type', 'object_id', 'operation',
+]);
+
 export function createAuditRepository({ db, organizationId }) {
   if (!organizationId) throw new Error('Журнал аудита требует organizationId');
 
@@ -45,6 +50,10 @@ export function createAuditRepository({ db, organizationId }) {
       const conditions = ['organization_id = $1'];
       const params = [organizationId];
       for (const [key, value] of Object.entries(filter)) {
+        // Имя колонки приходит из вызывающего кода и попадает в текст запроса.
+        // Единственная точка слоя хранения, где это так, — поэтому здесь стоит
+        // белый список, а не доверие к тому, что все вызовы сегодня литеральные.
+        if (!FILTERABLE_COLUMNS.has(key) || value === undefined) continue;
         params.push(value);
         conditions.push(`${key} = $${params.length}`);
       }
