@@ -1,12 +1,23 @@
-# Фрагмент конфигурации Caddy для платформы расследований.
-# Добавляется в /etc/caddy/Caddyfile на сервере рядом с существующими сайтами.
+# Конфигурация Caddy для платформы расследований.
+#
+# Этот файл — справочный: настройку выполняет investigation/deploy/setup-caddy.py
+# (Action «SETUP - investigation domain and TLS»), который добавляет блок в
+# /etc/caddy/Caddyfile, проверяет конфигурацию через `caddy validate` и откатывает
+# изменения, если домен не отвечает. Править сервер вручную не требуется.
 #
 # Caddy сам получает и продлевает сертификат Let's Encrypt: отдельный certbot не нужен.
+#
+# Ограничение частоты здесь намеренно отсутствует: директива rate_limit не входит
+# в стандартную сборку Caddy и потребовала бы пересборки с модулем. Перебор ссылок
+# участников бессмысленен — токен содержит 256 бит случайности, — а защита от назойливых
+# обращений сделана в самом приложении (src/investigation/server/routes/participant.js).
 
+# >>> investigation platform (управляется investigation/deploy/setup-caddy.py)
 investigation.regattayg.space {
     encode gzip
 
-    # Материалы расследований не должны попадать в кеши промежуточных узлов.
+    # Материалы расследований не должны попадать в кеши промежуточных узлов,
+    # индексироваться или встраиваться в чужие страницы.
     header {
         Cache-Control "no-store"
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -16,18 +27,8 @@ investigation.regattayg.space {
         -Server
     }
 
-    # Ссылка участника интервью — единственный публичный контур.
-    # Ограничение частоты защищает от перебора токенов.
-    @participant path /api/participant/*
-    rate_limit @participant {
-        zone participant {
-            key {remote_host}
-            events 60
-            window 1m
-        }
-    }
-
     reverse_proxy 127.0.0.1:8080 {
         header_up X-Real-IP {remote_host}
     }
 }
+# <<< investigation platform

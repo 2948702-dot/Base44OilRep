@@ -85,11 +85,14 @@ psql "$DATABASE_URL" -f investigation/db/checks/isolation.sql   # изоляци
 
 Разово, до первого запуска:
 
-1. Добавить секреты репозитория: `INVESTIGATION_POSTGRES_PASSWORD`, `ANTHROPIC_API_KEY`.
-   `N8N_SSH_ROOT_PASSWORD` уже существует и переиспользуется как доступ к серверу.
-2. Направить поддомен `investigation.regattayg.space` на адрес сервера.
-3. Добавить `investigation/deploy/Caddyfile.snippet` в `/etc/caddy/Caddyfile`
-   и перечитать конфигурацию: `caddy reload --config /etc/caddy/Caddyfile`.
+1. Добавить A-запись `investigation.regattayg.space` → адрес сервера у своего
+   DNS-провайдера.
+2. Добавить секреты репозитория: `INVESTIGATION_POSTGRES_PASSWORD`, `ANTHROPIC_API_KEY`,
+   `N8N_SSH_ROOT_PASSWORD`. Секреты действуют в пределах одного репозитория: значения
+   из других репозиториев здесь не видны, их нужно добавить заново.
+3. Запустить Action «SETUP - investigation domain and TLS». Он поставит Caddy при
+   необходимости, добавит блок сайта, проверит конфигурацию через `caddy validate`
+   и откатит изменения, если домен не ответит. Чужие сайты в Caddyfile не затрагиваются.
 
 Дальше — Action **Deploy investigation platform**: он прогоняет обе приёмки, проверку
 изоляции и дымовой прогон HTTP, и только затем разворачивает. Деплой сам поднимает

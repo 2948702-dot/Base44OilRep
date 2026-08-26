@@ -20,10 +20,48 @@ function hashToken(token) {
 }
 
 /**
+ * Ограничение частоты обращений с одного адреса.
+ *
+ * Подобрать токен перебором невозможно: в нём 256 бит случайности. Ограничение нужно
+ * для другого — не дать одному источнику нагружать базу проверками ссылок и не дать
+ * назойливому клиенту исчерпать пул соединений. Счётчик в памяти процесса: при одном
+ * экземпляре приложения этого достаточно, при нескольких его место займёт общий счётчик.
+ */
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX_REQUESTS = 60;
+const rateCounters = new Map();
+
+function tooManyRequests(ip) {
+  const now = Date.now();
+  const entry = rateCounters.get(ip);
+
+  if (!entry || now - entry.startedAt > RATE_WINDOW_MS) {
+    rateCounters.set(ip, { startedAt: now, count: 1 });
+    // Счётчики давних адресов удаляются здесь же: отдельный таймер ради этого
+    // держать незачем, а неограниченная карта — это утечка памяти.
+    if (rateCounters.size > 5000) {
+      for (const [key, value] of rateCounters) {
+        if (now - value.startedAt > RATE_WINDOW_MS) rateCounters.delete(key);
+      }
+    }
+    return false;
+  }
+
+  entry.count += 1;
+  return entry.count > RATE_MAX_REQUESTS;
+}
+
+/**
  * Проверяет ссылку и возвращает контекст интервью.
  * Токен ищется под системным флагом: организация до проверки ещё не известна.
  */
 async function resolveAccess(pool, token, { ip, userAgent }) {
+  if (ip && tooManyRequests(ip)) {
+    throw Object.assign(
+      new Error('Слишком много обращений. Подождите минуту и обновите страницу.'),
+      { statusCode: 429 },
+    );
+  }
   if (!token || token.length < 32) {
     throw Object.assign(new Error('Ссылка недействительна'), { statusCode: 404 });
   }

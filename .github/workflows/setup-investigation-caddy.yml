@@ -1,0 +1,29 @@
+name: SETUP - investigation domain and TLS
+
+# Разовая операция: настройка Caddy и выпуск сертификата для домена платформы.
+#
+# Перед запуском в DNS должна быть A-запись домена на адрес сервера — иначе
+# Let's Encrypt не выпустит сертификат, и скрипт скажет об этом прямо, ничего не сломав.
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Домен платформы расследований'
+        required: false
+        default: 'investigation.regattayg.space'
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    env:
+      SSH_HOST: '188.116.23.111'
+      SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      SSH_USER: deploy
+      SSH_PASSWORD: ${{ secrets.N8N_SSH_ROOT_PASSWORD }}
+      INVESTIGATION_DOMAIN: ${{ inputs.domain }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet paramiko
+      - name: Настроить домен и TLS
+        run: python3 investigation/deploy/setup-caddy.py

@@ -228,12 +228,28 @@ try {
   check('Отправленный ответ виден участнику и помечен как сохранённый',
     afterAnswer.body.questions[0].answered === true && afterAnswer.body.answers.length === 1);
 
+  // Ограничение частоты: защита не от подбора токена (в нём 256 бит), а от нагрузки
+  // одним источником. Проверяется реальным превышением порога.
+  let throttled = null;
+  for (let attempt = 0; attempt < 70 && !throttled; attempt += 1) {
+    const response = await call('GET', `/api/participant/${issued.token}`);
+    if (response.status === 429) throttled = response;
+  }
+  check('Частые обращения по ссылке ограничиваются',
+    throttled?.status === 429, throttled?.body?.error ?? 'порог не достигнут');
+
   const revoked = await withTenant(pool, { organizationId: tenantA.organizationId }, (client) =>
     client.query('update interview_access_token set revoked_at = now() where interview_id = $1',
       [interview.id]));
   check('Ссылка отзывается', revoked.rowCount === 1);
-  const afterRevoke = await call('GET', `/api/participant/${issued.token}`);
-  check('Отозванная ссылка перестаёт работать', afterRevoke.status === 404);
+  // Окно ограничения истекло бы через минуту; для проверки отзыва счётчик сбрасывается
+  // сменой адреса обращения.
+  const afterRevoke = await app.inject({
+    method: 'GET',
+    url: `/api/participant/${issued.token}`,
+    headers: { 'x-forwarded-for': '203.0.113.7' },
+  });
+  check('Отозванная ссылка перестаёт работать', afterRevoke.statusCode === 404);
 
   await call('POST', '/api/auth/logout', { token: tokenA });
   const afterLogout = await call('GET', '/api/cases', { token: tokenA });
