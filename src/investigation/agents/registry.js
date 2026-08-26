@@ -3,7 +3,8 @@
  *
  * Порядок в списке повторяет цикл расследования §67 ТЗ: приём заявления, планирование,
  * подготовка и проведение интервью, извлечение утверждений, хронология, противоречия,
- * пересмотр версий, независимая проверка, планирование следующего раунда.
+ * пересмотр версий, независимая проверка, планирование следующего раунда,
+ * классификация выводов и оформление итогового отчёта.
  *
  * Полный состав из 18 ролей описан в src/docs/investigation/agent-catalog.md.
  * Недостающие агенты реализуются поверх готового framework и не требуют его изменения.
@@ -21,6 +22,8 @@ import { timelineAnalystAgent } from './definitions/timelineAnalyst.js';
 import { contradictionAnalystAgent } from './definitions/contradictionAnalyst.js';
 import { hypothesisAnalystAgent } from './definitions/hypothesisAnalyst.js';
 import { followUpPlannerAgent } from './definitions/followUpPlanner.js';
+import { finalReviewerAgent } from './definitions/finalReviewer.js';
+import { reportWriterAgent } from './definitions/reportWriter.js';
 
 const DEFINITIONS = [
   caseManagerAgent,
@@ -34,6 +37,8 @@ const DEFINITIONS = [
   hypothesisAnalystAgent,
   redTeamInvestigatorAgent,
   followUpPlannerAgent,
+  finalReviewerAgent,
+  reportWriterAgent,
 ];
 
 const REGISTRY = new Map(DEFINITIONS.map((definition) => [definition.id, createAgent(definition)]));

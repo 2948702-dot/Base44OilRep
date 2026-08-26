@@ -106,6 +106,10 @@ const LLM_RESPONSES = [
   stub.HYPOTHESIS_REVIEW_OUTPUT,       // 12 hypothesis_analyst
   stub.RED_TEAM_OUTPUT,                // 13 red_team_investigator
   stub.FOLLOW_UP_OUTPUT,               // 15 follow_up_planner
+  stub.FINAL_REVIEW_OUTPUT,            // 17 final_reviewer
+  stub.REPORT_OUTPUT,                  // 18 report_writer
+  stub.REPORT_CITING_UNKNOWN_FINDING,  // 18 повторно: ссылка на несуществующий вывод
+  stub.FINAL_REVIEW_FACT_WITHOUT_EVIDENCE, // 17 повторно: факт без доказательства
   stub.HYPOTHESIS_REVIEW_ELIMINATING,  // 12 повторно: попытка исключить версию
 ];
 
@@ -248,6 +252,18 @@ async function main() {
   check('Отрицание сохранено как утверждение, а не как отсутствие данных',
     extractionPetrova.claims.some((c) => c.claim_type === 'denial'));
 
+  // Материал приобщается как доказательство: без него ни один вывод не может быть
+  // фактом, и это правильно.
+  const answerSource = await app.repositories.sources.get(answerIvanov.original_source_id);
+  const evidence = await app.sources.promoteToEvidence(answerSource.id, {
+    type: 'testimony',
+    description: 'Первичное объяснение капитана, полученное по подписанной ссылке',
+    relevance: 'high',
+    reliability: 'moderate',
+  });
+  check('Источник приобщён как доказательство с сохранением хэша',
+    evidence.evidence_code === 'E-001' && evidence.original_hash === answerSource.sha256);
+
   // ───────────────────────── Аналитический цикл ─────────────────────────
 
   const cycle = await app.analysis.runAnalysisCycle(caseId, { caseService: app.cases });
@@ -301,6 +317,64 @@ async function main() {
   check('Раунд второго интервью проставлен',
     round2.every((r) => r.interview.round === cycle.followUp.round));
 
+  // ───────────────────────── Итоговый отчёт ─────────────────────────
+
+  const finalReview = await app.reports.runFinalReview(caseId);
+  check('Выводы разложены по степени обоснованности', finalReview.findings.length === 4);
+  check('Установленный факт имеет ссылку на доказательство',
+    finalReview.findings
+      .filter((f) => f.finding_type === 'fact')
+      .every((f) => (f.supporting_evidence_ids ?? []).length > 0));
+  check('Спорный эпизод не превращён в факт',
+    finalReview.findings.some((f) => f.finding_type === 'unresolved'
+      && f.statement.includes('Петрова')));
+  check('Неразрешённые вопросы перечислены, а не умолчаны',
+    finalReview.unresolvedQuestions.length >= 2);
+  check('Готовность отчёта оценена отдельно от наличия выводов',
+    finalReview.readiness === 'not_ready', finalReview.readinessReason);
+  check('Выводы созданы черновиками и ждут человека',
+    finalReview.findings.every((f) => f.review_status === 'draft'));
+
+  const reportWithoutApproval = await expectRejected(() => app.reports.generateReport(caseId));
+  check('Отчёт не составляется из неутверждённых выводов',
+    reportWithoutApproval?.includes('REPORT_REQUIRES_APPROVED_FINDINGS'), reportWithoutApproval ?? '');
+
+  for (const finding of finalReview.findings) {
+    await app.reports.approveFinding(finding.id, 'Проверено следователем');
+  }
+  const report = await app.reports.generateReport(caseId, {
+    unresolvedQuestions: finalReview.unresolvedQuestions,
+  });
+  check('Отчёт составлен по утверждённым выводам',
+    report.status === 'draft' && report.version === 1);
+  check('Каждое утверждение отчёта ссылается на вывод',
+    report.cited_finding_codes.length > 0
+      && report.cited_finding_codes.every((code) => /^F-\d+$/.test(code)));
+  check('В отчёте есть все обязательные разделы §40 ТЗ',
+    ['executive_summary', 'scope', 'methodology', 'incident', 'persons', 'timeline',
+      'established_facts', 'claims', 'contradictions', 'hypothesis_analysis',
+      'unresolved_questions', 'recommended_actions', 'appendices']
+      .every((section) => report.sections[section] !== undefined));
+  check('Факты и заявления разведены по разным разделам',
+    report.sections.established_facts.length > 0 && report.sections.claims.length > 0);
+  check('Раздел неразрешённых вопросов не пуст',
+    report.sections.unresolved_questions.length >= 2);
+  check('Рекомендации касаются порядка работы, а не наказания людей',
+    report.sections.recommended_actions.every(
+      (a) => !/уволить|наказать|взыскать|дисциплинарн/i.test(a.action)));
+
+  const releaseBlocked = await expectRejected(() => app.reports.releaseReport(report.id));
+  check('Выпуск отчёта невозможен без утверждения человеком',
+    releaseBlocked?.includes('REPORT_RELEASE_REQUIRES_APPROVAL'), releaseBlocked ?? '');
+
+  const citingUnknown = await expectRejected(() => app.reports.generateReport(caseId));
+  check('Отчёт, сославшийся на несуществующий вывод, отклонён целиком',
+    citingUnknown?.includes('REPORT_CITES_UNKNOWN_FINDING'), citingUnknown ?? '');
+
+  const factWithoutEvidence = await expectRejected(() => app.reports.runFinalReview(caseId));
+  check('Факт без доказательства не сохраняется даже от Final Reviewer',
+    factWithoutEvidence?.includes('FACT_REQUIRES_EVIDENCE'), factWithoutEvidence ?? '');
+
   // ───────────────────────── Инварианты методологии ─────────────────────────
 
   const eliminated = await expectRejected(() => app.analysis.runHypothesisReview(caseId));
@@ -339,7 +413,7 @@ async function main() {
     agentRuns.every((r) => r.model && r.prompt_version && r.agent_version),
     `запусков: ${agentRuns.length}`);
   check('Задействованы все агенты цикла расследования',
-    new Set(agentRuns.map((r) => r.agent_type)).size >= 8,
+    new Set(agentRuns.map((r) => r.agent_type)).size >= 10,
     [...new Set(agentRuns.map((r) => r.agent_type))].join(', '));
   check('Отклонённый по методологии запуск сохранён в журнале',
     agentRuns.filter((r) => r.agent_type === 'hypothesis_analyst').length === 2);

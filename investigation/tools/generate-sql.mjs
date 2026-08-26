@@ -86,6 +86,13 @@ const REFERENCES = {
   money_transaction: { case_id: 'investigation_case', source_id: 'source', related_event_id: 'investigation_event' },
   money_flow_edge: { case_id: 'investigation_case', transaction_id: 'money_transaction' },
   finding: { case_id: 'investigation_case', approval_id: 'approval_request', agent_run_id: 'agent_run' },
+  investigation_report: {
+    case_id: 'investigation_case',
+    approval_id: 'approval_request',
+    agent_run_id: 'agent_run',
+    final_review_agent_run_id: 'agent_run',
+    supersedes_report_id: 'investigation_report',
+  },
   investigation_task: {
     case_id: 'investigation_case',
     issue_id: 'issue',
@@ -118,6 +125,7 @@ const UNIQUE_CONSTRAINTS = {
   finding: [['case_id', 'finding_code']],
   money_transaction: [['case_id', 'transaction_code']],
   interview_question: [['interview_id', 'sequence']],
+  investigation_report: [['case_id', 'version']],
   interview_access_token: [['token_hash']],
   hypothesis_revision: [['hypothesis_id', 'revision']],
 };

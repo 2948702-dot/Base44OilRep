@@ -55,6 +55,18 @@ Red Team Investigator.
 Приёмка выросла до 60 проверок и проходит на обоих драйверах хранения;
 очередь проверяется отдельно — 11 проверок.
 
+## Шаг 3 — итоговый отчёт (выполнено)
+
+| Шаг | Состояние | Где |
+|---|---|---|
+| Agent 17 Final Investigation Reviewer | готово | `agents/definitions/finalReviewer.js` |
+| Agent 18 Report Writer | готово | `agents/definitions/reportWriter.js` |
+| Выводы, их утверждение человеком, версии отчёта | готово | `services/ReportService.js` |
+| Сущность `InvestigationReport` и версионирование | готово | `investigation/db/migrations/0001_init.sql` |
+| Маршруты выводов и отчёта | готово | `server/routes/reports.js` |
+
+Приёмка выросла до 77 проверок и проходит на обоих драйверах хранения.
+
 ## Phase 1 — оставшееся (§72 ТЗ)
 
 | Приоритет | Работа | Зависит от |
@@ -62,10 +74,10 @@ Red Team Investigator.
 | P0 | Развернуть на сервере: поддомен, секреты, первый прогон Action | инфраструктура готова |
 | P0 | Запустить укрепление доступа: `SETUP - harden investigation server access` (`KI-018`) | ключи владельца |
 | P0 | Приём голосовых ответов и вложений от участника (`KI-025`) | обработчик транскрипции |
-| P1 | Транскрипция аудио как задача очереди, обе версии текста | обработчик в jobRunner |
+| P0 | Транскрипция аудио: whisper.cpp на сервере, задача очереди, обе версии текста | обработчик в jobRunner |
+| P0 | Голосовой ответ участника: запись, приём файла, неизменяемый оригинал | транскрипция |
 | P1 | Agent 04 Document Analyst с обязательным `source_locator` | SourceService |
 | P1 | Agent 10 Evidence Corroboration и связи Claim ↔ Evidence | Evidence |
-| P1 | Agent 17 Final Reviewer и Agent 18 Report Writer | Findings |
 | P1 | Telegram-бот интервью | веб-интервью |
 | P2 | Экраны: Case Dashboard, Timeline, Evidence Matrix, Contradiction Map, Hypothesis Board | сервисы |
 | P2 | Agent 14 Defence Reviewer | Findings |

@@ -540,3 +540,209 @@ export const INTERVIEWER_TURN_OUTPUT = {
   completion_reason: 'Остались неуточнённые границы времени и не запрошены подтверждающие материалы',
   observations: [],
 };
+
+/**
+ * Классификация выводов. Разные типы намеренно перемешаны: проверяется, что система
+ * различает установленный факт, подтверждённое утверждение, вывод и неразрешённый вопрос.
+ */
+export const FINAL_REVIEW_OUTPUT = {
+  findings: [
+    {
+      statement: 'Клиент внёс оплату наличными в размере 74 000 ₽ 24 августа',
+      finding_type: 'fact',
+      confidence: 'high',
+      supporting_claim_codes: ['C-001'],
+      supporting_evidence_codes: ['E-001'],
+      contradicting_evidence_codes: [],
+      alternative_explanations: [],
+      issue_codes: ['I-003'],
+      hypothesis_codes: [],
+      classification_reason: 'Подтверждено объективным материалом, приобщённым к делу',
+    },
+    {
+      statement: 'Иванов заявляет о передаче наличных администратору; Петрова получение отрицает',
+      finding_type: 'unresolved',
+      confidence: 'very_low',
+      supporting_claim_codes: ['C-002', 'C-003'],
+      supporting_evidence_codes: [],
+      contradicting_evidence_codes: [],
+      alternative_explanations: [
+        'Передача состоялась, но не была оприходована',
+        'К наличным имело доступ третье лицо',
+      ],
+      issue_codes: ['I-001'],
+      hypothesis_codes: ['H-001', 'H-002'],
+      classification_reason: 'Два прямо противоречащих показания без независимого подтверждения',
+    },
+    {
+      statement: 'Порядок приёма наличных на базе не обеспечивал фиксацию передачи между сотрудниками',
+      finding_type: 'procedural_failure',
+      confidence: 'moderate',
+      supporting_claim_codes: ['C-004'],
+      supporting_evidence_codes: [],
+      contradicting_evidence_codes: [],
+      alternative_explanations: [],
+      issue_codes: ['I-002'],
+      hypothesis_codes: [],
+      classification_reason: 'Следует из описания процедуры самими сотрудниками',
+    },
+    {
+      statement: 'Круг лиц с доступом к наличным после 19:00 не установлен',
+      finding_type: 'unresolved',
+      confidence: 'very_low',
+      supporting_claim_codes: [],
+      supporting_evidence_codes: [],
+      contradicting_evidence_codes: [],
+      alternative_explanations: [],
+      issue_codes: ['I-002'],
+      hypothesis_codes: ['H-002'],
+      classification_reason: 'График смен не получен',
+    },
+  ],
+  unresolved_questions: [
+    {
+      question: 'Была ли передача наличных администратору?',
+      why_unresolved: 'Показания противоречат друг другу, объективных материалов нет',
+      what_would_resolve_it: 'Запись камеры 18:30–19:15 или показания третьего лица',
+    },
+    {
+      question: 'Кто имел доступ к наличным после 19:00?',
+      why_unresolved: 'График смен не запрошен',
+      what_would_resolve_it: 'График смен и список лиц на территории 24 августа',
+    },
+  ],
+  report_readiness: 'not_ready',
+  readiness_reason: 'Критическое противоречие о передаче наличных остаётся неразрешённым',
+  observations: [],
+};
+
+/** Нарушение: факт объявлен без единого доказательства. */
+export const FINAL_REVIEW_FACT_WITHOUT_EVIDENCE = {
+  findings: [
+    {
+      statement: 'Деньги были присвоены капитаном',
+      finding_type: 'fact',
+      confidence: 'high',
+      supporting_claim_codes: ['C-003'],
+      supporting_evidence_codes: [],
+      contradicting_evidence_codes: [],
+      alternative_explanations: [],
+      issue_codes: ['I-001'],
+      hypothesis_codes: ['H-001'],
+      classification_reason: 'Показания администратора выглядят убедительнее',
+    },
+  ],
+  unresolved_questions: [],
+  report_readiness: 'ready',
+  readiness_reason: 'Основной вопрос считаю установленным',
+  observations: [],
+};
+
+export const REPORT_OUTPUT = {
+  title: 'Отчёт о разбирательстве: недостача наличных 24 августа',
+  executive_summary: [
+    {
+      text: 'Установлено, что клиент внёс 74 000 ₽ наличными. Дальнейшее движение средств '
+        + 'объективными материалами не подтверждено: показания участников прямо расходятся, '
+        + 'независимых доказательств передачи не получено.',
+      finding_codes: ['F-001', 'F-002'],
+    },
+    {
+      text: 'Разбирательство выявило отсутствие фиксации передачи наличных между сотрудниками. '
+        + 'Круг лиц с доступом к деньгам вечером 24 августа не установлен.',
+      finding_codes: ['F-003', 'F-004'],
+    },
+  ],
+  scope: 'Проверялось движение наличных, полученных от клиента 24 августа. Кадровые и '
+    + 'дисциплинарные вопросы за рамками разбирательства.',
+  methodology: 'Опрос участников по методике PEACE, извлечение атомарных утверждений с '
+    + 'привязкой к источникам, построение хронологии, анализ противоречий, проверка версий, '
+    + 'независимая критическая проверка основной версии.',
+  incident: 'Клиент оплатил аренду катера наличными в размере 74 000 ₽. Средства не поступили '
+    + 'в кассу и на расчётный счёт.',
+  persons: [
+    { name: 'Иванов Сергей', role: 'капитан', relationship_to_incident: 'принял оплату от клиента' },
+    { name: 'Петрова Елена', role: 'администратор', relationship_to_incident: 'предполагаемый получатель наличных' },
+  ],
+  timeline: [
+    {
+      when: 'около 19:00, 24 августа',
+      what: 'Прибытие капитана на базу',
+      confidence: 'moderate',
+      event_codes: ['EV-001'],
+    },
+    {
+      when: 'вечер 24 августа, точное время не установлено',
+      what: 'Заявленная передача наличных администратору',
+      confidence: 'very_low',
+      event_codes: ['EV-002'],
+    },
+  ],
+  established_facts: [
+    { text: 'Клиент внёс 74 000 ₽ наличными 24 августа.', finding_codes: ['F-001'] },
+  ],
+  claims: [
+    {
+      text: 'Передал наличные администратору вечером 24 августа',
+      said_by: 'Иванов Сергей',
+      corroboration: 'независимого подтверждения не получено',
+      claim_codes: ['C-002'],
+    },
+    {
+      text: 'Наличных не получала',
+      said_by: 'Петрова Елена',
+      corroboration: 'независимого подтверждения не получено',
+      claim_codes: ['C-003'],
+    },
+  ],
+  contradictions: [
+    {
+      text: 'Заявление о передаче наличных и отрицание их получения',
+      contradiction_codes: ['CONTR-001'],
+      resolution_status: 'открыто',
+    },
+  ],
+  hypothesis_analysis: [
+    {
+      hypothesis_code: 'H-001',
+      description: 'Деньги присвоил капитан',
+      status: 'weakened',
+      summary: 'Объективных подтверждений не получено; версия держится на отрицании второй стороны',
+    },
+    {
+      hypothesis_code: 'H-002',
+      description: 'Деньги переданы, после чего пропали',
+      status: 'active',
+      summary: 'Не опровергнута; требует графика смен и записи камеры',
+    },
+  ],
+  unresolved_questions: [
+    'Была ли передача наличных администратору',
+    'Кто имел доступ к наличным после 19:00',
+  ],
+  recommended_actions: [
+    {
+      action: 'Ввести обязательную фиксацию передачи наличных между сотрудниками с подписью обеих сторон',
+      reason: 'Отсутствие фиксации сделало эпизод непроверяемым',
+      priority: 'high',
+    },
+    {
+      action: 'Запросить запись камеры за 18:30–19:15 и журнал сбоев видеонаблюдения',
+      reason: 'Может разрешить основное противоречие',
+      priority: 'critical',
+    },
+  ],
+  appendices: [],
+  observations: [],
+};
+
+/** Нарушение: оформитель сослался на вывод, которого нет среди утверждённых. */
+export const REPORT_CITING_UNKNOWN_FINDING = {
+  ...REPORT_OUTPUT,
+  executive_summary: [
+    {
+      text: 'Установлено, что деньги присвоены капитаном.',
+      finding_codes: ['F-099'],
+    },
+  ],
+};

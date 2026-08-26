@@ -12,6 +12,7 @@ import { createSourceService } from './SourceService.js';
 import { createCaseService } from './CaseService.js';
 import { createInterviewService } from './InterviewService.js';
 import { createAnalysisService } from './AnalysisService.js';
+import { createReportService } from './ReportService.js';
 
 export {
   createApprovalService,
@@ -19,6 +20,7 @@ export {
   createCaseService,
   createInterviewService,
   createAnalysisService,
+  createReportService,
 };
 
 /**
@@ -46,5 +48,6 @@ export function createInvestigationServices({ scope, pool, store, driver, llm, f
     cases,
     interviews: createInterviewService({ repositories, scope, llm: llmClient, approvals, sources }),
     analysis: createAnalysisService({ repositories, scope, llm: llmClient, approvals }),
+    reports: createReportService({ repositories, scope, llm: llmClient, approvals }),
   };
 }

@@ -595,6 +595,35 @@ export const SCHEMA = {
       "payload"
     ]
   },
+  "InvestigationReport": {
+    "table": "investigation_report",
+    "caseScoped": true,
+    "columns": [
+      "organization_id",
+      "case_id",
+      "version",
+      "status",
+      "title",
+      "sections",
+      "finding_ids",
+      "cited_finding_codes",
+      "unresolved_questions",
+      "methodology_version",
+      "generated_by_agent",
+      "agent_run_id",
+      "final_review_agent_run_id",
+      "approval_id",
+      "released_at",
+      "released_by",
+      "supersedes_report_id",
+      "deleted_at",
+      "deleted_by",
+      "deletion_reason"
+    ],
+    "jsonColumns": [
+      "sections"
+    ]
+  },
   "AgentRun": {
     "table": "agent_run",
     "caseScoped": true,

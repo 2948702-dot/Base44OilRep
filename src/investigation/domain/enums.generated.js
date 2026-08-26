@@ -513,6 +513,15 @@ export const ENUMS = {
       "withdrawn"
     ]
   },
+  "InvestigationReport": {
+    "status": [
+      "draft",
+      "under_review",
+      "approved",
+      "released",
+      "superseded"
+    ]
+  },
   "AgentRun": {
     "status": [
       "running",

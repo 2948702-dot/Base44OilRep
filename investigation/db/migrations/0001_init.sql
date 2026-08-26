@@ -650,6 +650,34 @@ create table approval_request (
   constraint approval_request_status_check check (status is null or status in ('pending', 'approved', 'rejected', 'withdrawn'))
 );
 
+-- Итоговый отчёт расследования
+create table investigation_report (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  case_id uuid not null,
+  version numeric not null,
+  status text not null,
+  title text,
+  sections jsonb,
+  finding_ids text[],
+  cited_finding_codes text[],
+  unresolved_questions text[],
+  methodology_version text,
+  generated_by_agent text,
+  agent_run_id uuid,
+  final_review_agent_run_id uuid,
+  approval_id uuid,
+  released_at timestamptz,
+  released_by text,
+  supersedes_report_id uuid,
+  deleted_at timestamptz,
+  deleted_by text,
+  deletion_reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint investigation_report_status_check check (status is null or status in ('draft', 'under_review', 'approved', 'released', 'superseded'))
+);
+
 -- Запуск агента
 create table agent_run (
   id uuid primary key default gen_random_uuid(),
@@ -885,6 +913,13 @@ alter table investigation_task add constraint investigation_task_agent_run_id_fk
 
 alter table approval_request add constraint approval_request_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 
+alter table investigation_report add constraint investigation_report_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
+alter table investigation_report add constraint investigation_report_approval_id_fkey foreign key (approval_id) references approval_request(id) on delete set null;
+alter table investigation_report add constraint investigation_report_agent_run_id_fkey foreign key (agent_run_id) references agent_run(id) on delete set null;
+alter table investigation_report add constraint investigation_report_final_review_agent_run_id_fkey foreign key (final_review_agent_run_id) references agent_run(id) on delete set null;
+alter table investigation_report add constraint investigation_report_supersedes_report_id_fkey foreign key (supersedes_report_id) references investigation_report(id) on delete set null;
+alter table investigation_report add constraint investigation_report_case_id_version_key unique (case_id, version);
+
 alter table agent_run add constraint agent_run_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table agent_run add constraint agent_run_job_id_fkey foreign key (job_id) references investigation_job(id) on delete set null;
 
@@ -919,6 +954,7 @@ create index money_flow_edge_org_case_idx on money_flow_edge (organization_id, c
 create index finding_org_case_idx on finding (organization_id, case_id) where deleted_at is null;
 create index investigation_task_org_case_idx on investigation_task (organization_id, case_id) where deleted_at is null;
 create index approval_request_org_case_idx on approval_request (organization_id, case_id) where deleted_at is null;
+create index investigation_report_org_case_idx on investigation_report (organization_id, case_id) where deleted_at is null;
 create index agent_run_org_case_idx on agent_run (organization_id, case_id) where deleted_at is null;
 create index investigation_job_org_case_idx on investigation_job (organization_id, case_id) where deleted_at is null;
 create index audit_event_org_case_idx on audit_event (organization_id, case_id) where deleted_at is null;
@@ -989,6 +1025,8 @@ create trigger finding_set_updated_at before update on finding
 create trigger investigation_task_set_updated_at before update on investigation_task
   for each row execute function set_updated_at();
 create trigger approval_request_set_updated_at before update on approval_request
+  for each row execute function set_updated_at();
+create trigger investigation_report_set_updated_at before update on investigation_report
   for each row execute function set_updated_at();
 create trigger agent_run_set_updated_at before update on agent_run
   for each row execute function set_updated_at();
@@ -1290,6 +1328,18 @@ create policy investigation_task_tenant_isolation on investigation_task
 alter table approval_request enable row level security;
 alter table approval_request force row level security;
 create policy approval_request_tenant_isolation on approval_request
+  using (
+      coalesce(current_setting('app.is_system_admin', true), 'off') = 'on'
+      or organization_id = nullif(current_setting('app.organization_id', true), '')::uuid
+    )
+  with check (
+      coalesce(current_setting('app.is_system_admin', true), 'off') = 'on'
+      or organization_id = nullif(current_setting('app.organization_id', true), '')::uuid
+    );
+
+alter table investigation_report enable row level security;
+alter table investigation_report force row level security;
+create policy investigation_report_tenant_isolation on investigation_report
   using (
       coalesce(current_setting('app.is_system_admin', true), 'off') = 'on'
       or organization_id = nullif(current_setting('app.organization_id', true), '')::uuid

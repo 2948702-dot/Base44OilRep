@@ -13,6 +13,7 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerCaseRoutes } from './routes/cases.js';
 import { registerParticipantRoutes } from './routes/participant.js';
 import { registerAnalysisRoutes } from './routes/analysis.js';
+import { registerReportRoutes } from './routes/reports.js';
 import { createJobRunner } from './jobRunner.js';
 
 /** Маршруты, доступные без сессии платформы. */
@@ -80,6 +81,7 @@ export function createServer(options = {}) {
   registerAuthRoutes(app);
   registerCaseRoutes(app);
   registerAnalysisRoutes(app);
+  registerReportRoutes(app);
   registerParticipantRoutes(app);
 
   // Исполнитель очереди живёт в том же процессе: отдельный воркер добавит эксплуатацию

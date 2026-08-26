@@ -41,6 +41,7 @@ const REPOSITORY_MAP = {
   transactions: 'MoneyTransaction',
   moneyFlowEdges: 'MoneyFlowEdge',
   findings: 'Finding',
+  reports: 'InvestigationReport',
   tasks: 'InvestigationTask',
   approvals: 'ApprovalRequest',
   agentRuns: 'AgentRun',

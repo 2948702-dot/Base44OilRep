@@ -15,6 +15,7 @@ import {
   TIME_PRECISION,
   QUESTION_TYPE,
   CONTRADICTION_TYPE,
+  FINDING_TYPE,
 } from '../domain/enums.js';
 
 const confidence = z.enum(/** @type {[string, ...string[]]} */ (CONFIDENCE_LEVELS));
@@ -327,7 +328,100 @@ export const FollowUpPlanSchema = z.object({
   observations,
 });
 
+
+/**
+ * Классификация каждого утверждения итогового отчёта (§39 ТЗ).
+ *
+ * Разделение фактов и утверждений — главное обещание продукта: читатель отчёта обязан
+ * видеть, что установлено, что заявлено, что выведено и что осталось неизвестным.
+ */
+export const FinalReviewSchema = z.object({
+  findings: z.array(z.object({
+    statement: z.string(),
+    finding_type: z.enum(/** @type {[string, ...string[]]} */ (FINDING_TYPE)),
+    confidence,
+    supporting_claim_codes: z.array(z.string()).default([]),
+    supporting_evidence_codes: z.array(z.string()).default([]),
+    contradicting_evidence_codes: z.array(z.string()).default([]),
+    alternative_explanations: z.array(z.string()).default([]),
+    issue_codes: z.array(z.string()).default([]),
+    hypothesis_codes: z.array(z.string()).default([]),
+    classification_reason: z.string(),
+  })),
+  unresolved_questions: z.array(z.object({
+    question: z.string(),
+    why_unresolved: z.string(),
+    what_would_resolve_it: z.string(),
+  })).default([]),
+  // Готовность отчёта — отдельное суждение: расследование может дойти до выводов,
+  // но остаться непригодным для выпуска из-за неразрешённого противоречия.
+  report_readiness: z.enum(['ready', 'ready_with_reservations', 'not_ready']),
+  readiness_reason: z.string(),
+  observations,
+});
+
+/**
+ * Итоговый документ (§40 ТЗ). Report Writer только оформляет: новых выводов он не делает,
+ * поэтому каждое утверждение разделов обязано ссылаться на код вывода.
+ */
+export const ReportSchema = z.object({
+  title: z.string(),
+  executive_summary: z.array(z.object({
+    text: z.string(),
+    finding_codes: z.array(z.string()).min(1),
+  })).min(1),
+  scope: z.string(),
+  methodology: z.string(),
+  incident: z.string(),
+  persons: z.array(z.object({
+    name: z.string(),
+    role: z.string(),
+    // Роль в отчёте описывается отношением к событиям, а не подозрением.
+    relationship_to_incident: z.string(),
+  })),
+  timeline: z.array(z.object({
+    when: z.string(),
+    what: z.string(),
+    confidence: confidence,
+    event_codes: z.array(z.string()).default([]),
+  })),
+  established_facts: z.array(z.object({
+    text: z.string(),
+    finding_codes: z.array(z.string()).min(1),
+  })),
+  claims: z.array(z.object({
+    text: z.string(),
+    said_by: z.string(),
+    corroboration: z.string(),
+    claim_codes: z.array(z.string()).min(1),
+  })),
+  contradictions: z.array(z.object({
+    text: z.string(),
+    contradiction_codes: z.array(z.string()).min(1),
+    resolution_status: z.string(),
+  })),
+  hypothesis_analysis: z.array(z.object({
+    hypothesis_code: z.string(),
+    description: z.string(),
+    status: z.string(),
+    summary: z.string(),
+  })),
+  unresolved_questions: z.array(z.string()),
+  recommended_actions: z.array(z.object({
+    action: z.string(),
+    reason: z.string(),
+    priority: z.enum(['low', 'medium', 'high', 'critical']),
+  })),
+  appendices: z.array(z.object({
+    title: z.string(),
+    content: z.string(),
+  })).default([]),
+  observations,
+});
+
 export const AGENT_OUTPUT_SCHEMAS = {
+  FinalReviewSchema,
+  ReportSchema,
   InterviewPlanSchema,
   InterviewTurnSchema,
   TimelineSchema,
