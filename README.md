@@ -1,5 +1,10 @@
 # SmartOil
 
+> В репозитории также разрабатывается второй продукт — **AI Investigation Platform**
+> («Объяснительная»): платформа внутренних корпоративных расследований.
+> Код: `investigation/`, `src/investigation/`. Документация:
+> [`src/docs/investigation/README.md`](src/docs/investigation/README.md).
+
 SmartOil - система учета и предиктивной диагностики масел и оборудования. Она объединяет лабораторные пробы, состояние агрегатов, события обслуживания, жизненные циклы масла, пороговые правила и план-факт замены масла.
 
 ## Стек
@@ -84,7 +89,8 @@ npm run typecheck
 - [`src/docs/business-rules.md`](src/docs/business-rules.md) - бизнес-правила;
 - [`src/docs/decisions.md`](src/docs/decisions.md) - принятые решения;
 - [`src/docs/known-issues.md`](src/docs/known-issues.md) - риски и технический долг;
-- [`ROADMAP.md`](ROADMAP.md) - текущий продуктовый статус.
+- [`ROADMAP.md`](ROADMAP.md) - текущий продуктовый статус;
+- [`src/docs/investigation/README.md`](src/docs/investigation/README.md) - платформа расследований.
 
 ## Структура репозитория
 

@@ -1,0 +1,181 @@
+// Сгенерировано investigation/tools/generate-entities.mjs.
+// Не редактировать вручную: изменения вносятся в entity-definitions.mjs.
+// Сущность: User
+{
+  "name": "User",
+  "type": "object",
+  "description": "Пользователь платформы",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "system_admin",
+        "org_owner",
+        "investigation_manager",
+        "investigator",
+        "reviewer",
+        "read_only"
+      ],
+      "title": "Role"
+    },
+    "organization_id": {
+      "type": "string",
+      "title": "Organization"
+    },
+    "full_name": {
+      "type": "string",
+      "title": "Full Name"
+    },
+    "job_title": {
+      "type": "string",
+      "title": "Job Title"
+    },
+    "case_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Case ids"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "disabled"
+      ],
+      "title": "Status"
+    },
+    "deleted_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Deleted At"
+    },
+    "deleted_by": {
+      "type": "string",
+      "title": "Deleted By"
+    },
+    "deletion_reason": {
+      "type": "string",
+      "title": "Deletion Reason"
+    }
+  },
+  "required": [],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigator"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "reviewer"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "read_only"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "system_admin"
+      }
+    }
+  }
+}

@@ -1,0 +1,300 @@
+// Сгенерировано investigation/tools/generate-entities.mjs.
+// Не редактировать вручную: изменения вносятся в entity-definitions.mjs.
+// Сущность: Interview
+{
+  "name": "Interview",
+  "type": "object",
+  "description": "Интервью",
+  "properties": {
+    "organization_id": {
+      "type": "string",
+      "title": "Organization"
+    },
+    "case_id": {
+      "type": "string",
+      "title": "Case"
+    },
+    "person_id": {
+      "type": "string",
+      "title": "Person"
+    },
+    "round": {
+      "type": "number",
+      "title": "Round"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "pending_approval",
+        "invited",
+        "in_progress",
+        "completed",
+        "declined",
+        "expired",
+        "cancelled"
+      ],
+      "title": "Status"
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "web",
+        "telegram",
+        "whatsapp",
+        "phone_assisted",
+        "manual"
+      ],
+      "title": "Channel"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Started At"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Completed At"
+    },
+    "original_audio_source_id": {
+      "type": "string",
+      "title": "Original Audio Source"
+    },
+    "transcript_source_id": {
+      "type": "string",
+      "title": "Transcript Source"
+    },
+    "summary": {
+      "type": "string",
+      "title": "Summary"
+    },
+    "interview_plan": {
+      "type": "object",
+      "title": "Interview Plan"
+    },
+    "dispatch_approval_id": {
+      "type": "string",
+      "title": "Dispatch Approval"
+    },
+    "language": {
+      "type": "string",
+      "title": "Language"
+    },
+    "deleted_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Deleted At"
+    },
+    "deleted_by": {
+      "type": "string",
+      "title": "Deleted By"
+    },
+    "deletion_reason": {
+      "type": "string",
+      "title": "Deletion Reason"
+    }
+  },
+  "required": [
+    "organization_id",
+    "person_id",
+    "round",
+    "status",
+    "channel",
+    "case_id"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigator"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigator"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "reviewer"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "read_only"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigator"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

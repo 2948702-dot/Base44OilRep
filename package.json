@@ -9,6 +9,8 @@
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
+    "investigation:entities": "node investigation/tools/generate-entities.mjs && node investigation/tools/generate-enums.mjs",
+    "investigation:acceptance": "node investigation/tools/acceptance.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -2,11 +2,33 @@
 
 Короткая точка входа для продолжения работы. Полная документация читается только по необходимости.
 
-## Текущий фокус
+## Два продуктовых направления
+
+В репозитории развиваются два независимых продукта:
+
+1. **SmartOil** — учёт и предиктивная диагностика масел. Код: `base44/`, `src/pages`, `src/components`.
+2. **AI Investigation Platform** («Объяснительная») — платформа внутренних расследований.
+   Код: `investigation/`, `src/investigation/`. Документация: `src/docs/investigation/`.
+
+Продукты не пересекаются по данным и сущностям. Работая с одним, не менять схемы другого.
+
+## Текущий фокус SmartOil
 
 - Релиз: стабилизация эксплуатационного контура.
 - Следующий приоритет: `KI-001` / P0 — RLS и поддержка полного массива `User.asset_ids`.
 - После него: `KI-002` и `KI-003` — acceptance для MaintenanceEvent, OilLifecycle и plan-fact замены масла.
+
+## Текущий фокус AI Investigation Platform
+
+- Выполнен шаг 0 по §76 ТЗ: ADR, entity model, permissions model, 28 схем Base44,
+  repository abstractions, file/source subsystem, agent framework, Case CRUD, машина стадий.
+- Реализованы 5 агентов из 18: Case Manager, Intake Analyst, Investigation Planner,
+  Claim Extractor, Red Team Investigator.
+- Приёмочный прогон §81 проходит полностью: `npm run investigation:acceptance` — 33/33.
+- Следующий приоритет: `KI-013` — владельцу выбрать целевое приложение Base44 и развернуть
+  схемы; параллельно `KI-015` — Interview Strategist, AI Interviewer, Timeline Analyst,
+  Contradiction Analyst.
+- Блокирует живую проверку: `KI-014` — RLS не проверены на работающем приложении.
 
 ## Последнее подтверждённое состояние
 
@@ -28,6 +50,8 @@
 | `KI-002` | готово к acceptance | Create/update/delete/backdate для desktop/mobile oil_change с проверкой lifecycle и проб |
 | `KI-003` | готово к формализации | Создать и выполнить таблицу plan-fact по датам и моточасам |
 | `KI-012` | новый P1 | Спроектировать безопасное приглашение пользователей франчайзи без прямого открытия `User.list/update` для `client_admin` |
+| `KI-013` | новый P0 | Выбрать целевое приложение Base44 для платформы расследований и развернуть схемы |
+| `KI-014` | новый P0 | Проверить RLS сущностей расследования на живом приложении, включая попытку чтения чужой организации |
 
 ## Незавершённые контрольные документы
 

@@ -1,0 +1,384 @@
+// Сгенерировано investigation/tools/generate-entities.mjs.
+// Не редактировать вручную: изменения вносятся в entity-definitions.mjs.
+// Сущность: Claim
+{
+  "name": "Claim",
+  "type": "object",
+  "description": "Атомарное утверждение",
+  "properties": {
+    "organization_id": {
+      "type": "string",
+      "title": "Organization"
+    },
+    "case_id": {
+      "type": "string",
+      "title": "Case"
+    },
+    "claim_code": {
+      "type": "string",
+      "title": "Claim Code"
+    },
+    "source_id": {
+      "type": "string",
+      "title": "Source"
+    },
+    "source_person_id": {
+      "type": "string",
+      "title": "Source Person"
+    },
+    "interview_id": {
+      "type": "string",
+      "title": "Interview"
+    },
+    "answer_id": {
+      "type": "string",
+      "title": "Answer"
+    },
+    "text": {
+      "type": "string",
+      "title": "Text"
+    },
+    "normalized_statement": {
+      "type": "string",
+      "title": "Normalized Statement"
+    },
+    "claim_type": {
+      "type": "string",
+      "enum": [
+        "action",
+        "observation",
+        "state",
+        "intention",
+        "knowledge",
+        "denial",
+        "hearsay",
+        "opinion",
+        "document_content",
+        "other"
+      ],
+      "title": "Claim Type"
+    },
+    "subject_entity": {
+      "type": "string",
+      "title": "Subject Entity"
+    },
+    "predicate": {
+      "type": "string",
+      "title": "Predicate"
+    },
+    "object_entity": {
+      "type": "string",
+      "title": "Object Entity"
+    },
+    "time_start": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Time Start"
+    },
+    "time_end": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Time End"
+    },
+    "time_precision": {
+      "type": "string",
+      "enum": [
+        "exact",
+        "minute",
+        "hour",
+        "part_of_day",
+        "day",
+        "week",
+        "month",
+        "range",
+        "unknown"
+      ],
+      "title": "Time Precision"
+    },
+    "amount": {
+      "type": "number",
+      "title": "Amount"
+    },
+    "currency": {
+      "type": "string",
+      "title": "Currency"
+    },
+    "location": {
+      "type": "string",
+      "title": "Location"
+    },
+    "speaker_certainty": {
+      "type": "string",
+      "enum": [
+        "certain",
+        "probable",
+        "approximate",
+        "uncertain",
+        "hearsay",
+        "unknown"
+      ],
+      "title": "Speaker Certainty"
+    },
+    "ai_extraction_confidence": {
+      "type": "string",
+      "enum": [
+        "very_low",
+        "low",
+        "moderate",
+        "high",
+        "very_high"
+      ],
+      "title": "Ai Extraction Confidence"
+    },
+    "corroboration_status": {
+      "type": "string",
+      "enum": [
+        "uncorroborated",
+        "single_source",
+        "multi_source",
+        "independently_corroborated",
+        "contradicted"
+      ],
+      "title": "Corroboration Status"
+    },
+    "verification_status": {
+      "type": "string",
+      "enum": [
+        "unverified",
+        "partially_verified",
+        "verified",
+        "refuted"
+      ],
+      "title": "Verification Status"
+    },
+    "source_locator": {
+      "type": "object",
+      "title": "Source Locator"
+    },
+    "created_by_agent": {
+      "type": "string",
+      "title": "Created By Agent"
+    },
+    "agent_run_id": {
+      "type": "string",
+      "title": "Agent Run"
+    },
+    "reviewed_by_human": {
+      "type": "boolean",
+      "title": "Reviewed By Human"
+    },
+    "deleted_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Deleted At"
+    },
+    "deleted_by": {
+      "type": "string",
+      "title": "Deleted By"
+    },
+    "deletion_reason": {
+      "type": "string",
+      "title": "Deletion Reason"
+    }
+  },
+  "required": [
+    "organization_id",
+    "claim_code",
+    "text",
+    "case_id"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigator"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigator"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "reviewer"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "read_only"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigator"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

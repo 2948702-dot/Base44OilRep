@@ -25,6 +25,36 @@
 - Расширенная аналитика OilLifecycle.
 - Автоматический пересчёт SamplingSchedule после создания новой пробы.
 
+## Направление: AI Investigation Platform
+
+Отдельный продукт в том же репозитории. Полный план — `src/docs/investigation/mvp-plan.md`.
+
+### Завершено
+
+- Architecture Decision Record, entity model и permissions model.
+- 28 схем Base44 с tenant-изоляцией, генерируемых из одного определения.
+- Слоистая архитектура: UI → Services → Engine → Agents → Repositories → Base44.
+- Абстракции `GraphRepository`, `KnowledgeStore`, `FileRepository`, `AuditRepository`.
+- Подсистема источников: SHA-256, неизменяемый оригинал, derived Source, Source → Evidence.
+- Agent Framework: контракт агента, защита от prompt injection, валидация JSON-схемы, `AgentRun`.
+- Пять агентов: Case Manager, Intake Analyst, Investigation Planner, Claim Extractor, Red Team.
+- Машина стадий и методологические инварианты в коде.
+- Демонстрационное дело Missing Cash 001 и приёмочный прогон §81: 33/33.
+
+### В работе
+
+- Выбор целевого приложения Base44 и развёртывание схем (`KI-013`).
+- Проверка RLS на живом приложении (`KI-014`).
+- Interview Strategist, AI Interviewer, web-интервью по подписанной ссылке.
+- Timeline Analyst, Contradiction Analyst, Hypothesis Analyst.
+
+### Следующий релиз направления
+
+- Follow-Up Planner и второй раунд интервью.
+- Final Reviewer и Report Writer.
+- Экраны: Case Dashboard, Timeline, Evidence Matrix, Contradiction Map, Hypothesis Board.
+- Telegram-бот интервью.
+
 ## Завершённые вехи
 
 - Архитектура моточасов на базе MaintenanceEvent.

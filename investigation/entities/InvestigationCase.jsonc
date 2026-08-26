@@ -1,0 +1,368 @@
+// Сгенерировано investigation/tools/generate-entities.mjs.
+// Не редактировать вручную: изменения вносятся в entity-definitions.mjs.
+// Сущность: InvestigationCase
+{
+  "name": "InvestigationCase",
+  "type": "object",
+  "description": "Дело",
+  "properties": {
+    "organization_id": {
+      "type": "string",
+      "title": "Organization"
+    },
+    "case_number": {
+      "type": "string",
+      "title": "Case Number"
+    },
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "case_type": {
+      "type": "string",
+      "enum": [
+        "theft",
+        "fraud",
+        "cash_shortage",
+        "policy_violation",
+        "conflict_of_interest",
+        "data_leak",
+        "safety_incident",
+        "harassment",
+        "quality_failure",
+        "other"
+      ],
+      "title": "Case Type"
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "Severity"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "intake",
+        "planning",
+        "evidence_collection",
+        "interviews",
+        "analysis",
+        "follow_up",
+        "review",
+        "completed",
+        "archived"
+      ],
+      "title": "Status"
+    },
+    "current_stage": {
+      "type": "string",
+      "enum": [
+        "intake",
+        "planning",
+        "evidence_collection",
+        "interview_round",
+        "analysis",
+        "adversarial_review",
+        "follow_up",
+        "reporting",
+        "closed"
+      ],
+      "title": "Current Stage"
+    },
+    "created_by": {
+      "type": "string",
+      "title": "Created By"
+    },
+    "case_owner_id": {
+      "type": "string",
+      "title": "Case Owner"
+    },
+    "incident_start_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Incident Start At"
+    },
+    "incident_end_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Incident End At"
+    },
+    "incident_time_precision": {
+      "type": "string",
+      "enum": [
+        "exact",
+        "minute",
+        "hour",
+        "part_of_day",
+        "day",
+        "week",
+        "month",
+        "range",
+        "unknown"
+      ],
+      "title": "Incident Time Precision"
+    },
+    "location": {
+      "type": "string",
+      "title": "Location"
+    },
+    "estimated_loss": {
+      "type": "number",
+      "title": "Estimated Loss"
+    },
+    "currency": {
+      "type": "string",
+      "title": "Currency"
+    },
+    "confidentiality_level": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "restricted",
+        "strict"
+      ],
+      "title": "Confidentiality Level"
+    },
+    "autonomy_level": {
+      "type": "string",
+      "enum": [
+        "A0",
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "title": "Autonomy Level"
+    },
+    "overall_confidence": {
+      "type": "string",
+      "enum": [
+        "very_low",
+        "low",
+        "moderate",
+        "high",
+        "very_high"
+      ],
+      "title": "Overall Confidence"
+    },
+    "current_round": {
+      "type": "number",
+      "title": "Current Round"
+    },
+    "finalized_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Finalized At"
+    },
+    "deleted_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Deleted At"
+    },
+    "deleted_by": {
+      "type": "string",
+      "title": "Deleted By"
+    },
+    "deletion_reason": {
+      "type": "string",
+      "title": "Deletion Reason"
+    }
+  },
+  "required": [
+    "organization_id",
+    "case_number",
+    "title",
+    "status"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigator"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "reviewer"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "read_only"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigator"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

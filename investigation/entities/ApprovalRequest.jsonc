@@ -1,0 +1,272 @@
+// Сгенерировано investigation/tools/generate-entities.mjs.
+// Не редактировать вручную: изменения вносятся в entity-definitions.mjs.
+// Сущность: ApprovalRequest
+{
+  "name": "ApprovalRequest",
+  "type": "object",
+  "description": "Запрос человеческого утверждения",
+  "properties": {
+    "organization_id": {
+      "type": "string",
+      "title": "Organization"
+    },
+    "case_id": {
+      "type": "string",
+      "title": "Case"
+    },
+    "approval_type": {
+      "type": "string",
+      "enum": [
+        "interview_dispatch",
+        "sensitive_question",
+        "subject_designation",
+        "hypothesis_closure",
+        "finding_approval",
+        "final_report_release"
+      ],
+      "title": "Approval Type"
+    },
+    "object_type": {
+      "type": "string",
+      "title": "Object Type"
+    },
+    "object_id": {
+      "type": "string",
+      "title": "Object"
+    },
+    "requested_by": {
+      "type": "string",
+      "title": "Requested By"
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Requested At"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected",
+        "withdrawn"
+      ],
+      "title": "Status"
+    },
+    "decided_by": {
+      "type": "string",
+      "title": "Decided By"
+    },
+    "decided_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Decided At"
+    },
+    "decision_note": {
+      "type": "string",
+      "title": "Decision Note"
+    },
+    "payload": {
+      "type": "object",
+      "title": "Payload"
+    },
+    "deleted_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Deleted At"
+    },
+    "deleted_by": {
+      "type": "string",
+      "title": "Deleted By"
+    },
+    "deletion_reason": {
+      "type": "string",
+      "title": "Deletion Reason"
+    }
+  },
+  "required": [
+    "organization_id",
+    "approval_type",
+    "object_type",
+    "status",
+    "case_id"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigator"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigator"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "reviewer"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "read_only"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "system_admin"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "org_owner"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigation_manager"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "investigator"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "reviewer"
+              }
+            },
+            {
+              "data.organization_id": "{{user.organization_id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "system_admin"
+      }
+    }
+  }
+}
