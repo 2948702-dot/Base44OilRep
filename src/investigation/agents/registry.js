@@ -22,6 +22,9 @@ import { timelineAnalystAgent } from './definitions/timelineAnalyst.js';
 import { contradictionAnalystAgent } from './definitions/contradictionAnalyst.js';
 import { hypothesisAnalystAgent } from './definitions/hypothesisAnalyst.js';
 import { followUpPlannerAgent } from './definitions/followUpPlanner.js';
+import { corroborationAgent } from './definitions/corroborationAgent.js';
+import { defenceReviewerAgent } from './definitions/defenceReviewer.js';
+import { rootCauseAnalystAgent } from './definitions/rootCauseAnalyst.js';
 import { finalReviewerAgent } from './definitions/finalReviewer.js';
 import { reportWriterAgent } from './definitions/reportWriter.js';
 
@@ -34,9 +37,12 @@ const DEFINITIONS = [
   claimExtractorAgent,
   timelineAnalystAgent,
   contradictionAnalystAgent,
+  corroborationAgent,
   hypothesisAnalystAgent,
   redTeamInvestigatorAgent,
+  defenceReviewerAgent,
   followUpPlannerAgent,
+  rootCauseAnalystAgent,
   finalReviewerAgent,
   reportWriterAgent,
 ];

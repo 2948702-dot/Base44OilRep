@@ -4,14 +4,13 @@
 схему выхода. Реализованные агенты зарегистрированы в `src/investigation/agents/registry.js`;
 остальные реализуются поверх готового framework и не требуют его изменения.
 
-Реализовано 13 из 18. Расследование проходит целиком — от свободного описания инцидента
+Реализовано 16 из 18. Расследование проходит целиком — от свободного описания инцидента
 до выпущенного отчёта: приём заявления → планирование → подготовка и проведение интервью →
 извлечение утверждений → хронология → противоречия → пересмотр версий → независимая
 проверка → следующий раунд → классификация выводов → итоговый документ → выпуск после
 утверждения человеком.
 
-Незамкнутыми остаются финансовый контур (агент 11), корневые причины (16), разбор
-документов (04), подтверждение доказательствами (10) и защитная проверка (14).
+Незамкнутыми остаются разбор документов (агент 04) и финансовый контур (11).
 
 Столбец «Состояние»: `готов` — реализован и проверен приёмочным прогоном;
 `спроектирован` — определены контракт, данные и схема, реализация впереди.
@@ -27,13 +26,13 @@
 | 07 | Claim Extractor | `claim_extractor` | готов | `ClaimExtractionSchema` |
 | 08 | Timeline Analyst | `timeline_analyst` | готов | `TimelineSchema` |
 | 09 | Contradiction Analyst | `contradiction_analyst` | готов | `ContradictionScanSchema` |
-| 10 | Evidence Corroboration | `corroboration_agent` | спроектирован | `CorroborationSchema` |
+| 10 | Evidence Corroboration | `corroboration_agent` | готов | `CorroborationSchema` |
 | 11 | Financial Investigator | `financial_investigator` | спроектирован (Phase 2) | `FlowOfFundsSchema` |
 | 12 | Hypothesis Analyst | `hypothesis_analyst` | готов | `HypothesisAnalysisSchema` |
 | 13 | Red Team Investigator | `red_team_investigator` | готов | `RedTeamReviewSchema` |
-| 14 | Defence Reviewer | `defence_reviewer` | спроектирован | `DefenceReviewSchema` |
+| 14 | Defence Reviewer | `defence_reviewer` | готов | `DefenceReviewSchema` |
 | 15 | Follow-Up Planner | `follow_up_planner` | готов | `FollowUpPlanSchema` |
-| 16 | Root Cause Analyst | `root_cause_analyst` | спроектирован (Phase 2) | `RootCauseSchema` |
+| 16 | Root Cause Analyst | `root_cause_analyst` | готов | `RootCauseSchema` |
 | 17 | Final Investigation Reviewer | `final_reviewer` | готов | `FinalReviewSchema` |
 | 18 | Report Writer | `report_writer` | готов | `ReportSchema` |
 
@@ -87,6 +86,9 @@ AI Interviewer не имеет права: угрожать, шантажиро�
 | Contradiction Analyst | ссылка на несуществующее утверждение отклоняется; повторные пары не создаются |
 | Hypothesis Analyst | попытка вернуть статус `eliminated` отклоняется `AGENT_CANNOT_ELIMINATE_HYPOTHESIS`; исчезновение всех альтернатив — `ALTERNATIVES_MUST_SURVIVE` |
 | Follow-Up Planner | вопрос с `reveals_other_testimony` помечается чувствительным принудительно, даже если агент этого не сделал |
+| Evidence Corroboration | утверждение не может стать `verified` без объективного материала: согласие людей — подтверждение, но не проверка; связь на несуществующие объекты отклоняется |
+| Defence Reviewer | вывод, признанный несостоятельным, невозможно утвердить (`FINDING_REJECTED_BY_DEFENCE_REVIEW`) — иначе проверка остаётся упражнением |
+| Root Cause Analyst | меры относятся к порядку работы и контролю; кадровые решения принимает организация, а не расследование |
 | Final Reviewer | вывод типа `fact` без ссылки на доказательство не сохраняется (`FACT_REQUIRES_EVIDENCE`); ссылка на несуществующее доказательство отклоняется (`FINDING_CITES_UNKNOWN_EVIDENCE`) |
 | Report Writer | ссылка на неутверждённый вывод отклоняет отчёт целиком (`REPORT_CITES_UNKNOWN_FINDING`); выпуск без утверждения человеком невозможен (`REPORT_RELEASE_REQUIRES_APPROVAL`) |
 
@@ -96,19 +98,7 @@ AI Interviewer не имеет права: угрожать, шантажиро�
 даты, суммы, события, claims, метаданные. Обязателен `source_locator` каждого извлечённого
 элемента: страница, строка, timestamp, message id, row id.
 
-**10 Evidence Corroboration.** Для каждого существенного утверждения: сколько источников
-поддерживают, независимы ли они, есть ли объективное доказательство и опровергающее
-доказательство. Оценивает утверждения, а не людей.
-
 **11 Financial Investigator.** Ожидаемый и фактический поток средств, необъяснённые разрывы,
 дубли, отсутствующие переводы, расхождения сумм.
-
-**14 Defence Reviewer.** Берёт человека, в отношении которого сформированы неблагоприятные
-выводы, и ищет слабые места доказательственной конструкции: hearsay, отсутствие независимого
-подтверждения, наводящие вопросы, противоречивые документы, разрывы, допущения.
-
-**16 Root Cause Analyst.** Отвечает не «кто виноват», а «почему система позволила событию
-произойти»: непосредственная причина, способствующие факторы, отказ контроля, корневая
-причина, корректирующее и предупреждающее действие.
 
 

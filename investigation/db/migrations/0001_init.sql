@@ -576,6 +576,9 @@ create table finding (
   issue_ids text[],
   hypothesis_ids text[],
   review_status text,
+  defence_review_verdict text,
+  defence_review_notes text,
+  defence_reviewed_at timestamptz,
   approval_id uuid,
   approved_by text,
   approved_at timestamptz,
@@ -588,7 +591,8 @@ create table finding (
   updated_at timestamptz not null default now(),
   constraint finding_finding_type_check check (finding_type is null or finding_type in ('fact', 'corroborated_claim', 'inference', 'unresolved', 'procedural_failure', 'root_cause')),
   constraint finding_confidence_check check (confidence is null or confidence in ('very_low', 'low', 'moderate', 'high', 'very_high')),
-  constraint finding_review_status_check check (review_status is null or review_status in ('draft', 'under_review', 'approved', 'rejected'))
+  constraint finding_review_status_check check (review_status is null or review_status in ('draft', 'under_review', 'approved', 'rejected')),
+  constraint finding_defence_review_verdict_check check (defence_review_verdict is null or defence_review_verdict in ('conclusions_hold', 'conclusions_require_more_evidence', 'conclusions_should_not_stand'))
 );
 
 -- Задача расследования

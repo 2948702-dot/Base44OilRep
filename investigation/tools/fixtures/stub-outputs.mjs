@@ -746,3 +746,161 @@ export const REPORT_CITING_UNKNOWN_FINDING = {
     },
   ],
 };
+
+/**
+ * Подтверждение утверждений. Намеренно консервативно: показания двух людей,
+ * противоречащие друг другу, не дают подтверждения ни одному из них.
+ */
+export const CORROBORATION_OUTPUT = {
+  assessments: [
+    {
+      claim_code: 'C-001',
+      independent_source_count: 1,
+      independence_reasoning: 'Только сам Иванов; приобщённое объяснение восходит к нему же',
+      objective_evidence_codes: ['E-001'],
+      contradicting_evidence_codes: [],
+      supporting_claim_codes: [],
+      corroboration_status: 'single_source',
+      verification_status: 'partially_verified',
+      what_would_corroborate_it: ['GPS-трек катера', 'Запись камеры у входа'],
+    },
+    {
+      claim_code: 'C-002',
+      independent_source_count: 1,
+      independence_reasoning: 'Единственный источник — сам Иванов; Петрова прямо отрицает',
+      objective_evidence_codes: [],
+      contradicting_evidence_codes: [],
+      supporting_claim_codes: [],
+      corroboration_status: 'contradicted',
+      verification_status: 'unverified',
+      what_would_corroborate_it: ['Запись камеры 18:30–19:15', 'Показания третьего лица'],
+    },
+    {
+      claim_code: 'C-003',
+      independent_source_count: 1,
+      independence_reasoning: 'Единственный источник — сама Петрова',
+      objective_evidence_codes: [],
+      contradicting_evidence_codes: [],
+      supporting_claim_codes: [],
+      corroboration_status: 'contradicted',
+      verification_status: 'unverified',
+      what_would_corroborate_it: ['Кассовая книга', 'График смен'],
+    },
+    {
+      claim_code: 'C-004',
+      independent_source_count: 1,
+      independence_reasoning: 'Только со слов Петровой',
+      objective_evidence_codes: [],
+      contradicting_evidence_codes: [],
+      supporting_claim_codes: [],
+      // Попытка объявить утверждение проверенным без объективного материала:
+      // система обязана понизить статус до частичной проверки.
+      corroboration_status: 'single_source',
+      verification_status: 'verified',
+      what_would_corroborate_it: ['График смен 24 августа'],
+    },
+  ],
+  evidence_links: [
+    {
+      claim_code: 'C-001',
+      evidence_code: 'E-001',
+      relation: 'partially_supports',
+      strength: 'moderate',
+      explanation: 'Объяснение капитана подтверждает факт прибытия, но не передачу денег',
+    },
+  ],
+  observations: [],
+};
+
+export const DEFENCE_REVIEW_OUTPUT = {
+  person_reviewed: 'Иванов Сергей',
+  adverse_findings_reviewed: ['F-002'],
+  weaknesses: [
+    {
+      weakness_type: 'no_independent_corroboration',
+      description: 'Вывод о спорном эпизоде опирается только на два взаимно противоречащих '
+        + 'показания; независимого источника нет ни у одной стороны',
+      affected_claim_codes: ['C-002', 'C-003'],
+      affected_finding_codes: ['F-002'],
+      what_would_close_it: 'Получить запись камеры 18:30–19:15 или показания третьего лица',
+      severity: 'critical',
+    },
+    {
+      weakness_type: 'evidence_gap',
+      description: 'Между прибытием на базу и обнаружением недостачи нет ни одного '
+        + 'подтверждённого звена: цепочка держится на правдоподобии',
+      affected_claim_codes: ['C-001'],
+      affected_finding_codes: ['F-002'],
+      what_would_close_it: 'Кассовая книга и график смен за 24 августа',
+      severity: 'high',
+    },
+  ],
+  strongest_counterargument: 'Ни один материал дела не отличает версию «передал и не оприходовали» '
+    + 'от версии «не передавал»: обе объясняют все имеющиеся факты одинаково',
+  verdict: 'conclusions_require_more_evidence',
+  verdict_reason: 'Выводы не опровергнуты, но и не выдерживают проверки без объективных материалов',
+  observations: [],
+};
+
+/** Защитная проверка признала конструкцию несостоятельной: вывод нельзя утвердить. */
+export const DEFENCE_REVIEW_REJECTING = {
+  ...DEFENCE_REVIEW_OUTPUT,
+  verdict: 'conclusions_should_not_stand',
+  verdict_reason: 'Вывод построен на допущении, которое ничем не проверено',
+};
+
+export const ROOT_CAUSE_OUTPUT = {
+  immediate_cause: 'Наличные, полученные от клиента, не были оприходованы в день получения',
+  contributing_factors: [
+    {
+      factor: 'Передача наличных между сотрудниками нигде не фиксировалась',
+      evidence_basis: 'Описание процедуры самими сотрудниками',
+    },
+    {
+      factor: 'Сверка кассы и CRM проводилась не ежедневно',
+      evidence_basis: 'Недостача обнаружена только управляющей и не сразу',
+    },
+  ],
+  control_failures: [
+    {
+      control: 'Оприходование наличных в день получения',
+      expected_behaviour: 'Деньги вносятся в кассу и отражаются в учёте в тот же день',
+      actual_behaviour: 'Деньги остались вне учёта до обнаружения недостачи',
+      why_it_failed: 'Процедура не предусматривала подтверждения приёма и не проверялась',
+    },
+    {
+      control: 'Ежедневная сверка кассы и CRM',
+      expected_behaviour: 'Расхождение выявляется в течение суток',
+      actual_behaviour: 'Расхождение выявлено позже и не в рамках регулярной сверки',
+      why_it_failed: 'Сверка не была регулярной обязанностью с назначенным исполнителем',
+    },
+  ],
+  root_causes: [
+    {
+      cause: 'Оборот наличных не имел точки обязательной фиксации при передаче между сотрудниками',
+      reasoning_chain: [
+        'Клиент оплатил наличными вне кассы',
+        'Передача от капитана администратору нигде не фиксировалась',
+        'Отсутствие записи сделало эпизод непроверяемым в принципе',
+        'Ни одна из сторон не может ни подтвердить, ни опровергнуть передачу',
+      ],
+      confidence: 'moderate',
+    },
+  ],
+  corrective_actions: [
+    {
+      action: 'Ввести подтверждение приёма наличных подписью обеих сторон с указанием времени',
+      addresses: 'Отсутствие фиксации передачи',
+      owner_role: 'управляющая базой',
+      priority: 'critical',
+    },
+  ],
+  preventive_actions: [
+    {
+      action: 'Назначить ежедневную сверку кассы и CRM с указанием ответственного и срока',
+      prevents: 'Позднее обнаружение расхождений',
+      priority: 'high',
+    },
+  ],
+  observations: [],
+};

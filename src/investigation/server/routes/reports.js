@@ -34,6 +34,41 @@ export function registerReportRoutes(app) {
     };
   });
 
+  /**
+   * Защитная проверка выводов в отношении человека (§36 ТЗ).
+   *
+   * Запускается до утверждения выводов: проверка, проведённая после, ничего не меняет.
+   */
+  app.post('/api/cases/:caseId/persons/:personId/defence-review', async (request) => {
+    assertCanWrite(request.scope);
+    const { caseId, personId } = request.params;
+    const services = servicesFor(app, request, caseId);
+    const result = await services.reports.runDefenceReview(caseId, personId);
+    return {
+      verdict: result.review.verdict,
+      verdict_reason: result.review.verdict_reason,
+      strongest_counterargument: result.review.strongest_counterargument,
+      weaknesses: result.review.weaknesses,
+      findings_updated: result.findings.length,
+      tasks_created: result.tasks.length,
+    };
+  });
+
+  /** Анализ корневых причин: почему организация допустила событие (§38 ТЗ). */
+  app.post('/api/cases/:caseId/root-cause', async (request) => {
+    assertCanWrite(request.scope);
+    const { caseId } = request.params;
+    const services = servicesFor(app, request, caseId);
+    const result = await services.reports.runRootCause(caseId);
+    return {
+      immediate_cause: result.analysis.immediate_cause,
+      root_causes: result.analysis.root_causes,
+      control_failures: result.analysis.control_failures,
+      findings_created: result.findings.length,
+      actions_created: result.tasks.length,
+    };
+  });
+
   app.get('/api/cases/:caseId/findings', async (request) => {
     const { caseId } = request.params;
     const services = servicesFor(app, request, caseId);

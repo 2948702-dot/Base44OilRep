@@ -81,6 +81,21 @@ Red Team Investigator.
 ограниченном по ядрам и памяти. Расшифровка сохраняется отдельным производным источником
 и не подменяет запись; подтверждение остаётся за человеком.
 
+## Шаг 5 — подтверждение, защита и корневые причины (выполнено)
+
+| Шаг | Состояние | Где |
+|---|---|---|
+| Agent 10 Evidence Corroboration | готово | `agents/definitions/corroborationAgent.js` |
+| Agent 14 Defence Reviewer | готово | `agents/definitions/defenceReviewer.js` |
+| Agent 16 Root Cause Analyst | готово | `agents/definitions/rootCauseAnalyst.js` |
+| Связи Claim ↔ Evidence и статусы подтверждённости | готово | `services/AnalysisService.js` |
+| Блокировка утверждения вывода после защитной проверки | готово | `services/ReportService.js` |
+
+Подтверждение встроено в аналитический цикл до пересмотра версий: версия, оценённая
+по неподтверждённым утверждениям, получила бы уверенность, которой ничто не соответствует.
+
+Приёмка выросла до 90 проверок и проходит на обоих драйверах хранения.
+
 ## Phase 1 — оставшееся (§72 ТЗ)
 
 | Приоритет | Работа | Зависит от |
@@ -91,10 +106,8 @@ Red Team Investigator.
 | P1 | Проверить качество распознавания на живой русской речи (`KI-028`) | развёртывание |
 | P1 | Приём вложений от участника | разбор документов |
 | P1 | Agent 04 Document Analyst с обязательным `source_locator` | SourceService |
-| P1 | Agent 10 Evidence Corroboration и связи Claim ↔ Evidence | Evidence |
 | P1 | Telegram-бот интервью | веб-интервью |
 | P2 | Экраны: Case Dashboard, Timeline, Evidence Matrix, Contradiction Map, Hypothesis Board | сервисы |
-| P2 | Agent 14 Defence Reviewer | Findings |
 | P2 | Эмбеддинги и наполнение методологического пространства знаний | pgvector готов |
 
 ## Phase 2 (§73 ТЗ)

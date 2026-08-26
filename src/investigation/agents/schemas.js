@@ -16,6 +16,9 @@ import {
   QUESTION_TYPE,
   CONTRADICTION_TYPE,
   FINDING_TYPE,
+  CORROBORATION_STATUS,
+  VERIFICATION_STATUS,
+  EVIDENCE_RELATION,
 } from '../domain/enums.js';
 
 const confidence = z.enum(/** @type {[string, ...string[]]} */ (CONFIDENCE_LEVELS));
@@ -419,7 +422,120 @@ export const ReportSchema = z.object({
   observations,
 });
 
+
+/**
+ * Подтверждение утверждений (§32 ТЗ).
+ *
+ * Оценивается конкретное утверждение, а не человек. Формулировка вида «свидетель
+ * достоверен на 76%» невыразима в этой схеме, и это сделано намеренно.
+ */
+export const CorroborationSchema = z.object({
+  assessments: z.array(z.object({
+    claim_code: z.string(),
+    // Независимость источников важнее их количества: три пересказа одного разговора
+    // не дают трёх подтверждений.
+    independent_source_count: z.number().int().min(0),
+    independence_reasoning: z.string(),
+    objective_evidence_codes: z.array(z.string()).default([]),
+    contradicting_evidence_codes: z.array(z.string()).default([]),
+    supporting_claim_codes: z.array(z.string()).default([]),
+    corroboration_status: z.enum(/** @type {[string, ...string[]]} */ (CORROBORATION_STATUS)),
+    verification_status: z.enum(/** @type {[string, ...string[]]} */ (VERIFICATION_STATUS)),
+    what_would_corroborate_it: z.array(z.string()).default([]),
+  })),
+  evidence_links: z.array(z.object({
+    claim_code: z.string(),
+    evidence_code: z.string(),
+    relation: z.enum(/** @type {[string, ...string[]]} */ (EVIDENCE_RELATION)),
+    strength: z.enum(['weak', 'moderate', 'strong']),
+    explanation: z.string(),
+  })).default([]),
+  observations,
+});
+
+/**
+ * Защитная проверка (§36 ТЗ).
+ *
+ * Агент занимает позицию того, кто оспаривал бы выводы в интересах конкретного человека.
+ * Это не сочувствие, а проверка на прочность: доказательственная конструкция, которую
+ * невозможно оспорить изнутри, редко выдерживает спор снаружи.
+ */
+export const DefenceReviewSchema = z.object({
+  person_reviewed: z.string(),
+  adverse_findings_reviewed: z.array(z.string()),
+  weaknesses: z.array(z.object({
+    weakness_type: z.enum([
+      'hearsay',
+      'no_independent_corroboration',
+      'leading_question',
+      'contradictory_document',
+      'evidence_gap',
+      'unstated_assumption',
+      'chronology_break',
+      'alternative_explanation',
+      'identification_uncertainty',
+      'procedural_defect',
+    ]),
+    description: z.string(),
+    affected_claim_codes: z.array(z.string()).default([]),
+    affected_finding_codes: z.array(z.string()).default([]),
+    // Возражение без проверки бесполезно так же, как противоречие без проверки.
+    what_would_close_it: z.string(),
+    severity: z.enum(['low', 'medium', 'high', 'critical']),
+  })),
+  strongest_counterargument: z.string(),
+  verdict: z.enum([
+    'conclusions_hold',
+    'conclusions_require_more_evidence',
+    'conclusions_should_not_stand',
+  ]),
+  verdict_reason: z.string(),
+  observations,
+});
+
+/**
+ * Анализ корневых причин (§38 ТЗ).
+ *
+ * Отвечает не «кто виноват», а «почему система позволила событию произойти».
+ * Разница принципиальна: увольнение человека не чинит порядок, который допустил событие.
+ */
+export const RootCauseSchema = z.object({
+  immediate_cause: z.string(),
+  contributing_factors: z.array(z.object({
+    factor: z.string(),
+    evidence_basis: z.string(),
+  })).min(1),
+  control_failures: z.array(z.object({
+    control: z.string(),
+    expected_behaviour: z.string(),
+    actual_behaviour: z.string(),
+    why_it_failed: z.string(),
+  })).min(1),
+  root_causes: z.array(z.object({
+    cause: z.string(),
+    reasoning_chain: z.array(z.string()).min(1),
+    confidence,
+  })).min(1),
+  corrective_actions: z.array(z.object({
+    action: z.string(),
+    addresses: z.string(),
+    // Меры относятся к порядку работы и контролю, а не к наказанию людей:
+    // кадровые решения принимает организация, а не расследование.
+    owner_role: z.string(),
+    priority: z.enum(['low', 'medium', 'high', 'critical']),
+  })).min(1),
+  preventive_actions: z.array(z.object({
+    action: z.string(),
+    prevents: z.string(),
+    priority: z.enum(['low', 'medium', 'high', 'critical']),
+  })).min(1),
+  observations,
+});
+
 export const AGENT_OUTPUT_SCHEMAS = {
+  CorroborationSchema,
+  DefenceReviewSchema,
+  RootCauseSchema,
   FinalReviewSchema,
   ReportSchema,
   InterviewPlanSchema,

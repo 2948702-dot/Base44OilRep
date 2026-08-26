@@ -103,13 +103,17 @@ const LLM_RESPONSES = [
   stub.CLAIMS_PETROVA,                 // 07 claim_extractor
   stub.TIMELINE_OUTPUT,                // 08 timeline_analyst
   stub.CONTRADICTIONS_OUTPUT,          // 09 contradiction_analyst
+  stub.CORROBORATION_OUTPUT,           // 10 corroboration_agent
   stub.HYPOTHESIS_REVIEW_OUTPUT,       // 12 hypothesis_analyst
   stub.RED_TEAM_OUTPUT,                // 13 red_team_investigator
   stub.FOLLOW_UP_OUTPUT,               // 15 follow_up_planner
   stub.FINAL_REVIEW_OUTPUT,            // 17 final_reviewer
+  stub.DEFENCE_REVIEW_OUTPUT,          // 14 defence_reviewer
+  stub.ROOT_CAUSE_OUTPUT,              // 16 root_cause_analyst
   stub.REPORT_OUTPUT,                  // 18 report_writer
   stub.REPORT_CITING_UNKNOWN_FINDING,  // 18 повторно: ссылка на несуществующий вывод
   stub.FINAL_REVIEW_FACT_WITHOUT_EVIDENCE, // 17 повторно: факт без доказательства
+  stub.DEFENCE_REVIEW_REJECTING,       // 14 повторно: конструкция несостоятельна
   stub.HYPOTHESIS_REVIEW_ELIMINATING,  // 12 повторно: попытка исключить версию
 ];
 
@@ -279,6 +283,19 @@ async function main() {
   check('Найдено ключевое противоречие', cycle.contradictions.contradictions.length >= 2);
   check('Найдено критическое противоречие о передаче денег',
     cycle.contradictions.contradictions.some((c) => c.severity === 'critical' && c.type === 'direct'));
+
+  check('Утверждения получили оценку подтверждённости',
+    cycle.corroboration.claims.length === 4);
+  check('Взаимно противоречащие показания не подтверждают друг друга',
+    cycle.corroboration.claims.filter((c) => c.corroboration_status === 'contradicted').length === 2);
+  check('Утверждение без объективного материала не считается проверенным',
+    cycle.corroboration.claims.every(
+      (c) => c.verification_status !== 'verified'
+        || (c.claim_code === 'C-001')),
+    'попытка объявить C-004 проверенным понижена до partially_verified');
+  check('Создана связь утверждения с доказательством',
+    cycle.corroboration.links.length === 1
+      && cycle.corroboration.links[0].relation === 'partially_supports');
   check('Для каждого противоречия предложена проверка',
     cycle.contradictions.contradictions.every((c) => (c.recommended_checks ?? []).length > 0));
 
@@ -335,11 +352,42 @@ async function main() {
   check('Выводы созданы черновиками и ждут человека',
     finalReview.findings.every((f) => f.review_status === 'draft'));
 
+  // ───────────────────────── Защитная проверка ─────────────────────────
+
+  const defence = await app.reports.runDefenceReview(caseId, ivanov.id);
+  check('Защитная проверка нашла слабости доказательственной конструкции',
+    defence.review.weaknesses.length >= 2);
+  check('Каждая слабость сопровождается способом её закрыть',
+    defence.review.weaknesses.every((w) => w.what_would_close_it));
+  check('Слабости превращены в задачи расследования', defence.tasks.length === defence.review.weaknesses.length);
+  check('Итог защитной проверки записан в затронутые выводы',
+    defence.findings.length >= 1
+      && defence.findings.every((f) => f.defence_review_verdict === 'conclusions_require_more_evidence'));
+
+  // ───────────────────────── Корневые причины ─────────────────────────
+
+  const rootCause = await app.reports.runRootCause(caseId);
+  check('Корневая причина не сводится к поведению человека',
+    rootCause.analysis.root_causes.every(
+      (c) => !/иванов|петрова|капитан|администратор/i.test(c.cause)),
+    rootCause.analysis.root_causes[0]?.cause?.slice(0, 60) ?? '');
+  check('Отказы контроля разобраны по схеме «ожидалось — было — почему»',
+    rootCause.analysis.control_failures.every(
+      (f) => f.expected_behaviour && f.actual_behaviour && f.why_it_failed));
+  check('Причины и отказы контроля сохранены выводами',
+    rootCause.findings.some((f) => f.finding_type === 'root_cause')
+      && rootCause.findings.some((f) => f.finding_type === 'procedural_failure'));
+  check('Меры относятся к порядку работы, а не к наказанию людей',
+    rootCause.tasks.every((t) => !/уволить|наказать|взыскать|дисциплинарн|лишить премии/i.test(t.title)));
+
   const reportWithoutApproval = await expectRejected(() => app.reports.generateReport(caseId));
   check('Отчёт не составляется из неутверждённых выводов',
     reportWithoutApproval?.includes('REPORT_REQUIRES_APPROVED_FINDINGS'), reportWithoutApproval ?? '');
 
   for (const finding of finalReview.findings) {
+    await app.reports.approveFinding(finding.id, 'Проверено следователем');
+  }
+  for (const finding of rootCause.findings) {
     await app.reports.approveFinding(finding.id, 'Проверено следователем');
   }
   const report = await app.reports.generateReport(caseId, {
@@ -374,6 +422,16 @@ async function main() {
   const factWithoutEvidence = await expectRejected(() => app.reports.runFinalReview(caseId));
   check('Факт без доказательства не сохраняется даже от Final Reviewer',
     factWithoutEvidence?.includes('FACT_REQUIRES_EVIDENCE'), factWithoutEvidence ?? '');
+
+  // Защитная проверка, признавшая конструкцию несостоятельной, блокирует утверждение
+  // вывода: иначе она осталась бы упражнением, ни на что не влияющим.
+  const rejecting = await app.reports.runDefenceReview(caseId, ivanov.id);
+  const blockedFinding = rejecting.findings[0];
+  const approvalBlocked = await expectRejected(
+    () => app.reports.approveFinding(blockedFinding.id, 'Всё равно утверждаю'),
+  );
+  check('Вывод, отвергнутый защитной проверкой, нельзя утвердить',
+    approvalBlocked?.includes('FINDING_REJECTED_BY_DEFENCE_REVIEW'), approvalBlocked ?? '');
 
   // ───────────────────────── Инварианты методологии ─────────────────────────
 
@@ -413,7 +471,7 @@ async function main() {
     agentRuns.every((r) => r.model && r.prompt_version && r.agent_version),
     `запусков: ${agentRuns.length}`);
   check('Задействованы все агенты цикла расследования',
-    new Set(agentRuns.map((r) => r.agent_type)).size >= 10,
+    new Set(agentRuns.map((r) => r.agent_type)).size >= 13,
     [...new Set(agentRuns.map((r) => r.agent_type))].join(', '));
   check('Отклонённый по методологии запуск сохранён в журнале',
     agentRuns.filter((r) => r.agent_type === 'hypothesis_analyst').length === 2);

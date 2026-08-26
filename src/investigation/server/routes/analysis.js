@@ -99,6 +99,26 @@ export function registerAnalysisRoutes(app) {
     });
   });
 
+  /**
+   * Подтверждение утверждений. Отдельный маршрут нужен, чтобы пересчитать
+   * подтверждённость после приобщения нового доказательства, не гоняя весь цикл.
+   */
+  app.post('/api/cases/:caseId/corroboration', async (request) => {
+    assertCanWrite(request.scope);
+    const { caseId } = request.params;
+    const services = servicesFor(app, request, caseId);
+    const result = await services.analysis.runCorroboration(caseId);
+    return {
+      claims_assessed: result.claims.length,
+      links_created: result.links.length,
+      claims: result.claims.map((c) => ({
+        code: c.claim_code,
+        corroboration_status: c.corroboration_status,
+        verification_status: c.verification_status,
+      })),
+    };
+  });
+
   app.get('/api/cases/:caseId/jobs', async (request) => {
     const { caseId } = request.params;
     const services = servicesFor(app, request, caseId);

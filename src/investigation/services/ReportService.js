@@ -118,9 +118,155 @@ export function createReportService({ repositories, scope, llm, approvals }) {
       };
     },
 
-    /** Утверждение вывода человеком. Без него вывод не попадёт в отчёт. */
+    /**
+     * Защитная проверка выводов в отношении конкретного человека (§36 ТЗ).
+     *
+     * Результат записывается в сами выводы: вывод, который защитная проверка признала
+     * несостоятельным, нельзя утвердить, пока конструкция не укреплена. Иначе проверка
+     * остаётся упражнением, ни на что не влияющим.
+     */
+    async runDefenceReview(caseId, personId) {
+      const context = agentContext(caseId);
+      const agent = getAgent('defence_reviewer');
+      const result = await agent.runWithMetadata({ personId }, context);
+      const review = result.output;
+
+      const findings = await repositories.findings.list({ case_id: caseId });
+      const byCode = new Map(findings.map((f) => [f.finding_code, f]));
+      const now = new Date().toISOString();
+
+      const affectedCodes = new Set([
+        ...review.adverse_findings_reviewed,
+        ...review.weaknesses.flatMap((w) => w.affected_finding_codes ?? []),
+      ]);
+
+      const updated = [];
+      for (const code of affectedCodes) {
+        const finding = byCode.get(code);
+        if (!finding) continue;
+        const weaknesses = review.weaknesses.filter(
+          (w) => (w.affected_finding_codes ?? []).includes(code),
+        );
+        updated.push(await repositories.findings.update(finding.id, {
+          defence_review_verdict: review.verdict,
+          defence_review_notes: JSON.stringify({
+            strongest_counterargument: review.strongest_counterargument,
+            verdict_reason: review.verdict_reason,
+            weaknesses,
+          }),
+          defence_reviewed_at: now,
+        }));
+      }
+
+      // Каждая слабость превращается в задачу: возражение, которое никто не закрывает,
+      // возвращается в самый неудобный момент.
+      const tasks = [];
+      for (const weakness of review.weaknesses) {
+        tasks.push(await repositories.tasks.create({
+          case_id: caseId,
+          title: weakness.what_would_close_it,
+          description: weakness.description,
+          task_type: 'other',
+          status: 'proposed',
+          priority: weakness.severity === 'critical' ? 'critical' : 'high',
+          person_id: personId,
+          expected_information_gain: weakness.severity === 'critical' ? 'very_high' : 'high',
+          reason: `Защитная проверка: ${weakness.weakness_type}`,
+          created_by_agent: agent.id,
+          agent_run_id: result.run.id,
+        }));
+      }
+
+      return { review, findings: updated, tasks, agentRunId: result.run.id };
+    },
+
+    /**
+     * Анализ корневых причин (§38 ТЗ). Результат сохраняется выводами типа
+     * root_cause и procedural_failure, а меры — задачами расследования.
+     */
+    async runRootCause(caseId) {
+      const context = agentContext(caseId);
+      const agent = getAgent('root_cause_analyst');
+      const result = await agent.runWithMetadata({}, context);
+      const analysis = result.output;
+
+      const existing = await repositories.findings.list({}, { includeDeleted: true });
+      const codes = existing.map((f) => f.finding_code);
+
+      const created = [];
+      for (const failure of analysis.control_failures) {
+        const code = nextCode('finding', codes);
+        codes.push(code);
+        created.push(await repositories.findings.create({
+          case_id: caseId,
+          finding_code: code,
+          statement: `Контроль «${failure.control}» не сработал: ${failure.why_it_failed}`,
+          finding_type: 'procedural_failure',
+          confidence: 'moderate',
+          alternative_explanations: [],
+          review_status: 'draft',
+          created_by_agent: agent.id,
+          agent_run_id: result.run.id,
+        }));
+      }
+
+      for (const cause of analysis.root_causes) {
+        assertQualitativeConfidence(cause, 'confidence');
+        const code = nextCode('finding', codes);
+        codes.push(code);
+        created.push(await repositories.findings.create({
+          case_id: caseId,
+          finding_code: code,
+          statement: cause.cause,
+          finding_type: 'root_cause',
+          confidence: cause.confidence,
+          alternative_explanations: cause.reasoning_chain,
+          review_status: 'draft',
+          created_by_agent: agent.id,
+          agent_run_id: result.run.id,
+        }));
+      }
+
+      const tasks = [];
+      for (const action of [...analysis.corrective_actions, ...analysis.preventive_actions]) {
+        tasks.push(await repositories.tasks.create({
+          case_id: caseId,
+          title: action.action,
+          description: action.addresses ?? action.prevents,
+          task_type: 'other',
+          status: 'proposed',
+          priority: action.priority,
+          reason: action.owner_role
+            ? `Корректирующая мера, зона ответственности: ${action.owner_role}`
+            : 'Предупреждающая мера',
+          created_by_agent: agent.id,
+          agent_run_id: result.run.id,
+        }));
+      }
+
+      return { analysis, findings: created, tasks, agentRunId: result.run.id };
+    },
+
+    /**
+     * Утверждение вывода человеком. Без него вывод не попадёт в отчёт.
+     *
+     * Вывод, признанный несостоятельным защитной проверкой, утвердить нельзя:
+     * иначе проверка превращается в формальность, а отчёт выходит с известной
+     * заранее слабостью.
+     */
     async approveFinding(findingId, note) {
       if (!note) throw new Error('Утверждение вывода требует обоснования');
+
+      const finding = await repositories.findings.get(findingId);
+      if (!finding) throw new Error(`Вывод ${findingId} не найден`);
+      if (finding.defence_review_verdict === 'conclusions_should_not_stand') {
+        throw new InvariantViolation(
+          'FINDING_REJECTED_BY_DEFENCE_REVIEW',
+          `Вывод ${finding.finding_code} признан несостоятельным защитной проверкой. `
+          + 'Укрепите доказательственную конструкцию или переформулируйте вывод.',
+        );
+      }
+
       const approval = await approvals.request({
         approvalType: 'finding_approval',
         objectType: 'Finding',

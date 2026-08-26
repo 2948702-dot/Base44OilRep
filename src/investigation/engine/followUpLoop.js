@@ -12,6 +12,7 @@ export const FOLLOW_UP_PIPELINE = [
   { step: 'claim_extraction', agent: 'claim_extractor', jobType: 'claim_extraction' },
   { step: 'timeline', agent: 'timeline_analyst', jobType: 'timeline_rebuild' },
   { step: 'contradiction_analysis', agent: 'contradiction_analyst', jobType: 'contradiction_scan' },
+  { step: 'corroboration', agent: 'corroboration_agent', jobType: 'contradiction_scan' },
   { step: 'hypothesis_review', agent: 'hypothesis_analyst', jobType: 'hypothesis_review' },
   { step: 'adversarial_review', agent: 'red_team_investigator', jobType: 'hypothesis_review' },
   { step: 'follow_up_planning', agent: 'follow_up_planner', jobType: null },

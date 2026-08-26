@@ -456,6 +456,11 @@ export const ENUMS = {
       "under_review",
       "approved",
       "rejected"
+    ],
+    "defence_review_verdict": [
+      "conclusions_hold",
+      "conclusions_require_more_evidence",
+      "conclusions_should_not_stand"
     ]
   },
   "InvestigationTask": {

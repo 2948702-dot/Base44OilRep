@@ -180,6 +180,75 @@ export function createAnalysisService({ repositories, scope, llm, approvals }) {
     },
 
     /**
+     * Подтверждение утверждений (§32 ТЗ).
+     *
+     * Оценивается каждое утверждение отдельно: сколько источников его поддерживают,
+     * независимы ли они, есть ли объективное доказательство. Человек не оценивается
+     * вовсе — ни здесь, ни где-либо ещё в системе.
+     */
+    async runCorroboration(caseId) {
+      const context = agentContext(caseId);
+      const agent = getAgent('corroboration_agent');
+      const result = await agent.runWithMetadata({}, context);
+
+      const [byCode, evidence, existingLinks] = await Promise.all([
+        claimCodeMap(caseId),
+        repositories.evidence.list({ case_id: caseId }),
+        repositories.claimEvidenceLinks.list({ case_id: caseId }),
+      ]);
+      const evidenceByCode = new Map(evidence.map((e) => [e.evidence_code, e]));
+      const seenLinks = new Set(existingLinks.map((l) => `${l.claim_id}|${l.evidence_id}`));
+
+      const updated = [];
+      for (const assessment of result.output.assessments) {
+        const claim = byCode.get(assessment.claim_code);
+        if (!claim) continue;
+
+        // Утверждение не может считаться проверенным без объективного материала:
+        // согласие двух людей — это подтверждение, но не проверка.
+        const hasObjective = assessment.objective_evidence_codes
+          .some((code) => evidenceByCode.has(code));
+        const verification = !hasObjective && assessment.verification_status === 'verified'
+          ? 'partially_verified'
+          : assessment.verification_status;
+
+        updated.push(await repositories.claims.update(claim.id, {
+          corroboration_status: assessment.corroboration_status,
+          verification_status: verification,
+        }));
+      }
+
+      const links = [];
+      for (const link of result.output.evidence_links) {
+        const claim = byCode.get(link.claim_code);
+        const item = evidenceByCode.get(link.evidence_code);
+        if (!claim || !item) {
+          throw new InvariantViolation(
+            'LINK_REQUIRES_CLAIM_AND_EVIDENCE',
+            `Связь ссылается на несуществующие объекты: ${link.claim_code} ↔ ${link.evidence_code}`,
+          );
+        }
+        const key = `${claim.id}|${item.id}`;
+        if (seenLinks.has(key)) continue;
+        seenLinks.add(key);
+
+        links.push(await repositories.claimEvidenceLinks.create({
+          case_id: caseId,
+          claim_id: claim.id,
+          evidence_id: item.id,
+          relation: link.relation,
+          strength: link.strength,
+          explanation: link.explanation,
+          created_by_agent: agent.id,
+          agent_run_id: result.run.id,
+          reviewed_by_human: false,
+        }));
+      }
+
+      return { claims: updated, links, agentRunId: result.run.id };
+    },
+
+    /**
      * Пересмотр версий. Смена статуса пишется в историю; исключение версии агентом
      * не допускается ни при каких условиях — это решение человека (§8, §34, §42 ТЗ).
      */
@@ -332,6 +401,15 @@ export function createAnalysisService({ repositories, scope, llm, approvals }) {
       const contradictions = await this.runContradictionScan(caseId);
       steps.push({ step: 'contradiction_analysis', found: contradictions.contradictions.length });
 
+      // Подтверждение идёт до пересмотра версий: версия, оценённая по неподтверждённым
+      // утверждениям, получила бы уверенность, которой ничто не соответствует.
+      const corroboration = await this.runCorroboration(caseId);
+      steps.push({
+        step: 'corroboration',
+        claims: corroboration.claims.length,
+        links: corroboration.links.length,
+      });
+
       const review = await this.runHypothesisReview(caseId);
       steps.push({ step: 'hypothesis_review', reviewed: review.hypotheses.length });
 
@@ -360,6 +438,7 @@ export function createAnalysisService({ repositories, scope, llm, approvals }) {
         steps,
         timeline,
         contradictions,
+        corroboration,
         review,
         redTeam,
         followUp,
