@@ -36,6 +36,8 @@
  * @property {(file: File|Blob, meta: {filename: string, mimeType: string}) => Promise<{uri: string, sha256: string, byteSize: number}>} upload
  * @property {(uri: string) => Promise<ArrayBuffer>} read
  * @property {(uri: string, expectedSha256: string) => Promise<boolean>} verifyIntegrity
+ * @property {(uri: string) => Promise<boolean>} remove удаление оригинала; существует
+ *   только ради удаления данных арендатора (§60 ТЗ) и больше нигде не вызывается
  */
 
 /**
@@ -117,7 +119,7 @@ export const GRAPH_EDGE_TYPES = [
 
 const REQUIRED_METHODS = {
   EntityRepository: ['get', 'list', 'create', 'update', 'softDelete', 'restore'],
-  FileRepository: ['upload', 'read', 'verifyIntegrity'],
+  FileRepository: ['upload', 'read', 'verifyIntegrity', 'remove'],
   AuditRepository: ['record', 'list'],
   GraphRepository: ['buildCaseGraph', 'neighbourhood', 'paths'],
   KnowledgeStore: ['storeDocument', 'storeEmbedding', 'semanticSearch', 'hybridSearch', 'deleteTenantData'],

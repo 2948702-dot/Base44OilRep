@@ -26,7 +26,7 @@ import posixpath
 import sys
 import time
 
-from ssh_connect import connect, run
+from ssh_connect import connect, run, write_remote_file
 
 HOST = os.environ.get("SSH_HOST", "188.116.23.111")
 PASSWORD = os.environ.get("SSH_PASSWORD", "")
@@ -197,11 +197,22 @@ def main():
         admin_url = (
             f"postgres://postgres:{os.environ['POSTGRES_PASSWORD']}@{DB_CONTAINER}:5432/investigation"
         )
-        run(client, (
-            f"docker run --rm --network {NETWORK} "
-            f"-e DATABASE_URL='{admin_url}' -e APP_DB_ROLE=investigation_app {IMAGE} "
-            f"node investigation/tools/migrate.mjs"
-        ))
+        # Строка подключения содержит пароль, поэтому уходит временным env-файлом
+        # с правами 600: аргументы `docker run` видны в `ps aux` любому, кто есть
+        # на сервере, и остаются в истории оболочки.
+        migrate_env = f"{REMOTE_DIR}/.migrate.env"
+        write_remote_file(
+            client, migrate_env,
+            f"DATABASE_URL={admin_url}\nAPP_DB_ROLE=investigation_app\n",
+        )
+        try:
+            run(client, (
+                f"docker run --rm --network {NETWORK} "
+                f"--env-file {migrate_env} {IMAGE} "
+                f"node investigation/tools/migrate.mjs"
+            ))
+        finally:
+            run(client, f"rm -f {migrate_env}", check=False, quiet=True)
 
         run(client, f"docker rm -f {CONTAINER}", check=False, quiet=True)
         run(client, (

@@ -83,6 +83,7 @@ npm run investigation:jobs            # исполнитель очереди: �
 npm run investigation:ui              # интерфейс в настоящем браузере
 npm run investigation:benchmark       # прогон учебного дела и метрики качества §52
 npm run investigation:benchmark:pg    # тот же прогон против настоящей базы
+npm run investigation:tenant          # выгрузка и удаление данных арендатора (§60)
 psql "$DATABASE_URL" -f investigation/db/checks/isolation.sql   # изоляция и журналы
 ```
 

@@ -1,0 +1,60 @@
+name: DATA - export or delete investigation tenant
+
+# Выгрузка и удаление данных арендатора (§60 ТЗ).
+#
+# Архив выгрузки остаётся на сервере и в артефакты сборки не попадает: журнал
+# Actions — не место для материалов внутренних расследований чужой организации.
+# Скрипт печатает путь и контрольную сумму, забрать файл нужно по SSH.
+#
+# Удаление необратимо. Идентификатор организации вводится дважды, и совпадение
+# проверяется и в Action, и на сервере.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Действие'
+        required: true
+        type: choice
+        options: [list, export, delete]
+        default: list
+      org_slug:
+        description: 'Идентификатор организации (slug)'
+        required: false
+      confirm_slug:
+        description: 'Для удаления: тот же slug ещё раз'
+        required: false
+      reason:
+        description: 'Для удаления: основание (требование клиента, дата)'
+        required: false
+      requested_by:
+        description: 'Для удаления: кто потребовал'
+        required: false
+
+jobs:
+  tenant-data:
+    runs-on: ubuntu-latest
+    env:
+      SSH_HOST: '188.116.23.111'
+      SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      SSH_USER: deploy
+      SSH_PASSWORD: ${{ secrets.N8N_SSH_ROOT_PASSWORD }}
+      ACTION: ${{ inputs.action }}
+      ORG_SLUG: ${{ inputs.org_slug }}
+      CONFIRM_SLUG: ${{ inputs.confirm_slug }}
+      REASON: ${{ inputs.reason }}
+      REQUESTED_BY: ${{ inputs.requested_by }}
+      POSTGRES_PASSWORD: ${{ secrets.INVESTIGATION_POSTGRES_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Установить paramiko
+        run: pip install paramiko
+
+      - name: Выполнить действие с данными арендатора
+        working-directory: investigation/deploy
+        run: python tenant-data.py

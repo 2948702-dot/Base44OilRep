@@ -195,6 +195,9 @@ function createMemoryFileRepository({ store }) {
     async verifyIntegrity(uri, expectedSha256) {
       return (await sha256Hex(await repository.read(uri))) === expectedSha256;
     },
+    async remove(uri) {
+      return blobs.delete(uri);
+    },
   };
   assertImplements('FileRepository', repository, 'MemoryFileRepository');
   return repository;

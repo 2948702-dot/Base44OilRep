@@ -18,6 +18,7 @@
     "investigation:smoke": "node investigation/tools/smoke-api.mjs",
     "investigation:jobs": "node investigation/tools/smoke-jobs.mjs",
     "investigation:ui": "node investigation/tools/smoke-ui.mjs",
+    "investigation:tenant": "node investigation/tools/smoke-tenant.mjs",
     "investigation:server": "node src/investigation/server/index.js",
     "preview": "vite preview"
   },

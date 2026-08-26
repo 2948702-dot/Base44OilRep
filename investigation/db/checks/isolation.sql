@@ -125,4 +125,31 @@ begin
   end;
 end $$;
 
+
+-- 9. Роль приложения не стирает журнал даже с выставленным флагом стирания.
+--
+-- Флаг `app.tenant_erasure` может выставить любая роль: настройка сеанса не защищена
+-- ничем. Защищает второе условие — права владельца таблиц, которых у приложения нет.
+-- Без этой проверки удаление арендатора выглядело бы как дыра в неизменяемости журнала.
+do $$
+declare
+  ok boolean := false;
+begin
+  perform set_config('app.is_system_admin', 'on', true);
+  perform set_config('app.tenant_erasure', 'on', true);
+  begin
+    delete from audit_event;
+  exception when others then
+    ok := true;
+  end;
+  perform set_config('app.tenant_erasure', 'off', true);
+  perform set_config('app.is_system_admin', 'off', true);
+
+  if ok then
+    raise notice 'OK  журнал не стирается ролью приложения даже с флагом стирания';
+  else
+    raise exception 'ПРОВАЛ: роль приложения стёрла журнал аудита';
+  end if;
+end $$;
+
 \echo 'Все проверки изоляции и целостности пройдены'

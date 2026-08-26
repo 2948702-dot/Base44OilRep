@@ -82,6 +82,20 @@ def connect(*, host: str | None = None, prefer_root: bool = False) -> paramiko.S
     sys.exit(1)
 
 
+def write_remote_file(client, path, content, *, mode="600"):
+    """Записывает файл на сервере через стандартный ввод.
+
+    Секрет, попавший в аргументы команды, виден в `ps aux` любому, кто есть на сервере,
+    и остаётся в истории оболочки. Содержимое уходит стандартным вводом, а права
+    выставляются до записи, а не после: иначе между созданием и chmod существует
+    промежуток, в котором файл читаем всем.
+    """
+    command = f"umask 077 && cat > {path} && chmod {mode} {path}"
+    code, _, err = run(client, command, check=False, quiet=True, stdin_data=content)
+    if code != 0:
+        raise RuntimeError(f"не удалось записать {path}: {err.strip()}")
+
+
 def run(client, command, *, check=True, quiet=False, stdin_data=None):
     """Выполняет команду. Возвращает код, stdout и stderr.
 

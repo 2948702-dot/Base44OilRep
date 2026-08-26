@@ -217,10 +217,21 @@ function buildTable(def) {
   return { table, sql: lines.join('\n'), addTenantField, caseScoped };
 }
 
-function buildConstraints(table) {
+function buildConstraints(table, def) {
   const statements = [];
 
-  for (const [column, target] of Object.entries(REFERENCES[table] ?? {})) {
+  // Внешний ключ на организацию проставляется по наличию колонки, а не по записи
+  // в перечне ссылок. Забытая здесь строка не даёт ошибки при работе — она даёт
+  // строки, пережившие удаление арендатора, и обнаруживается только тогда, когда
+  // клиент просит подтвердить, что его данные удалены.
+  const references = { ...(REFERENCES[table] ?? {}) };
+  const hasOrganizationColumn = def.addTenantField !== false
+    || (def.fields ?? []).some((field) => parseFieldSpec(field).name === 'organization_id');
+  if (hasOrganizationColumn && table !== 'organization' && !references.organization_id) {
+    references.organization_id = 'organization';
+  }
+
+  for (const [column, target] of Object.entries(references)) {
     // Удаление данных арендатора — единственный сценарий физического удаления,
     // поэтому каскад идёт только от организации и от дела.
     const onDelete = target === 'organization' || (target === 'investigation_case' && column === 'case_id')
@@ -305,7 +316,7 @@ parts.push('alter table organization add column slug text;\n');
 
 parts.push('-- ======================= СВЯЗИ И УНИКАЛЬНОСТЬ =======================\n');
 for (const item of built) {
-  const statements = buildConstraints(item.table);
+  const statements = buildConstraints(item.table, item.def);
   if (statements.length > 0) parts.push(statements.join('\n') + '\n');
 }
 
@@ -351,6 +362,21 @@ parts.push(`
 
 create or replace function forbid_mutation() returns trigger as $$
 begin
+  -- Единственное исключение — удаление данных арендатора (§60 ТЗ). Право быть забытым
+  -- и неизменяемость журнала противоречат друг другу, и разрешать это противоречие
+  -- надо явно.
+  --
+  -- Одного флага мало: выставить настройку сеанса может любая роль, включая роль
+  -- приложения. Поэтому требуется ещё и то, чего у приложения нет и не будет, —
+  -- права владельца таблицы. Удаление арендатора выполняется отдельным подключением;
+  -- роль приложения не сотрёт журнал, даже если выставит флаг.
+  if tg_op = 'DELETE'
+     and coalesce(current_setting('app.tenant_erasure', true), 'off') = 'on'
+     and current_user = (select pg_get_userbyid(c.relowner) from pg_class c where c.oid = tg_relid)
+  then
+    return old;
+  end if;
+
   raise exception 'Таблица % — журнальная: изменение и удаление записей запрещены', tg_table_name
     using errcode = 'restrict_violation';
 end;

@@ -9,7 +9,7 @@
  * не изменяется никогда (§54, §71 ТЗ).
  */
 
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, unlink } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { assertImplements } from '../contracts.js';
 import { sha256Hex } from '../../domain/hash.js';
@@ -66,6 +66,28 @@ export function createFileRepository(options = {}) {
     async verifyIntegrity(uri, expectedSha256) {
       const bytes = await repository.read(uri);
       return (await sha256Hex(bytes)) === expectedSha256;
+    },
+
+    /**
+     * Удаление оригинала.
+     *
+     * Единственный случай, когда оригинал материала исчезает, — удаление данных
+     * арендатора (§60 ТЗ). Ни один маршрут приложения этот метод не вызывает:
+     * неизменяемость оригинала держится на том, что стирать его попросту нечем.
+     */
+    async remove(uri) {
+      const raw = uri.startsWith('file://') ? uri.slice('file://'.length) : uri;
+      const path = resolve(raw);
+      if (path !== root && !path.startsWith(root.endsWith(sep) ? root : root + sep)) {
+        throw new Error(`Отказано: путь ${raw} вне хранилища источников`);
+      }
+      try {
+        await unlink(path);
+        return true;
+      } catch (error) {
+        if (error.code === 'ENOENT') return false;
+        throw error;
+      }
     },
   };
 

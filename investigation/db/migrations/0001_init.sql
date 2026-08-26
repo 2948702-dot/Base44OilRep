@@ -873,25 +873,31 @@ alter table person add constraint person_case_id_fkey foreign key (case_id) refe
 alter table allegation add constraint allegation_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table allegation add constraint allegation_source_id_fkey foreign key (source_id) references source(id) on delete set null;
 alter table allegation add constraint allegation_reported_by_person_id_fkey foreign key (reported_by_person_id) references person(id) on delete set null;
+alter table allegation add constraint allegation_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table allegation add constraint allegation_case_id_code_key unique (case_id, code);
 
 alter table issue add constraint issue_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
+alter table issue add constraint issue_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table issue add constraint issue_case_id_code_key unique (case_id, code);
 
 alter table hypothesis add constraint hypothesis_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
+alter table hypothesis add constraint hypothesis_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table hypothesis add constraint hypothesis_case_id_code_key unique (case_id, code);
 
 alter table hypothesis_revision add constraint hypothesis_revision_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table hypothesis_revision add constraint hypothesis_revision_hypothesis_id_fkey foreign key (hypothesis_id) references hypothesis(id) on delete set null;
 alter table hypothesis_revision add constraint hypothesis_revision_agent_run_id_fkey foreign key (agent_run_id) references agent_run(id) on delete set null;
+alter table hypothesis_revision add constraint hypothesis_revision_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table hypothesis_revision add constraint hypothesis_revision_hypothesis_id_revision_key unique (hypothesis_id, revision);
 
 alter table source add constraint source_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table source add constraint source_source_person_id_fkey foreign key (source_person_id) references person(id) on delete set null;
 alter table source add constraint source_derived_from_source_id_fkey foreign key (derived_from_source_id) references source(id) on delete set null;
+alter table source add constraint source_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 
 alter table evidence add constraint evidence_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table evidence add constraint evidence_source_id_fkey foreign key (source_id) references source(id) on delete set null;
+alter table evidence add constraint evidence_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table evidence add constraint evidence_case_id_evidence_code_key unique (case_id, evidence_code);
 
 alter table claim add constraint claim_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
@@ -900,15 +906,18 @@ alter table claim add constraint claim_source_person_id_fkey foreign key (source
 alter table claim add constraint claim_interview_id_fkey foreign key (interview_id) references interview(id) on delete set null;
 alter table claim add constraint claim_answer_id_fkey foreign key (answer_id) references interview_answer(id) on delete set null;
 alter table claim add constraint claim_agent_run_id_fkey foreign key (agent_run_id) references agent_run(id) on delete set null;
+alter table claim add constraint claim_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table claim add constraint claim_case_id_claim_code_key unique (case_id, claim_code);
 
 alter table claim_evidence_link add constraint claim_evidence_link_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table claim_evidence_link add constraint claim_evidence_link_claim_id_fkey foreign key (claim_id) references claim(id) on delete set null;
 alter table claim_evidence_link add constraint claim_evidence_link_evidence_id_fkey foreign key (evidence_id) references evidence(id) on delete set null;
 alter table claim_evidence_link add constraint claim_evidence_link_agent_run_id_fkey foreign key (agent_run_id) references agent_run(id) on delete set null;
+alter table claim_evidence_link add constraint claim_evidence_link_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 
 alter table investigation_event add constraint investigation_event_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table investigation_event add constraint investigation_event_agent_run_id_fkey foreign key (agent_run_id) references agent_run(id) on delete set null;
+alter table investigation_event add constraint investigation_event_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table investigation_event add constraint investigation_event_case_id_event_code_key unique (case_id, event_code);
 
 alter table contradiction add constraint contradiction_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
@@ -916,17 +925,20 @@ alter table contradiction add constraint contradiction_claim_a_id_fkey foreign k
 alter table contradiction add constraint contradiction_claim_b_id_fkey foreign key (claim_b_id) references claim(id) on delete set null;
 alter table contradiction add constraint contradiction_issue_id_fkey foreign key (issue_id) references issue(id) on delete set null;
 alter table contradiction add constraint contradiction_agent_run_id_fkey foreign key (agent_run_id) references agent_run(id) on delete set null;
+alter table contradiction add constraint contradiction_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table contradiction add constraint contradiction_case_id_contradiction_code_key unique (case_id, contradiction_code);
 
 alter table interview add constraint interview_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table interview add constraint interview_person_id_fkey foreign key (person_id) references person(id) on delete set null;
 alter table interview add constraint interview_dispatch_approval_id_fkey foreign key (dispatch_approval_id) references approval_request(id) on delete set null;
+alter table interview add constraint interview_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 
 alter table interview_question add constraint interview_question_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table interview_question add constraint interview_question_interview_id_fkey foreign key (interview_id) references interview(id) on delete set null;
 alter table interview_question add constraint interview_question_issue_id_fkey foreign key (issue_id) references issue(id) on delete set null;
 alter table interview_question add constraint interview_question_approval_id_fkey foreign key (approval_id) references approval_request(id) on delete set null;
 alter table interview_question add constraint interview_question_agent_run_id_fkey foreign key (agent_run_id) references agent_run(id) on delete set null;
+alter table interview_question add constraint interview_question_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table interview_question add constraint interview_question_interview_id_sequence_key unique (interview_id, sequence);
 
 alter table interview_answer add constraint interview_answer_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
@@ -935,23 +947,28 @@ alter table interview_answer add constraint interview_answer_interview_id_fkey f
 alter table interview_answer add constraint interview_answer_person_id_fkey foreign key (person_id) references person(id) on delete set null;
 alter table interview_answer add constraint interview_answer_original_source_id_fkey foreign key (original_source_id) references source(id) on delete set null;
 alter table interview_answer add constraint interview_answer_audio_source_id_fkey foreign key (audio_source_id) references source(id) on delete set null;
+alter table interview_answer add constraint interview_answer_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 
 alter table interview_access_token add constraint interview_access_token_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table interview_access_token add constraint interview_access_token_interview_id_fkey foreign key (interview_id) references interview(id) on delete set null;
 alter table interview_access_token add constraint interview_access_token_person_id_fkey foreign key (person_id) references person(id) on delete set null;
+alter table interview_access_token add constraint interview_access_token_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table interview_access_token add constraint interview_access_token_token_hash_key unique (token_hash);
 
 alter table money_transaction add constraint money_transaction_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table money_transaction add constraint money_transaction_source_id_fkey foreign key (source_id) references source(id) on delete set null;
 alter table money_transaction add constraint money_transaction_related_event_id_fkey foreign key (related_event_id) references investigation_event(id) on delete set null;
+alter table money_transaction add constraint money_transaction_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table money_transaction add constraint money_transaction_case_id_transaction_code_key unique (case_id, transaction_code);
 
 alter table money_flow_edge add constraint money_flow_edge_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table money_flow_edge add constraint money_flow_edge_transaction_id_fkey foreign key (transaction_id) references money_transaction(id) on delete set null;
+alter table money_flow_edge add constraint money_flow_edge_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 
 alter table finding add constraint finding_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table finding add constraint finding_approval_id_fkey foreign key (approval_id) references approval_request(id) on delete set null;
 alter table finding add constraint finding_agent_run_id_fkey foreign key (agent_run_id) references agent_run(id) on delete set null;
+alter table finding add constraint finding_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table finding add constraint finding_case_id_finding_code_key unique (case_id, finding_code);
 
 alter table investigation_task add constraint investigation_task_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
@@ -961,26 +978,35 @@ alter table investigation_task add constraint investigation_task_contradiction_i
 alter table investigation_task add constraint investigation_task_person_id_fkey foreign key (person_id) references person(id) on delete set null;
 alter table investigation_task add constraint investigation_task_evidence_id_fkey foreign key (evidence_id) references evidence(id) on delete set null;
 alter table investigation_task add constraint investigation_task_agent_run_id_fkey foreign key (agent_run_id) references agent_run(id) on delete set null;
+alter table investigation_task add constraint investigation_task_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 
 alter table approval_request add constraint approval_request_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
+alter table approval_request add constraint approval_request_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 
 alter table investigation_report add constraint investigation_report_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table investigation_report add constraint investigation_report_approval_id_fkey foreign key (approval_id) references approval_request(id) on delete set null;
 alter table investigation_report add constraint investigation_report_agent_run_id_fkey foreign key (agent_run_id) references agent_run(id) on delete set null;
 alter table investigation_report add constraint investigation_report_final_review_agent_run_id_fkey foreign key (final_review_agent_run_id) references agent_run(id) on delete set null;
 alter table investigation_report add constraint investigation_report_supersedes_report_id_fkey foreign key (supersedes_report_id) references investigation_report(id) on delete set null;
+alter table investigation_report add constraint investigation_report_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table investigation_report add constraint investigation_report_case_id_version_key unique (case_id, version);
 
 alter table agent_run add constraint agent_run_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table agent_run add constraint agent_run_job_id_fkey foreign key (job_id) references investigation_job(id) on delete set null;
+alter table agent_run add constraint agent_run_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 
 alter table investigation_job add constraint investigation_job_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table investigation_job add constraint investigation_job_agent_run_id_fkey foreign key (agent_run_id) references agent_run(id) on delete set null;
+alter table investigation_job add constraint investigation_job_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 
 alter table audit_event add constraint audit_event_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
+alter table audit_event add constraint audit_event_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 
 alter table knowledge_document add constraint knowledge_document_case_id_fkey foreign key (case_id) references investigation_case(id) on delete cascade;
 alter table knowledge_document add constraint knowledge_document_source_id_fkey foreign key (source_id) references source(id) on delete set null;
+alter table knowledge_document add constraint knowledge_document_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
+
+alter table training_case add constraint training_case_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 
 alter table simulation_run add constraint simulation_run_organization_id_fkey foreign key (organization_id) references organization(id) on delete cascade;
 alter table simulation_run add constraint simulation_run_training_case_id_fkey foreign key (training_case_id) references training_case(id) on delete set null;
@@ -1112,6 +1138,21 @@ create trigger benchmark_result_set_updated_at before update on benchmark_result
 
 create or replace function forbid_mutation() returns trigger as $$
 begin
+  -- Единственное исключение — удаление данных арендатора (§60 ТЗ). Право быть забытым
+  -- и неизменяемость журнала противоречат друг другу, и разрешать это противоречие
+  -- надо явно.
+  --
+  -- Одного флага мало: выставить настройку сеанса может любая роль, включая роль
+  -- приложения. Поэтому требуется ещё и то, чего у приложения нет и не будет, —
+  -- права владельца таблицы. Удаление арендатора выполняется отдельным подключением;
+  -- роль приложения не сотрёт журнал, даже если выставит флаг.
+  if tg_op = 'DELETE'
+     and coalesce(current_setting('app.tenant_erasure', true), 'off') = 'on'
+     and current_user = (select pg_get_userbyid(c.relowner) from pg_class c where c.oid = tg_relid)
+  then
+    return old;
+  end if;
+
   raise exception 'Таблица % — журнальная: изменение и удаление записей запрещены', tg_table_name
     using errcode = 'restrict_violation';
 end;
