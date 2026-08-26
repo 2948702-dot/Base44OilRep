@@ -1,0 +1,43 @@
+name: SETUP - create investigation organization
+
+# Создание организации и первого пользователя на развёрнутом сервере.
+#
+# Платформа не создаёт учётные записи сама и не имеет самостоятельной регистрации:
+# доступ к материалам расследований выдаёт владелец организации.
+#
+# Пароль берётся из секрета INVESTIGATION_OWNER_PASSWORD и не печатается в журнал.
+
+on:
+  workflow_dispatch:
+    inputs:
+      org_name:
+        description: 'Название организации'
+        required: true
+      org_slug:
+        description: 'Короткий идентификатор (латиница, без пробелов)'
+        required: true
+      owner_email:
+        description: 'Адрес владельца организации'
+        required: true
+      owner_full_name:
+        description: 'Имя владельца'
+        required: false
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    env:
+      SSH_HOST: '188.116.23.111'
+      SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      SSH_USER: deploy
+      SSH_PASSWORD: ${{ secrets.N8N_SSH_ROOT_PASSWORD }}
+      ORG_NAME: ${{ inputs.org_name }}
+      ORG_SLUG: ${{ inputs.org_slug }}
+      OWNER_EMAIL: ${{ inputs.owner_email }}
+      OWNER_FULL_NAME: ${{ inputs.owner_full_name }}
+      OWNER_PASSWORD: ${{ secrets.INVESTIGATION_OWNER_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet paramiko
+      - name: Создать организацию и владельца
+        run: python3 investigation/deploy/create-org.py
