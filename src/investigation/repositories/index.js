@@ -1,71 +1,102 @@
 /**
- * Единая точка сборки слоя хранения.
+ * Сборка слоя хранения.
  *
- * Вызывающий код получает набор репозиториев, а не клиент Base44. Ни один слой выше
- * не импортирует SDK напрямую — это условие замены хранилища без переписывания
- * методологии расследования (§78, §79 ТЗ).
+ * Вызывающий код получает набор репозиториев и не знает, что под ними: PostgreSQL
+ * на сервере или память в приёмочном прогоне. Это условие §78 ТЗ и единственный способ
+ * проверять методологию расследования без развёрнутой инфраструктуры.
  */
 
-import { createEntityRepository } from './base44/createEntityRepository.js';
-import { createAuditRepository } from './base44/createAuditRepository.js';
-import { createFileRepository } from './base44/createFileRepository.js';
+import { createEntityRepository as createPgEntityRepository } from './postgres/createEntityRepository.js';
+import { createAuditRepository as createPgAuditRepository } from './postgres/createAuditRepository.js';
+import { createFileRepository as createDiskFileRepository } from './postgres/createFileRepository.js';
+import { createPostgresKnowledgeStore } from './knowledge/PostgresKnowledgeStore.js';
 import { createRelationalGraphRepository } from './graph/RelationalGraphRepository.js';
-import { createBase44KnowledgeStore } from './knowledge/Base44KnowledgeStore.js';
+import { memoryDriver, createMemoryStore } from './memory/index.js';
+import { SCHEMA } from './postgres/schema.generated.js';
 
 export * from './contracts.js';
+export { createPool, withTenant, inTransaction } from './postgres/pool.js';
+export { createMemoryStore };
 
-/** Соответствие имён репозиториев именам сущностей Base44. */
-const ENTITY_MAP = {
-  organizations: { entity: 'Organization', caseScoped: false },
-  users: { entity: 'User', caseScoped: false },
-  cases: { entity: 'InvestigationCase', caseScoped: false },
-  persons: { entity: 'Person' },
-  allegations: { entity: 'Allegation' },
-  issues: { entity: 'Issue' },
-  hypotheses: { entity: 'Hypothesis' },
-  hypothesisRevisions: { entity: 'HypothesisRevision' },
-  sources: { entity: 'Source' },
-  evidence: { entity: 'Evidence' },
-  claims: { entity: 'Claim' },
-  claimEvidenceLinks: { entity: 'ClaimEvidenceLink' },
-  events: { entity: 'InvestigationEvent' },
-  contradictions: { entity: 'Contradiction' },
-  interviews: { entity: 'Interview' },
-  questions: { entity: 'InterviewQuestion' },
-  answers: { entity: 'InterviewAnswer' },
-  accessTokens: { entity: 'InterviewAccessToken' },
-  transactions: { entity: 'MoneyTransaction' },
-  moneyFlowEdges: { entity: 'MoneyFlowEdge' },
-  findings: { entity: 'Finding' },
-  tasks: { entity: 'InvestigationTask' },
-  approvals: { entity: 'ApprovalRequest' },
-  agentRuns: { entity: 'AgentRun' },
-  jobs: { entity: 'InvestigationJob' },
-  trainingCases: { entity: 'TrainingCase', caseScoped: false },
+/** Имена репозиториев и стоящие за ними сущности домена. */
+const REPOSITORY_MAP = {
+  organizations: 'Organization',
+  users: 'User',
+  cases: 'InvestigationCase',
+  persons: 'Person',
+  allegations: 'Allegation',
+  issues: 'Issue',
+  hypotheses: 'Hypothesis',
+  hypothesisRevisions: 'HypothesisRevision',
+  sources: 'Source',
+  evidence: 'Evidence',
+  claims: 'Claim',
+  claimEvidenceLinks: 'ClaimEvidenceLink',
+  events: 'InvestigationEvent',
+  contradictions: 'Contradiction',
+  interviews: 'Interview',
+  questions: 'InterviewQuestion',
+  answers: 'InterviewAnswer',
+  accessTokens: 'InterviewAccessToken',
+  transactions: 'MoneyTransaction',
+  moneyFlowEdges: 'MoneyFlowEdge',
+  findings: 'Finding',
+  tasks: 'InvestigationTask',
+  approvals: 'ApprovalRequest',
+  agentRuns: 'AgentRun',
+  jobs: 'InvestigationJob',
+  trainingCases: 'TrainingCase',
+};
+
+const postgresDriver = {
+  createEntityRepository: ({ db, entity, scope, audit, caseScoped }) => createPgEntityRepository({
+    db,
+    table: SCHEMA[entity].table,
+    columns: SCHEMA[entity].columns,
+    scope,
+    audit,
+    caseScoped,
+  }),
+  createAuditRepository: ({ db, organizationId }) => createPgAuditRepository({ db, organizationId }),
+  createFileRepository: ({ fileRoot }) => createDiskFileRepository({ root: fileRoot }),
+  createKnowledgeStore: ({ db, embed }) => createPostgresKnowledgeStore({ db, embed }),
 };
 
 /**
  * @param {Object} params
- * @param {Object} params.client клиент Base44
  * @param {import('./contracts.js').RepositoryScope} params.scope
+ * @param {Object} [params.pool] пул PostgreSQL; обязателен для драйвера postgres
+ * @param {Object} [params.store] хранилище в памяти; обязательно для драйвера memory
+ * @param {'postgres'|'memory'} [params.driver]
+ * @param {(text: string) => Promise<number[]>} [params.embed]
+ * @param {string} [params.fileRoot]
  * @returns {Object}
  */
-export function createRepositories({ client, scope }) {
-  const audit = createAuditRepository({ client, organizationId: scope.organizationId });
+export function createRepositories({ scope, pool, store, driver, embed, fileRoot }) {
+  const kind = driver ?? (pool ? 'postgres' : 'memory');
+  const impl = kind === 'postgres' ? postgresDriver : memoryDriver;
 
-  const repositories = { audit };
-  for (const [key, config] of Object.entries(ENTITY_MAP)) {
-    repositories[key] = createEntityRepository({
-      client,
-      entityName: config.entity,
+  if (kind === 'postgres' && !pool) throw new Error('Драйвер postgres требует пул соединений');
+  const memoryStore = kind === 'memory' ? (store ?? createMemoryStore()) : null;
+  const db = kind === 'postgres' ? { pool, scope } : null;
+
+  const context = { db, store: memoryStore };
+
+  const audit = impl.createAuditRepository({ ...context, organizationId: scope.organizationId });
+  const repositories = { audit, driver: kind, db, store: memoryStore };
+
+  for (const [key, entity] of Object.entries(REPOSITORY_MAP)) {
+    repositories[key] = impl.createEntityRepository({
+      ...context,
+      entity,
       scope,
       audit,
-      caseScoped: config.caseScoped !== false,
+      caseScoped: SCHEMA[entity].caseScoped,
     });
   }
 
-  repositories.files = createFileRepository({ client });
-  repositories.knowledge = createBase44KnowledgeStore({ client });
+  repositories.files = impl.createFileRepository({ ...context, fileRoot });
+  repositories.knowledge = impl.createKnowledgeStore({ ...context, embed });
   repositories.graph = createRelationalGraphRepository({ repositories });
 
   return repositories;

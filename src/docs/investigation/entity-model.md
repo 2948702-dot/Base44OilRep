@@ -1,7 +1,17 @@
 # Entity model. AI Investigation Platform
 
-Канонический список сущностей платформы расследований. Схемы Base44 — в `investigation/entities/*.jsonc`.
-Значения перечислений продублированы в `src/investigation/domain/enums.js` и обязаны совпадать.
+Канонический список сущностей платформы расследований.
+
+Всё генерируется из одного источника — `investigation/tools/entity-definitions.mjs`:
+
+| Артефакт | Файл | Команда |
+|---|---|---|
+| Схема PostgreSQL | `investigation/db/migrations/0001_init.sql` | `npm run investigation:sql` |
+| Карта таблиц для репозиториев | `src/investigation/repositories/postgres/schema.generated.js` | то же |
+| Перечисления домена | `src/investigation/domain/enums.generated.js` | то же |
+
+Расхождение между схемой и кодом невозможно по построению; CI отдельно проверяет, что
+сгенерированное совпадает с закоммиченным.
 
 ## 0. Общие правила
 
@@ -9,10 +19,20 @@
 
 | Поле | Назначение |
 |---|---|
-| `organization_id` | tenant-изоляция, обязательно во всех RLS |
-| `deleted_at`, `deleted_by`, `deletion_reason` | soft delete; физическое удаление запрещено |
+| `id` | `uuid`, `gen_random_uuid()` |
+| `organization_id` | изоляция арендатора; по нему работает политика RLS таблицы |
+| `case_id` | принадлежность делу (кроме организации, пользователя и учебного дела) |
+| `created_at`, `updated_at` | `updated_at` поддерживается триггером базы |
+| `deleted_at`, `deleted_by`, `deletion_reason` | soft delete; физическое удаление — только при удалении данных арендатора |
 
-Идентификаторы Base44 (`id`) — технические. Человекочитаемые коды (`C-001`, `H-002`, `CONTR-007`)
+Изоляция обеспечивается row-level security PostgreSQL: роль приложения подключается без
+`bypassrls`, а политика каждой таблицы сверяет `organization_id` с `app.organization_id`
+текущей транзакции. Забытый фильтр в запросе приводит к пустому результату, а не к утечке.
+
+Три таблицы защищены триггером от изменения и удаления: `audit_event`, `agent_run`,
+`hypothesis_revision`. Это гарантия базы, а не соглашение приложения.
+
+Технические идентификаторы (`id`) не показываются пользователю. Человекочитаемые коды (`C-001`, `H-002`, `CONTR-007`)
 хранятся отдельными полями и уникальны в пределах дела. Генерация — `src/investigation/domain/codes.js`.
 
 Время: все отметки — ISO 8601 UTC. Приблизительное время выражается парой `start/end` плюс
@@ -47,7 +67,7 @@ TrainingCase (никогда не внутри production Case)
 
 ## 2. InvestigationCase
 
-Главная сущность. Имя `Case` не используется как имя сущности: слово зарезервировано в SQL.
+Таблица `investigation_case`. Имя `Case` не используется: слово зарезервировано в SQL.
 
 Поля: `case_number`, `organization_id`, `title`, `description`, `case_type`, `severity`, `status`,
 `created_by`, `case_owner_id`, `incident_start_at`, `incident_end_at`, `location`,
@@ -222,6 +242,8 @@ Source становится Evidence после определения его о
 
 ## 15. InterviewAccessToken
 
+Таблица `interview_access_token`; `token_hash` уникален глобально.
+
 Поля: `case_id`, `interview_id`, `person_id`, `token_hash`, `channel`, `issued_at`, `expires_at`,
 `used_at`, `revoked_at`, `max_uses`, `use_count`, `last_ip`, `last_user_agent`.
 
@@ -252,6 +274,9 @@ Source становится Evidence после определения его о
 Проверяется в Engine, а не только в промпте агента.
 
 ## 18. AgentRun
+
+Таблица append-only: запись создаётся один раз по завершении запуска. Состояние
+незавершённого выполнения живёт в `InvestigationJob`, который изменяем.
 
 Поля: `case_id`, `agent_type`, `agent_version`, `prompt_version`, `model`, `input_object_ids`,
 `input_digest`, `output`, `output_schema_version`, `started_at`, `finished_at`,
@@ -295,8 +320,13 @@ information gain: `very_high`.
 
 ## 23. KnowledgeDocument
 
-Поля: `space`, `organization_id`, `case_id`, `title`, `content`, `chunk_index`, `embedding_ref`,
-`source_id`, `metadata`, `methodology_version`.
+Поля: `space`, `organization_id`, `case_id`, `title`, `content`, `chunk_index`, `embedding`
+(`vector(1536)`, pgvector), `embedding_ref`, `source_id`, `metadata`, `methodology_version`.
+
+Поиск: `semanticSearch` — косинусная близость по `embedding`; `hybridSearch` —
+полнотекстовый ранг. Если функция построения эмбеддинга не передана, `semanticSearch`
+отказывает явно, а не подменяет себя лексическим поиском молча: тихая подмена качества
+поиска — это скрытая потеря полноты.
 
 `space`: `methodology` или `case`. Пространства никогда не смешиваются в одном retrieval.
 `case`-документы всегда несут `case_id` и `organization_id`.

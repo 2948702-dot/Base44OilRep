@@ -3,7 +3,7 @@
 // Не редактировать вручную: источник — investigation/tools/entity-definitions.mjs.
 
 /**
- * Перечисления сущностей расследования, идентичные схемам Base44.
+ * Перечисления сущностей расследования, идентичные ограничениям схемы базы.
  * @type {Record<string, Record<string, string[]>>}
  */
 export const ENUMS = {

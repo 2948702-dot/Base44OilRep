@@ -1,0 +1,79 @@
+name: Deploy investigation platform
+
+# Развёртывание платформы расследований на VPS.
+# Запускается вручную и при изменениях кода платформы в основной ветке.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/investigation/**'
+      - 'investigation/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-investigation.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: investigation
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://investigation_app:postgres@127.0.0.1:5432/investigation
+      ADMIN_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/investigation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+
+      - name: Проверить, что схема не разошлась с определениями
+        run: |
+          npm run investigation:sql
+          git diff --exit-code -- investigation/db/migrations src/investigation/repositories/postgres/schema.generated.js src/investigation/domain/enums.generated.js
+
+      - name: Приёмка методологии на хранилище в памяти
+        run: npm run investigation:acceptance
+
+      - name: Подготовить базу
+        env:
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/investigation
+          APP_DB_ROLE: investigation_app
+        run: |
+          psql "$ADMIN_DATABASE_URL" -c "create role investigation_app login password 'postgres' nobypassrls"
+          npm run investigation:migrate
+
+      - name: Проверить изоляцию арендаторов и неизменяемость журналов
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f investigation/db/checks/isolation.sql
+
+      - name: Приёмка методологии на PostgreSQL
+        run: npm run investigation:acceptance:pg
+
+      - name: Дымовой прогон HTTP-контура
+        run: npm run investigation:smoke
+
+  deploy:
+    needs: verify
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      SSH_HOST: '188.116.23.111'
+      SSH_PASSWORD: ${{ secrets.N8N_SSH_ROOT_PASSWORD }}
+      POSTGRES_PASSWORD: ${{ secrets.INVESTIGATION_POSTGRES_PASSWORD }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet paramiko
+      - name: Развернуть на сервере
+        run: python3 investigation/deploy/deploy.py

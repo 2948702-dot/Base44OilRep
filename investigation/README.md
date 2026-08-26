@@ -1,57 +1,107 @@
 # investigation/ — платформа расследований
 
-Каталог содержит развёртываемые артефакты платформы AI Investigation: схемы сущностей
-Base44, serverless-функции и инструменты.
+Развёртываемые артефакты платформы AI Investigation: схема базы, инструменты и деплой.
+Код приложения — в `src/investigation/`. Документация — в `src/docs/investigation/`.
 
-Документация: `src/docs/investigation/`.
+## Стек
 
-## Почему схемы лежат здесь, а не в `base44/entities/`
+| Слой | Решение |
+|---|---|
+| База | PostgreSQL 16 + pgvector (`pgvector/pgvector:pg16`) |
+| Изоляция арендаторов | Row-level security PostgreSQL, роль приложения без `bypassrls` |
+| API | Node 22 + Fastify |
+| Очередь | `investigation_job` в той же базе |
+| Файлы | Том сервера, путь по SHA-256 содержимого |
+| Модель | Anthropic SDK на сервере |
+| Прокси | Caddy, автоматический TLS |
+| Развёртывание | GitHub Actions → paramiko → Docker на VPS |
 
-`base44/entities/` синхронизируется с production-приложением SmartOil. Добавление туда
-28 сущностей расследования изменило бы схему и RLS чужого приложения без разрешения
-владельца, что запрещено `AGENTS.md`.
+Обоснование выбора — `src/docs/investigation/adr-0002-own-stack.md`.
 
-Этот каталог является staging: он версионируется в Git, но не деплоится автоматически.
+## Генерация
 
-## Как развернуть в целевое приложение Base44
-
-Решение о целевом приложении принимает владелец. Рекомендуемый вариант — отдельное
-приложение Base44 для платформы расследований.
-
-1. Создать приложение Base44 для платформы расследований.
-2. Скопировать содержимое `investigation/entities/` в `base44/entities/` этого приложения.
-3. Скопировать `investigation/functions/runInvestigationAgent/` в `base44/functions/`.
-4. Задать переменную окружения `ANTHROPIC_API_KEY` в настройках приложения.
-5. Проверить, что `User.role` содержит роли расследования, а не роли SmartOil.
-
-Если владелец решит разместить платформу в приложении SmartOil, требуется отдельное
-решение по `User.role`: роли SmartOil (`admin`, `client_admin`, `lab_technician`,
-`superintendent`, `captain`) и роли расследования не пересекаются по смыслу, и объединять
-их в один enum нельзя без ревизии всех RLS SmartOil.
-
-## Генерация схем
-
-Схемы и перечисления домена собираются из одного определения:
+Схема базы, карта таблиц для репозиториев и перечисления домена собираются из одного
+источника — `investigation/tools/entity-definitions.mjs`:
 
 ```bash
-npm run investigation:entities
+npm run investigation:sql
 ```
 
-Источник: `investigation/tools/entity-definitions.mjs`.
-Файлы в `investigation/entities/` редактировать вручную нельзя — изменения будут потеряны
-при следующей генерации.
+Файлы `investigation/db/migrations/0001_init.sql`,
+`src/investigation/repositories/postgres/schema.generated.js` и
+`src/investigation/domain/enums.generated.js` редактировать вручную нельзя — изменения
+будут потеряны при следующей генерации. CI проверяет, что сгенерированное совпадает
+с закоммиченным.
 
-Причина существования генератора: RLS всех сущностей строятся по одному правилу
-tenant-изоляции. Ручное копирование блоков RLS расходится незаметно и создаёт дыру в
-изоляции данных другого клиента.
+Миграция `0002_auth.sql` написана вручную: это инфраструктура доступа, а не сущность
+методологии расследования.
 
-## Приёмочный прогон
+## Локальный запуск
 
 ```bash
-npm run investigation:acceptance
+# База
+docker run -d --name investigation-db \
+  -e POSTGRES_DB=investigation -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 pgvector/pgvector:pg16
+
+# Роль приложения — обязательно без bypassrls
+psql postgres://postgres:postgres@127.0.0.1:5432/investigation \
+  -c "create role investigation_app login password 'app' nobypassrls"
+
+# Схема и права
+DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/investigation \
+  APP_DB_ROLE=investigation_app npm run investigation:migrate
+
+# Организация и первый пользователь
+DATABASE_URL=postgres://investigation_app:app@127.0.0.1:5432/investigation \
+  node investigation/tools/bootstrap-org.mjs \
+  --name "ООО Пример" --slug primer --email owner@example.com --password '<пароль>'
+
+# Сервер
+DATABASE_URL=postgres://investigation_app:app@127.0.0.1:5432/investigation \
+  ANTHROPIC_API_KEY=... npm run investigation:server
 ```
 
-Прогон идёт на клиенте в памяти и stub-модели. Проверяется не качество формулировок
-модели, а то, что система структурно не позволяет нарушить методологию: превратить
-приблизительное время в точное, назначить виновного после intake, выдать ссылку на
-интервью без утверждения человеком, выпустить факт без доказательства.
+## Проверки
+
+```bash
+npm run investigation:acceptance      # приёмка §81 на хранилище в памяти
+npm run investigation:acceptance:pg   # тот же сценарий против настоящей базы
+npm run investigation:smoke           # HTTP-контур: вход, дело, изоляция арендаторов
+psql "$DATABASE_URL" -f investigation/db/checks/isolation.sql   # изоляция и журналы
+```
+
+Приёмка идёт на stub-модели: проверяется не качество формулировок модели, а то, что
+система структурно не позволяет нарушить методологию — превратить приблизительное время
+в точное, назначить виновного после intake, выдать ссылку на интервью без утверждения
+человеком, выпустить факт без доказательства.
+
+`isolation.sql` выполняется ролью приложения и проверяет, что сотрудник одной организации
+не достанет дело другой ни списком, ни по прямому идентификатору, что журнал аудита не
+правится и что висячие ссылки отклоняются.
+
+## Развёртывание
+
+Разово, до первого запуска:
+
+1. Добавить секреты репозитория: `INVESTIGATION_POSTGRES_PASSWORD`, `ANTHROPIC_API_KEY`.
+   `N8N_SSH_ROOT_PASSWORD` уже существует и переиспользуется как доступ к серверу.
+2. Направить поддомен `investigation.regattayg.space` на адрес сервера.
+3. Добавить `investigation/deploy/Caddyfile.snippet` в `/etc/caddy/Caddyfile`
+   и перечитать конфигурацию: `caddy reload --config /etc/caddy/Caddyfile`.
+
+Дальше — Action **Deploy investigation platform**: он прогоняет обе приёмки, проверку
+изоляции и дымовой прогон HTTP, и только затем разворачивает. Деплой сам поднимает
+контейнер базы при первом запуске, применяет миграции до перезапуска API и проверяет
+`/healthz` перед тем, как считать выкладку успешной.
+
+Порт базы наружу не публикуется: она доступна только внутри сети контейнеров.
+API слушает `127.0.0.1:8080`, снаружи его закрывает Caddy.
+
+## Что требует внимания владельца
+
+- Доступ к серверу идёт под root по паролю. Для платформы с материалами внутренних
+  расследований этого недостаточно: нужен отдельный пользователь развёртывания, вход по
+  ключу и запрет парольной аутентификации (`KI-018`).
+- Резервное копирование базы и тома источников пока не настроено (`KI-019`).
+- Шифрование при хранении, требуемое §60 ТЗ, не включено (`KI-020`).

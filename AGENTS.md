@@ -8,13 +8,26 @@
 2. **AI Investigation Platform** («Объяснительная») — платформа внутренних расследований:
    `investigation/`, `src/investigation/`, документация `src/docs/investigation/`.
 
-Правила платформы расследований отличаются: схемы генерируются
-(`npm run investigation:entities`, редактировать `investigation/entities/*.jsonc` вручную нельзя),
-бизнес-логика не пишется в UI, каждый методологический запрет выражается инвариантом в
-`src/investigation/engine/invariants.js`, а перед коммитом выполняется
-`npm run investigation:acceptance`. Начинать работу с `src/docs/investigation/README.md`.
+Платформа расследований **не использует Base44**: она работает на PostgreSQL + pgvector,
+Node + Fastify и разворачивается на VPS владельца (решение `adr-0002-own-stack.md`).
 
-Продукты не пересекаются по данным. Работая с одним, не менять схемы другого.
+Её правила отличаются:
+
+- схема БД, перечисления и карта таблиц генерируются одной командой `npm run investigation:sql`;
+  `investigation/db/migrations/0001_init.sql`, `schema.generated.js` и `enums.generated.js`
+  вручную не редактируются;
+- применённую миграцию нельзя править — создаётся новая, иначе `migrate.mjs` остановит запуск;
+- бизнес-логика не пишется ни в UI, ни в маршрутах HTTP;
+- каждый методологический запрет выражается инвариантом в
+  `src/investigation/engine/invariants.js`, а ограничение целостности — в схеме;
+- перед коммитом выполняются `npm run investigation:acceptance`,
+  `npm run investigation:acceptance:pg` и `npm run investigation:smoke`.
+
+Начинать работу с `src/docs/investigation/README.md`.
+
+Продукты не пересекаются по данным, стеку и развёртыванию. Работая с одним, не менять
+схемы и конфигурацию другого. Файлы SmartOil в `base44/` платформы расследований
+не касаются.
 
 ## О проекте
 

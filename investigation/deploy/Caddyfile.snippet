@@ -1,0 +1,33 @@
+# Фрагмент конфигурации Caddy для платформы расследований.
+# Добавляется в /etc/caddy/Caddyfile на сервере рядом с существующими сайтами.
+#
+# Caddy сам получает и продлевает сертификат Let's Encrypt: отдельный certbot не нужен.
+
+investigation.regattayg.space {
+    encode gzip
+
+    # Материалы расследований не должны попадать в кеши промежуточных узлов.
+    header {
+        Cache-Control "no-store"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        -Server
+    }
+
+    # Ссылка участника интервью — единственный публичный контур.
+    # Ограничение частоты защищает от перебора токенов.
+    @participant path /api/participant/*
+    rate_limit @participant {
+        zone participant {
+            key {remote_host}
+            events 60
+            window 1m
+        }
+    }
+
+    reverse_proxy 127.0.0.1:8080 {
+        header_up X-Real-IP {remote_host}
+    }
+}

@@ -32,8 +32,14 @@
 ### Завершено
 
 - Architecture Decision Record, entity model и permissions model.
-- 28 схем Base44 с tenant-изоляцией, генерируемых из одного определения.
-- Слоистая архитектура: UI → Services → Engine → Agents → Repositories → Base44.
+- Решение о собственном стеке вместо Base44 (`adr-0002-own-stack.md`).
+- Схема PostgreSQL 16 + pgvector на 29 таблиц, генерируемая из одного определения.
+- Изоляция арендаторов через row-level security базы, роль приложения без `bypassrls`;
+  неизменяемость журналов обеспечена триггерами. Проверено на работающей базе.
+- Слоистая архитектура: UI → Services → Engine → Agents → Repositories → PostgreSQL;
+  замена хранилища не потребовала правок в методологии.
+- Аутентификация сотрудников, сессии, HTTP-контур дела и контур участника интервью.
+- Развёртывание на VPS: Docker, Caddy, GitHub Actions с прогоном всех проверок до выкладки.
 - Абстракции `GraphRepository`, `KnowledgeStore`, `FileRepository`, `AuditRepository`.
 - Подсистема источников: SHA-256, неизменяемый оригинал, derived Source, Source → Evidence.
 - Agent Framework: контракт агента, защита от prompt injection, валидация JSON-схемы, `AgentRun`.
@@ -43,9 +49,10 @@
 
 ### В работе
 
-- Выбор целевого приложения Base44 и развёртывание схем (`KI-013`).
-- Проверка RLS на живом приложении (`KI-014`).
-- Interview Strategist, AI Interviewer, web-интервью по подписанной ссылке.
+- Развёртывание на сервере: поддомен, секреты, первый прогон Action (`KI-013`).
+- Ключевой доступ к серверу вместо root по паролю (`KI-018`).
+- Резервное копирование базы и тома источников (`KI-019`).
+- Interview Strategist, AI Interviewer, web-экран участника поверх готового API.
 - Timeline Analyst, Contradiction Analyst, Hypothesis Analyst.
 
 ### Следующий релиз направления
@@ -54,6 +61,7 @@
 - Final Reviewer и Report Writer.
 - Экраны: Case Dashboard, Timeline, Evidence Matrix, Contradiction Map, Hypothesis Board.
 - Telegram-бот интервью.
+- Исполнитель очереди `investigation_job` и построение эмбеддингов для поиска.
 
 ## Завершённые вехи
 

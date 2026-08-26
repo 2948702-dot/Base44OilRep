@@ -20,15 +20,19 @@
 
 ## Текущий фокус AI Investigation Platform
 
-- Выполнен шаг 0 по §76 ТЗ: ADR, entity model, permissions model, 28 схем Base44,
-  repository abstractions, file/source subsystem, agent framework, Case CRUD, машина стадий.
+- Стек: PostgreSQL 16 + pgvector, Node 22 + Fastify, Docker на VPS владельца, Caddy,
+  деплой через GitHub Actions. Base44 не используется (решение DEC-024, `adr-0002-own-stack.md`).
+- Выполнен шаг 0 по §76 ТЗ и переход на собственный стек: ADR, entity model, permissions
+  model, схема БД, repository abstractions, file/source subsystem, agent framework,
+  Case CRUD, машина стадий, аутентификация, HTTP-контур, развёртывание.
 - Реализованы 5 агентов из 18: Case Manager, Intake Analyst, Investigation Planner,
   Claim Extractor, Red Team Investigator.
-- Приёмочный прогон §81 проходит полностью: `npm run investigation:acceptance` — 33/33.
-- Следующий приоритет: `KI-013` — владельцу выбрать целевое приложение Base44 и развернуть
-  схемы; параллельно `KI-015` — Interview Strategist, AI Interviewer, Timeline Analyst,
+- Проверки зелёные: приёмка §81 — 33/33 на памяти и 33/33 на PostgreSQL;
+  HTTP-контур — 17/17; изоляция арендаторов и неизменяемость журналов — 7/7.
+- Следующий приоритет: `KI-013` — развернуть на сервере (поддомен, секреты, первый прогон
+  Action), затем `KI-018` и `KI-019` — ключевой доступ и резервные копии.
+- Параллельно `KI-015`: Interview Strategist, AI Interviewer, Timeline Analyst,
   Contradiction Analyst.
-- Блокирует живую проверку: `KI-014` — RLS не проверены на работающем приложении.
 
 ## Последнее подтверждённое состояние
 
@@ -50,8 +54,9 @@
 | `KI-002` | готово к acceptance | Create/update/delete/backdate для desktop/mobile oil_change с проверкой lifecycle и проб |
 | `KI-003` | готово к формализации | Создать и выполнить таблицу plan-fact по датам и моточасам |
 | `KI-012` | новый P1 | Спроектировать безопасное приглашение пользователей франчайзи без прямого открытия `User.list/update` для `client_admin` |
-| `KI-013` | новый P0 | Выбрать целевое приложение Base44 для платформы расследований и развернуть схемы |
-| `KI-014` | новый P0 | Проверить RLS сущностей расследования на живом приложении, включая попытку чтения чужой организации |
+| `KI-013` | новый P0 | Развернуть платформу расследований на сервере: поддомен, секреты, первый прогон Action |
+| `KI-018` | новый P0 | Заменить root по паролю на пользователя развёртывания с входом по ключу |
+| `KI-019` | новый P0 | Настроить резервное копирование базы расследований и тома источников |
 
 ## Незавершённые контрольные документы
 

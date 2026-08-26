@@ -2,6 +2,7 @@
 
 > В репозитории также разрабатывается второй продукт — **AI Investigation Platform**
 > («Объяснительная»): платформа внутренних корпоративных расследований.
+> Собственный стек: PostgreSQL + pgvector, Node + Fastify, Docker на VPS; Base44 не используется.
 > Код: `investigation/`, `src/investigation/`. Документация:
 > [`src/docs/investigation/README.md`](src/docs/investigation/README.md).
 

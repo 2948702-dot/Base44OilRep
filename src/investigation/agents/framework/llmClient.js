@@ -1,9 +1,12 @@
 /**
  * Клиент модели.
  *
- * Ключи API остаются на сервере (§60 ТЗ): фронтенд вызывает serverless-функцию, а не
- * провайдера напрямую. Интерфейс одинаков для любого провайдера, чтобы сравнение моделей
- * сводилось к смене строки в AgentContext.model.
+ * Вызов провайдера выполняется только на сервере: ключ никогда не попадает в браузер
+ * и не передаётся клиенту (§60 ТЗ). Фронтенд обращается к собственному API платформы,
+ * а не к Anthropic напрямую.
+ *
+ * Интерфейс одинаков для любого провайдера: сравнение моделей должно сводиться к смене
+ * строки в AgentContext.model, иначе бенчмарк агентов (§52 ТЗ) невозможно провести честно.
  *
  * @typedef {Object} LlmClient
  * @property {(request: LlmRequest) => Promise<LlmResponse>} complete
@@ -16,7 +19,6 @@
  * @property {string} userPrompt
  * @property {number} [maxTokens]
  * @property {number} [temperature]
- * @property {boolean} [jsonOnly]
  */
 
 /**
@@ -29,41 +31,78 @@
  */
 
 /**
- * Реализация поверх serverless-функции Base44.
- *
- * @param {{client: Object, functionName?: string}} params
+ * Модели, допустимые для агентов расследования, и их стоимость за миллион токенов.
+ * Белый список нужен не для экономии: он не даёт одной опечатке в конфигурации
+ * незаметно поменять модель, на которой построены уже выпущенные выводы.
+ */
+export const ALLOWED_MODELS = {
+  'claude-opus-5': { id: 'claude-opus-5', inputPerMTok: 5, outputPerMTok: 25 },
+  'claude-sonnet-5': { id: 'claude-sonnet-5', inputPerMTok: 3, outputPerMTok: 15 },
+  'claude-haiku-4-5': { id: 'claude-haiku-4-5-20251001', inputPerMTok: 1, outputPerMTok: 5 },
+};
+
+const MAX_PROMPT_CHARS = 400_000;
+
+/**
+ * @param {{apiKey?: string, client?: Object}} [options]
  * @returns {LlmClient}
  */
-export function createServerLlmClient({ client, functionName = 'runInvestigationAgent' }) {
+export function createAnthropicLlmClient(options = {}) {
+  let clientPromise = null;
+
+  async function getClient() {
+    if (options.client) return options.client;
+    if (!clientPromise) {
+      const apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) throw new Error('ANTHROPIC_API_KEY не задан: запуск агентов невозможен');
+      clientPromise = import('@anthropic-ai/sdk').then((module) => new module.default({ apiKey }));
+    }
+    return clientPromise;
+  }
+
   return {
     async complete(request) {
-      const response = await client.functions.invoke(functionName, {
-        model: request.model,
-        system_prompt: request.systemPrompt,
-        user_prompt: request.userPrompt,
-        max_tokens: request.maxTokens ?? 4096,
-        temperature: request.temperature ?? 0,
-        json_only: request.jsonOnly !== false,
-      });
-
-      const payload = response?.data ?? response;
-      if (!payload || payload.error) {
-        throw new Error(`Вызов модели не удался: ${payload?.error ?? 'пустой ответ'}`);
+      const config = ALLOWED_MODELS[request.model];
+      if (!config) {
+        throw new Error(
+          `Модель ${request.model} не разрешена. Допустимы: ${Object.keys(ALLOWED_MODELS).join(', ')}`,
+        );
+      }
+      if (request.systemPrompt.length + request.userPrompt.length > MAX_PROMPT_CHARS) {
+        throw new Error('Промпт превышает предельный размер: вероятна ошибка сборки контекста');
       }
 
+      const client = await getClient();
+      const response = await client.messages.create({
+        model: config.id,
+        max_tokens: request.maxTokens ?? 8192,
+        temperature: request.temperature ?? 0,
+        system: request.systemPrompt,
+        messages: [{ role: 'user', content: request.userPrompt }],
+      });
+
+      const text = (response.content ?? [])
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text)
+        .join('\n');
+
+      const inputTokens = response.usage?.input_tokens ?? 0;
+      const outputTokens = response.usage?.output_tokens ?? 0;
+
       return {
-        text: payload.text ?? '',
-        inputTokens: payload.input_tokens ?? 0,
-        outputTokens: payload.output_tokens ?? 0,
-        cost: payload.cost ?? null,
-        model: payload.model ?? request.model,
+        text,
+        inputTokens,
+        outputTokens,
+        cost: (inputTokens * config.inputPerMTok + outputTokens * config.outputPerMTok) / 1_000_000,
+        model: response.model ?? config.id,
+        stopReason: response.stop_reason ?? null,
       };
     },
   };
 }
 
 /**
- * Клиент для тестов и симулятора: возвращает заранее заданные ответы.
+ * Клиент для приёмочного прогона и симулятора: возвращает заранее заданные ответы.
  *
  * @param {Array<string|Object>} responses
  * @returns {LlmClient}

@@ -2,8 +2,8 @@
  * Именованные перечисления домена расследования.
  *
  * Значения берутся из сгенерированного файла, а не дублируются: единственный источник
- * истины — investigation/tools/entity-definitions.mjs, из которого собираются и схемы
- * Base44, и этот модуль.
+ * истины — investigation/tools/entity-definitions.mjs, из которого собираются и схема
+ * базы, и этот модуль.
  */
 
 import { ENUMS, enumValues, isValidEnumValue } from './enums.generated.js';

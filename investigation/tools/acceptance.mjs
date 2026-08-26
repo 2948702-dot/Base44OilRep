@@ -3,13 +3,16 @@
  *
  * Запуск: node investigation/tools/acceptance.mjs
  *
- * Прогон идёт на клиенте в памяти и на stub-модели с заранее заданными ответами.
+ * По умолчанию прогон идёт на драйвере хранения в памяти и на stub-модели с заранее
+ * заданными ответами. С флагом --postgres тот же сценарий выполняется против настоящей
+ * базы: это проверяет не только методологию, но и то, что схема, внешние ключи и
+ * политики RLS не мешают нормальной работе расследования.
  * Проверяется не качество формулировок модели, а то, что система структурно не позволяет
  * нарушить методологию: превратить приблизительное время в точное, назначить виновного
  * после intake, закрыть последнюю альтернативу, выпустить факт без доказательства.
  */
 
-import { createInMemoryClient } from '../../src/investigation/testing/inMemoryClient.js';
+import { createMemoryStore, createPool, withTenant } from '../../src/investigation/repositories/index.js';
 import { createInvestigationServices } from '../../src/investigation/services/index.js';
 import { createStubLlmClient } from '../../src/investigation/agents/framework/llmClient.js';
 import { MISSING_CASH_001 } from '../../src/investigation/fixtures/missingCash001.js';
@@ -19,6 +22,51 @@ import {
   assertHypothesisClosureAllowed,
   assertPrecisionNotInflated,
 } from '../../src/investigation/engine/invariants.js';
+
+const USE_POSTGRES = process.argv.includes('--postgres');
+
+/**
+ * Прямое чтение содержимого хранилища для проверок, минуя область видимости дела.
+ * @param {Object} backend
+ * @param {string} entity
+ */
+async function dump(backend, entity) {
+  if (backend.store) {
+    return [...(backend.store.tables.get(entity)?.values() ?? [])];
+  }
+  const { SCHEMA } = await import('../../src/investigation/repositories/postgres/schema.generated.js');
+  return withTenant(
+    backend.pool,
+    { organizationId: backend.organizationId },
+    (client) => client.query(`select * from ${SCHEMA[entity].table}`).then((r) => r.rows),
+  );
+}
+
+/**
+ * Готовит хранилище прогона. Для PostgreSQL создаётся организация и пользователь:
+ * внешние ключи схемы не примут выдуманные идентификаторы, и это правильно.
+ */
+async function setupBackend() {
+  if (!USE_POSTGRES) {
+    return { store: store0, organizationId: 'org_1', actorId: 'user_investigator' };
+  }
+
+  const pool = createPool();
+  const created = await withTenant(pool, { organizationId: null, isSystemAdmin: true }, async (client) => {
+    const org = await client.query(
+      "insert into organization (name, slug, status) values ($1, $2, 'active') returning id",
+      [`Приёмка ${Date.now()}`, `acceptance-${Date.now()}`],
+    );
+    const organizationId = org.rows[0].id;
+    const user = await client.query(
+      "insert into app_user (organization_id, role, full_name, status) values ($1, 'investigator', $2, 'active') returning id",
+      [organizationId, 'Следователь приёмки'],
+    );
+    return { organizationId, actorId: user.rows[0].id };
+  });
+
+  return { pool, ...created };
+}
 
 const results = [];
 function check(name, condition, detail = '') {
@@ -173,13 +221,18 @@ const RED_TEAM_OUTPUT = {
   observations: [],
 };
 
+const store0 = createMemoryStore();
+
 async function main() {
-  const client = createInMemoryClient();
+  const backend = await setupBackend();
   const scope = {
-    organizationId: 'org_1',
-    actorId: 'user_investigator',
+    organizationId: backend.organizationId,
+    actorId: backend.actorId,
     actorType: 'user',
   };
+  const storage = backend.store
+    ? { store: backend.store, driver: 'memory' }
+    : { pool: backend.pool, driver: 'postgres' };
 
   const llm = createStubLlmClient([
     INTAKE_OUTPUT,
@@ -188,7 +241,7 @@ async function main() {
     RED_TEAM_OUTPUT,
   ]);
 
-  const services = createInvestigationServices({ client, scope, llm });
+  const services = createInvestigationServices({ scope, ...storage, llm });
 
   // 1. Создание дела
   const investigationCase = await services.cases.createCase({
@@ -205,7 +258,7 @@ async function main() {
   });
   const caseId = investigationCase.id;
   const caseScope = { ...scope, caseId };
-  const caseServices = createInvestigationServices({ client, scope: caseScope, llm });
+  const caseServices = createInvestigationServices({ scope: caseScope, ...storage, llm });
 
   check('Дело создано с номером и стадией intake',
     investigationCase.case_number?.startsWith('CASE-') && investigationCase.current_stage === 'intake',
@@ -229,7 +282,7 @@ async function main() {
     plan.hypotheses.every((h) => (h.evidence_that_would_contradict ?? []).length > 0));
   check('Запрошены независимые доказательства', plan.tasks.length >= 2);
   check('История статусов гипотез записана',
-    client._dump('HypothesisRevision').length === plan.hypotheses.length);
+    (await dump(backend, 'HypothesisRevision')).length === plan.hypotheses.length);
 
   // 4. Машина стадий
   let snapshot = await caseServices.cases.getSnapshot(caseId);
@@ -339,8 +392,8 @@ async function main() {
   check('Последняя альтернативная версия не может быть исключена', lastAlternativeProtected);
 
   // 11. Аудит и воспроизводимость
-  const auditEvents = client._dump('AuditEvent');
-  const agentRuns = client._dump('AgentRun');
+  const auditEvents = await dump(backend, 'AuditEvent');
+  const agentRuns = await dump(backend, 'AgentRun');
   check('Изменения записаны в журнал аудита', auditEvents.length > 0, `записей: ${auditEvents.length}`);
   check('Каждый запуск агента сохранён с моделью и версией промпта',
     agentRuns.length === 4 && agentRuns.every((r) => r.model && r.prompt_version && r.agent_version));
@@ -353,12 +406,15 @@ async function main() {
   check('Все альтернативные версии сохранены',
     snapshot.hypotheses.filter((h) => h.status !== 'eliminated').length === plan.hypotheses.length);
 
+  if (backend.pool) await backend.pool.end();
+
   const failed = results.filter((r) => !r.ok);
   const width = Math.max(...results.map((r) => r.name.length));
   for (const r of results) {
     console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name.padEnd(width)}  ${r.detail}`);
   }
-  console.log(`\n${results.length - failed.length}/${results.length} проверок пройдено`);
+  console.log(`\n${results.length - failed.length}/${results.length} проверок пройдено `
+    + `(хранилище: ${USE_POSTGRES ? 'PostgreSQL' : 'память'})`);
 
   if (failed.length > 0) process.exitCode = 1;
 }
