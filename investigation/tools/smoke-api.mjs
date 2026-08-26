@@ -43,7 +43,8 @@ async function createTenant(label) {
   return { organizationId: created, email, password };
 }
 
-const app = createServer({ pool, logger: false });
+// Фоновый исполнитель в дымовом прогоне не нужен: он проверяется отдельно.
+const app = createServer({ pool, logger: false, jobs: false });
 await app.ready();
 
 async function call(method, url, { token, body } = {}) {

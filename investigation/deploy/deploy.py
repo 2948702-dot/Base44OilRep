@@ -8,14 +8,20 @@ SFTP, .env с правами 0600, пересборка и перезапуск 
 Отличие от деплоя ботов: перед перезапуском API применяются миграции схемы, и запуск
 считается неуспешным, если контейнер не отвечает на /healthz.
 
+Доступ: предпочитается вход по ключу под пользователем развёртывания. Пароль root
+остаётся резервным вариантом до перевода сервера на ключи
+(investigation/deploy/harden-server.py).
+
 Переменные окружения:
     SSH_HOST              адрес сервера
-    SSH_PASSWORD          пароль root (временно; см. README о переходе на ключи)
+    SSH_PRIVATE_KEY       закрытый ключ пользователя развёртывания (предпочтительно)
+    SSH_USER              пользователь развёртывания, по умолчанию deploy
+    SSH_PASSWORD          пароль root (резервный вариант)
     POSTGRES_PASSWORD     пароль роли приложения
     ANTHROPIC_API_KEY     ключ модели
-    SESSION_SECRET        соль для служебных подписей
 """
 
+import io
 import os
 import posixpath
 import sys
@@ -63,6 +69,27 @@ def build_env_file() -> str:
         "TZ": os.environ.get("TZ", "Europe/Moscow"),
     }
     return "".join(f"{name}={value}\n" for name, value in lines.items())
+
+
+def connect() -> paramiko.SSHClient:
+    """Вход по ключу, если он задан; иначе резервный вход root по паролю."""
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    private_key = os.environ.get("SSH_PRIVATE_KEY", "").strip()
+    if private_key:
+        key = paramiko.Ed25519Key.from_private_key(io.StringIO(private_key))
+        client.connect(HOST, username=os.environ.get("SSH_USER", "deploy"), pkey=key,
+                       timeout=30, look_for_keys=False, allow_agent=False)
+        print("вход по ключу")
+        return client
+
+    if not PASSWORD:
+        print("ERROR: не задан ни SSH_PRIVATE_KEY, ни SSH_PASSWORD", file=sys.stderr)
+        sys.exit(1)
+    client.connect(HOST, username="root", password=PASSWORD, timeout=30)
+    print("вход по паролю root (резервный вариант; переведите сервер на ключи)")
+    return client
 
 
 def run(client, command, *, check=True, quiet=False):
@@ -126,15 +153,8 @@ def ensure_database(client):
 
 
 def main():
-    if not PASSWORD:
-        print("ERROR: не задан SSH_PASSWORD", file=sys.stderr)
-        sys.exit(1)
-
     env_file = build_env_file()
-
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(HOST, username="root", password=PASSWORD, timeout=30)
+    client = connect()
 
     try:
         run(client, f"mkdir -p {REMOTE_DIR}")

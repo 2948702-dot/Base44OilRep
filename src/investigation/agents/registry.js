@@ -1,9 +1,12 @@
 /**
  * Реестр агентов расследования.
  *
- * Реализованные агенты регистрируются здесь; полный состав из 18 ролей описан в
- * src/docs/investigation/agent-catalog.md. Реализация недостающих агентов идёт поверх
- * готового framework и не требует его изменения (§76 ТЗ).
+ * Порядок в списке повторяет цикл расследования §67 ТЗ: приём заявления, планирование,
+ * подготовка и проведение интервью, извлечение утверждений, хронология, противоречия,
+ * пересмотр версий, независимая проверка, планирование следующего раунда.
+ *
+ * Полный состав из 18 ролей описан в src/docs/investigation/agent-catalog.md.
+ * Недостающие агенты реализуются поверх готового framework и не требуют его изменения.
  */
 
 import { createAgent } from './framework/AgentRunner.js';
@@ -12,13 +15,25 @@ import { intakeAnalystAgent } from './definitions/intakeAnalyst.js';
 import { investigationPlannerAgent } from './definitions/investigationPlanner.js';
 import { claimExtractorAgent } from './definitions/claimExtractor.js';
 import { redTeamInvestigatorAgent } from './definitions/redTeamInvestigator.js';
+import { interviewStrategistAgent } from './definitions/interviewStrategist.js';
+import { aiInterviewerAgent } from './definitions/aiInterviewer.js';
+import { timelineAnalystAgent } from './definitions/timelineAnalyst.js';
+import { contradictionAnalystAgent } from './definitions/contradictionAnalyst.js';
+import { hypothesisAnalystAgent } from './definitions/hypothesisAnalyst.js';
+import { followUpPlannerAgent } from './definitions/followUpPlanner.js';
 
 const DEFINITIONS = [
   caseManagerAgent,
   intakeAnalystAgent,
   investigationPlannerAgent,
+  interviewStrategistAgent,
+  aiInterviewerAgent,
   claimExtractorAgent,
+  timelineAnalystAgent,
+  contradictionAnalystAgent,
+  hypothesisAnalystAgent,
   redTeamInvestigatorAgent,
+  followUpPlannerAgent,
 ];
 
 const REGISTRY = new Map(DEFINITIONS.map((definition) => [definition.id, createAgent(definition)]));

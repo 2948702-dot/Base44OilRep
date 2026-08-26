@@ -8,7 +8,7 @@
 
 import { sha256OfText } from '../domain/hash.js';
 import { nextCode } from '../domain/codes.js';
-import { assertClaimIsAttributed } from '../engine/invariants.js';
+import { assertClaimIsAttributed, InvariantViolation } from '../engine/invariants.js';
 import { createAgentContext } from '../agents/framework/AgentContext.js';
 import { getAgent } from '../agents/registry.js';
 import { MVP_INTERVIEW_CHANNELS } from '../domain/enums.js';
@@ -75,6 +75,157 @@ export function createInterviewService({ repositories, scope, llm, approvals, so
           status: 'draft',
         }));
       }
+      return created;
+    },
+
+    /**
+     * Подготовка интервью стратегом (§27 ТЗ).
+     *
+     * Сначала агент раскладывает, что известно следствию и чего раскрывать нельзя,
+     * и только потом формулирует вопросы. Список information_not_to_reveal_yet
+     * сохраняется в план интервью и служит границей для AI Interviewer.
+     */
+    async planInterview({ personId, round = 1, channel = 'web', language = 'ru' }) {
+      const person = await repositories.persons.get(personId);
+      if (!person) throw new Error(`Участник ${personId} не найден`);
+
+      const context = createAgentContext({
+        caseId: person.case_id,
+        organizationId: scope.organizationId,
+        actorId: scope.actorId,
+        actorType: 'agent',
+        repositories,
+        llm,
+      });
+
+      const agent = getAgent('interview_strategist');
+      const result = await agent.runWithMetadata({ personId, round }, context);
+      const plan = result.output;
+
+      if (plan.questions[0]?.question_type !== 'open') {
+        throw new InvariantViolation(
+          'FIRST_QUESTION_MUST_BE_OPEN',
+          'План интервью начинается не с открытого вопроса: свободный рассказ должен '
+          + 'предшествовать уточнениям',
+        );
+      }
+
+      const interview = await repositories.interviews.create({
+        case_id: person.case_id,
+        person_id: personId,
+        round,
+        status: 'planned',
+        channel,
+        language,
+        interview_plan: {
+          known_to_investigation: plan.known_to_investigation,
+          potential_knowledge: plan.potential_knowledge,
+          unknown: plan.unknown,
+          information_not_to_reveal_yet: plan.information_not_to_reveal_yet,
+          objectives: plan.objectives,
+          agent_run_id: result.run.id,
+        },
+      });
+
+      const questions = await this.addQuestions(interview.id, plan.questions.map((q) => ({
+        question: q.question,
+        question_type: q.question_type,
+        purpose: q.purpose,
+        sensitive: q.sensitive,
+        generated_by: 'agent',
+        generated_by_agent: agent.id,
+        agent_run_id: result.run.id,
+      })));
+
+      return { interview, questions, plan, agentRunId: result.run.id };
+    },
+
+    /**
+     * Продолжение интервью: уточняющие вопросы по уже полученным ответам (§28 ТЗ).
+     *
+     * Агент видит только собственное интервью. Чувствительный вопрос остаётся
+     * черновиком до утверждения человеком.
+     */
+    async continueInterview(interviewId) {
+      const interview = await repositories.interviews.get(interviewId);
+      if (!interview) throw new Error(`Интервью ${interviewId} не найдено`);
+
+      const context = createAgentContext({
+        caseId: interview.case_id,
+        organizationId: scope.organizationId,
+        actorId: scope.actorId,
+        actorType: 'agent',
+        repositories,
+        llm,
+      });
+
+      const agent = getAgent('ai_interviewer');
+      const result = await agent.runWithMetadata({ interviewId }, context);
+      const turn = result.output;
+
+      const added = turn.follow_up_questions.length === 0 ? [] : await this.addQuestions(
+        interviewId,
+        turn.follow_up_questions.map((q) => ({
+          question: q.question,
+          question_type: q.question_type,
+          purpose: q.purpose,
+          sensitive: q.sensitive,
+          generated_by: 'agent',
+          generated_by_agent: agent.id,
+          agent_run_id: result.run.id,
+        })),
+      );
+
+      if (turn.interview_complete) {
+        await repositories.interviews.update(interviewId, {
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          summary: turn.completion_reason,
+        });
+      }
+
+      return {
+        questions: added,
+        assessment: turn.assessment,
+        complete: turn.interview_complete,
+        completionReason: turn.completion_reason,
+        agentRunId: result.run.id,
+      };
+    },
+
+    /**
+     * Разворачивает план следующего раунда в интервью и вопросы.
+     * Ссылки участникам не выдаются: это отдельное действие после утверждения человеком.
+     */
+    async startRound(plan) {
+      const created = [];
+      for (const item of plan.planned) {
+        const interview = await repositories.interviews.create({
+          case_id: item.person.case_id,
+          person_id: item.person.id,
+          round: plan.round,
+          status: 'planned',
+          channel: 'web',
+          language: 'ru',
+          interview_plan: { objectives: [`Раунд ${plan.round}: ${item.reasonCategory}`] },
+        });
+
+        // Первый вопрос раунда всегда открытый: даже уточняющий раунд начинается
+        // с приглашения рассказать своими словами, а не с претензии.
+        const questions = await this.addQuestions(interview.id, [
+          {
+            question: 'Пожалуйста, расскажите своими словами, что вы можете добавить '
+              + 'к сказанному ранее по этой ситуации.',
+            question_type: 'open',
+            purpose: 'Свободный рассказ до уточнений следующего раунда',
+            generated_by: 'agent',
+          },
+          ...item.questions,
+        ]);
+
+        created.push({ interview, questions, person: item.person });
+      }
+
       return created;
     },
 

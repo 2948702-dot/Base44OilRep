@@ -1,0 +1,34 @@
+name: SETUP - harden investigation server access
+
+# Разовая операция: перевод доступа к серверу на вход по ключу.
+#
+# Скрипт сначала проверяет, что вход по ключу работает, и только затем отключает
+# парольную аутентификацию. При любом сбое конфигурация sshd откатывается.
+#
+# Перед запуском владелец создаёт пару ключей и добавляет секреты:
+#   ssh-keygen -t ed25519 -C "investigation-deploy" -f investigation-deploy -N ""
+#   DEPLOY_SSH_PRIVATE_KEY = содержимое investigation-deploy
+#   DEPLOY_SSH_PUBLIC_KEY  = содержимое investigation-deploy.pub
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_user:
+        description: 'Имя пользователя развёртывания'
+        required: false
+        default: 'deploy'
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    env:
+      SSH_HOST: '188.116.23.111'
+      SSH_PASSWORD: ${{ secrets.N8N_SSH_ROOT_PASSWORD }}
+      DEPLOY_SSH_PUBLIC_KEY: ${{ secrets.DEPLOY_SSH_PUBLIC_KEY }}
+      DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      DEPLOY_USER: ${{ inputs.deploy_user }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet paramiko
+      - name: Перевести доступ на ключи
+        run: python3 investigation/deploy/harden-server.py

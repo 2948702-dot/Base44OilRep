@@ -63,12 +63,18 @@ jobs:
       - name: Дымовой прогон HTTP-контура
         run: npm run investigation:smoke
 
+      - name: Проверка исполнителя очереди
+        run: npm run investigation:jobs
+
   deploy:
     needs: verify
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       SSH_HOST: '188.116.23.111'
+      # Ключ предпочтительнее; пароль остаётся резервным до перевода сервера на ключи.
+      SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      SSH_USER: deploy
       SSH_PASSWORD: ${{ secrets.N8N_SSH_ROOT_PASSWORD }}
       POSTGRES_PASSWORD: ${{ secrets.INVESTIGATION_POSTGRES_PASSWORD }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

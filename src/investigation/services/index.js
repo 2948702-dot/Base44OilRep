@@ -11,8 +11,15 @@ import { createApprovalService } from './ApprovalService.js';
 import { createSourceService } from './SourceService.js';
 import { createCaseService } from './CaseService.js';
 import { createInterviewService } from './InterviewService.js';
+import { createAnalysisService } from './AnalysisService.js';
 
-export { createApprovalService, createSourceService, createCaseService, createInterviewService };
+export {
+  createApprovalService,
+  createSourceService,
+  createCaseService,
+  createInterviewService,
+  createAnalysisService,
+};
 
 /**
  * @param {Object} params
@@ -30,11 +37,14 @@ export function createInvestigationServices({ scope, pool, store, driver, llm, f
   const approvals = createApprovalService({ repositories, scope });
   const sources = createSourceService({ repositories, scope });
 
+  const cases = createCaseService({ repositories, scope, llm: llmClient, approvals });
+
   return {
     repositories,
     approvals,
     sources,
-    cases: createCaseService({ repositories, scope, llm: llmClient, approvals }),
+    cases,
     interviews: createInterviewService({ repositories, scope, llm: llmClient, approvals, sources }),
+    analysis: createAnalysisService({ repositories, scope, llm: llmClient, approvals }),
   };
 }

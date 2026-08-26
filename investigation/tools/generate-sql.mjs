@@ -361,14 +361,22 @@ for (const item of built) {
   if (item.addTenantField) specs.push('organization_id');
   if (item.caseScoped) specs.push('case_id');
   specs.push(...item.def.fields, ...SOFT_DELETE_FIELDS);
+  const fields = specs.map((spec) => parseFieldSpec(spec));
   schemaMap[item.def.name] = {
     table: item.table,
     caseScoped: item.caseScoped,
-    columns: specs.map((spec) => parseFieldSpec(spec).name),
+    columns: fields.map((field) => field.name),
+    // Колонки jsonb: драйвер сериализует объект сам, но массив объектов превращает
+    // в postgres-массив и получает синтаксическую ошибку JSON. Такие значения слой
+    // репозиториев обязан сериализовать явно.
+    jsonColumns: fields
+      .filter((field) => field.kind === 'object' || field.kind === 'object_array')
+      .map((field) => field.name),
   };
 }
 schemaMap.KnowledgeDocument.columns.push('embedding');
 schemaMap.Organization.columns.push('slug');
+
 
 const SCHEMA_FILE = join(HERE, '..', '..', 'src', 'investigation', 'repositories', 'postgres', 'schema.generated.js');
 mkdirSync(dirname(SCHEMA_FILE), { recursive: true });
@@ -378,7 +386,7 @@ writeFileSync(SCHEMA_FILE, `/* eslint-disable */
 
 /**
  * Соответствие сущностей домена таблицам и колонкам схемы.
- * @type {Record<string, {table: string, caseScoped: boolean, columns: string[]}>}
+ * @type {Record<string, {table: string, caseScoped: boolean, columns: string[], jsonColumns: string[]}>}
  */
 export const SCHEMA = ${JSON.stringify(schemaMap, null, 2)};
 `, 'utf-8');

@@ -34,26 +34,40 @@
 Реализованные агенты: Case Manager, Intake Analyst, Investigation Planner, Claim Extractor,
 Red Team Investigator.
 
+## Шаг 2 — замкнутый цикл расследования (выполнено)
+
+| Шаг | Состояние | Где |
+|---|---|---|
+| Agent 05 Interview Strategist | готово | `agents/definitions/interviewStrategist.js` |
+| Agent 06 AI Interviewer | готово | `agents/definitions/aiInterviewer.js` |
+| Agent 08 Timeline Analyst | готово | `agents/definitions/timelineAnalyst.js` |
+| Agent 09 Contradiction Analyst | готово | `agents/definitions/contradictionAnalyst.js` |
+| Agent 12 Hypothesis Analyst | готово | `agents/definitions/hypothesisAnalyst.js` |
+| Agent 15 Follow-Up Planner | готово | `agents/definitions/followUpPlanner.js` |
+| Аналитический цикл §67 целиком | готово | `services/AnalysisService.js` |
+| Второй раунд интервью | готово | `services/InterviewService.js` |
+| Исполнитель очереди задач | готово | `server/jobRunner.js` |
+| Маршруты цикла, интервью и очереди | готово | `server/routes/analysis.js` |
+| Резервное копирование с проверкой восстановления | готово | `investigation/deploy/backup.py` |
+| Перевод доступа к серверу на ключи | готово, требует запуска владельцем | `investigation/deploy/harden-server.py` |
+
+Приёмка выросла до 60 проверок и проходит на обоих драйверах хранения;
+очередь проверяется отдельно — 11 проверок.
+
 ## Phase 1 — оставшееся (§72 ТЗ)
 
 | Приоритет | Работа | Зависит от |
 |---|---|---|
 | P0 | Развернуть на сервере: поддомен, секреты, первый прогон Action | инфраструктура готова |
-| P0 | Ключевой доступ к серверу вместо root по паролю (`KI-018`) | — |
-| P0 | Резервное копирование базы и тома источников (`KI-019`) | развёртывание |
-| P0 | Agent 05 Interview Strategist и Agent 06 AI Interviewer | framework |
-| P0 | Web-интервью: экран участника по подписанной ссылке, serverless-проверка токена | `InterviewAccessToken` |
-| P0 | Agent 08 Timeline Analyst и Agent 09 Contradiction Analyst | Claim Extractor |
-| P0 | Agent 12 Hypothesis Analyst и запись `HypothesisRevision` при пересмотре | Timeline, Contradiction |
-| P1 | Транскрипция аудио как job, сохранение обеих версий текста | Job abstraction |
+| P0 | Запустить укрепление доступа: `SETUP - harden investigation server access` (`KI-018`) | ключи владельца |
+| P0 | Веб-экран участника интервью поверх готового API | HTTP-контур |
+| P1 | Транскрипция аудио как задача очереди, обе версии текста | обработчик в jobRunner |
 | P1 | Agent 04 Document Analyst с обязательным `source_locator` | SourceService |
-| P1 | Telegram-бот интервью | web-интервью |
-| P1 | Agent 15 Follow-Up Planner и второй раунд | Hypothesis Analyst |
+| P1 | Agent 10 Evidence Corroboration и связи Claim ↔ Evidence | Evidence |
 | P1 | Agent 17 Final Reviewer и Agent 18 Report Writer | Findings |
+| P1 | Telegram-бот интервью | веб-интервью |
 | P2 | Экраны: Case Dashboard, Timeline, Evidence Matrix, Contradiction Map, Hypothesis Board | сервисы |
 | P2 | Agent 14 Defence Reviewer | Findings |
-| P1 | Исполнитель очереди `investigation_job` внутри контейнера API | схема |
-| P2 | Веб-экран участника интервью поверх готового API | HTTP-контур |
 | P2 | Эмбеддинги и наполнение методологического пространства знаний | pgvector готов |
 
 ## Phase 2 (§73 ТЗ)
@@ -76,7 +90,8 @@ Neo4j вместо `RelationalGraphRepository` при появлении реа�
 
 1. Обе приёмки проходят полностью: `investigation:acceptance` и `investigation:acceptance:pg`.
 2. Дымовой прогон HTTP `investigation:smoke` проходит.
-3. Проверка изоляции `isolation.sql` проходит.
+3. Проверка очереди `investigation:jobs` проходит.
+4. Проверка изоляции `isolation.sql` проходит.
 4. Новый агент имеет схему выхода, объявленные запреты и запись `AgentRun`.
 5. Новое правило методологии выражено инвариантом, а не только текстом промпта.
 6. Новое ограничение целостности выражено в схеме, а не только в коде.

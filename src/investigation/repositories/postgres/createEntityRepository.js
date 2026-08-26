@@ -20,17 +20,29 @@ const APPEND_ONLY = new Set(['audit_event', 'agent_run', 'hypothesis_revision'])
  * @param {Object} params.db
  * @param {string} params.table
  * @param {string[]} params.columns колонки таблицы, известные из схемы
+ * @param {string[]} [params.jsonColumns] колонки jsonb, требующие явной сериализации
  * @param {import('../contracts.js').RepositoryScope} params.scope
  * @param {{record: Function}} [params.audit]
  * @param {boolean} [params.caseScoped]
  */
-export function createEntityRepository({ db, table, columns, scope, audit, caseScoped = true }) {
+export function createEntityRepository({
+  db, table, columns, jsonColumns = [], scope, audit, caseScoped = true,
+}) {
   if (!scope?.organizationId) {
     throw new Error(`Репозиторий ${table} создан без organizationId`);
   }
 
   const columnSet = new Set(columns);
+  const jsonSet = new Set(jsonColumns);
   const appendOnly = APPEND_ONLY.has(table);
+
+  /**
+   * Значение для колонки jsonb. Драйвер сериализует объект сам, но массив превращает
+   * в postgres-массив, и база отвергает его как некорректный JSON.
+   */
+  function toJsonParam(value) {
+    return value === null || value === undefined ? null : JSON.stringify(value);
+  }
 
   /** Оставляет только известные схеме колонки и не даёт подменить организацию. */
   function sanitize(data) {
@@ -38,7 +50,8 @@ export function createEntityRepository({ db, table, columns, scope, audit, caseS
     for (const [key, value] of Object.entries(data ?? {})) {
       if (SYSTEM_COLUMNS.has(key)) continue;
       if (!columnSet.has(key)) continue;
-      payload[key] = value === '' || value === undefined ? null : value;
+      const normalized = value === '' || value === undefined ? null : value;
+      payload[key] = jsonSet.has(key) ? toJsonParam(normalized) : normalized;
     }
     payload.organization_id = scope.organizationId;
     if (caseScoped && scope.caseId && payload.case_id == null) {

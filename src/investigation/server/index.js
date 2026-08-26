@@ -12,12 +12,14 @@ import { resolveSession } from './auth.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerCaseRoutes } from './routes/cases.js';
 import { registerParticipantRoutes } from './routes/participant.js';
+import { registerAnalysisRoutes } from './routes/analysis.js';
+import { createJobRunner } from './jobRunner.js';
 
 /** Маршруты, доступные без сессии платформы. */
 const PUBLIC_PREFIXES = ['/api/auth/login', '/api/participant', '/healthz'];
 
 /**
- * @param {{pool?: Object, logger?: boolean}} [options]
+ * @param {{pool?: Object, logger?: boolean, jobs?: boolean, llm?: Object}} [options]
  */
 export function createServer(options = {}) {
   const pool = options.pool ?? createPool();
@@ -77,7 +79,18 @@ export function createServer(options = {}) {
 
   registerAuthRoutes(app);
   registerCaseRoutes(app);
+  registerAnalysisRoutes(app);
   registerParticipantRoutes(app);
+
+  // Исполнитель очереди живёт в том же процессе: отдельный воркер добавит эксплуатацию
+  // раньше, чем появится нагрузка, которая его оправдывает. Захват задач идёт через
+  // for update skip locked, поэтому переход на отдельный процесс не потребует изменений.
+  if (options.jobs !== false) {
+    const runner = createJobRunner({ pool, llm: options.llm, logger: app.log });
+    app.decorate('jobs', runner);
+    app.addHook('onReady', async () => runner.start());
+    app.addHook('onClose', async () => runner.stop());
+  }
 
   return app;
 }

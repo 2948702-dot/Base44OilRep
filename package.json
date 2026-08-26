@@ -14,6 +14,7 @@
     "investigation:acceptance": "node investigation/tools/acceptance.mjs",
     "investigation:acceptance:pg": "node investigation/tools/acceptance.mjs --postgres",
     "investigation:smoke": "node investigation/tools/smoke-api.mjs",
+    "investigation:jobs": "node investigation/tools/smoke-jobs.mjs",
     "investigation:server": "node src/investigation/server/index.js",
     "preview": "vite preview"
   },

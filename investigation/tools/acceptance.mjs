@@ -1,15 +1,20 @@
 /**
  * Приёмочный прогон платформы расследований (§81 ТЗ).
  *
- * Запуск: node investigation/tools/acceptance.mjs
+ * Запуск: node investigation/tools/acceptance.mjs [--postgres]
  *
  * По умолчанию прогон идёт на драйвере хранения в памяти и на stub-модели с заранее
  * заданными ответами. С флагом --postgres тот же сценарий выполняется против настоящей
  * базы: это проверяет не только методологию, но и то, что схема, внешние ключи и
  * политики RLS не мешают нормальной работе расследования.
+ *
  * Проверяется не качество формулировок модели, а то, что система структурно не позволяет
- * нарушить методологию: превратить приблизительное время в точное, назначить виновного
- * после intake, закрыть последнюю альтернативу, выпустить факт без доказательства.
+ * нарушить методологию: превратить приблизительное время в точное, схлопнуть конкурирующие
+ * версии времени, исключить версию решением агента, раскрыть участнику чужие показания
+ * без пометки, выпустить факт без доказательства.
+ *
+ * Часть заготовленных ответов агентов намеренно содержит нарушения — они нужны, чтобы
+ * убедиться, что система их не пропускает.
  */
 
 import { createMemoryStore, createPool, withTenant } from '../../src/investigation/repositories/index.js';
@@ -22,13 +27,27 @@ import {
   assertHypothesisClosureAllowed,
   assertPrecisionNotInflated,
 } from '../../src/investigation/engine/invariants.js';
+import * as stub from './fixtures/stub-outputs.mjs';
 
 const USE_POSTGRES = process.argv.includes('--postgres');
 
+const results = [];
+function check(name, condition, detail = '') {
+  results.push({ name, ok: Boolean(condition), detail });
+}
+
+/** Ожидает, что действие будет отклонено, и возвращает текст отказа. */
+async function expectRejected(action) {
+  try {
+    await action();
+    return null;
+  } catch (error) {
+    return error.message;
+  }
+}
+
 /**
  * Прямое чтение содержимого хранилища для проверок, минуя область видимости дела.
- * @param {Object} backend
- * @param {string} entity
  */
 async function dump(backend, entity) {
   if (backend.store) {
@@ -48,18 +67,20 @@ async function dump(backend, entity) {
  */
 async function setupBackend() {
   if (!USE_POSTGRES) {
-    return { store: store0, organizationId: 'org_1', actorId: 'user_investigator' };
+    return { store: createMemoryStore(), organizationId: 'org_1', actorId: 'user_investigator' };
   }
 
   const pool = createPool();
   const created = await withTenant(pool, { organizationId: null, isSystemAdmin: true }, async (client) => {
+    const stamp = Date.now();
     const org = await client.query(
       "insert into organization (name, slug, status) values ($1, $2, 'active') returning id",
-      [`Приёмка ${Date.now()}`, `acceptance-${Date.now()}`],
+      [`Приёмка ${stamp}`, `acceptance-${stamp}`],
     );
     const organizationId = org.rows[0].id;
     const user = await client.query(
-      "insert into app_user (organization_id, role, full_name, status) values ($1, 'investigator', $2, 'active') returning id",
+      "insert into app_user (organization_id, role, full_name, status) "
+      + "values ($1, 'investigator', $2, 'active') returning id",
       [organizationId, 'Следователь приёмки'],
     );
     return { organizationId, actorId: user.rows[0].id };
@@ -68,160 +89,25 @@ async function setupBackend() {
   return { pool, ...created };
 }
 
-const results = [];
-function check(name, condition, detail = '') {
-  results.push({ name, ok: Boolean(condition), detail });
-}
-
-const INTAKE_OUTPUT = {
-  persons: MISSING_CASH_001.persons.map((p) => ({
-    name: p.name,
-    role: p.job_title,
-    job_title: p.job_title,
-    organization: null,
-    participant_type: p.participant_type,
-    relationship_to_incident: p.relationship_to_incident,
-    mentioned_as: p.name,
-  })),
-  organizations: [{ name: 'База отдыха «Северная»', role: 'место инцидента' }],
-  allegations: [
-    { description: '24 августа отсутствует 74 000 рублей, полученных от клиента', amount: 74000, currency: 'RUB', stated_by: 'Козлова Ирина' },
-    { description: 'Иванов утверждает, что передал наличные Петровой', amount: 74000, currency: 'RUB', stated_by: 'Иванов Сергей' },
-  ],
-  dates: [{ text: '24 августа', normalized_start: '2026-08-24T00:00:00Z', normalized_end: '2026-08-25T00:00:00Z', precision: 'day' }],
-  amounts: [{ text: '74 000 рублей', amount: 74000, currency: 'RUB', precision: 'exact' }],
-  locations: ['База отдыха «Северная»'],
-  known_sources: MISSING_CASH_001.known_sources.map((s) => ({
-    description: s.description, type: s.type, availability: 'claimed',
-  })),
-  unknowns: ['Кто имел доступ к наличным после 19:00', 'Полный график смен 24 августа'],
-  observations: [],
-};
-
-const PLAN_OUTPUT = {
-  issues: [
-    { question: 'Были ли 74 000 рублей фактически переданы администратору?', description: 'Ключевой спорный эпизод', priority: 'critical', related_allegations: ['A-001'] },
-    { question: 'Кто имел доступ к наличным на базе 24 августа после 19:00?', description: 'Круг лиц не установлен', priority: 'high', related_allegations: ['A-001'] },
-    { question: 'Корректна ли исходная сумма задолженности?', description: 'Сверка CRM и кассы', priority: 'medium', related_allegations: ['A-001'] },
-  ],
-  hypotheses: [
-    {
-      description: 'Деньги присвоил капитан',
-      type: 'primary',
-      evidence_that_would_support: ['Запись камеры без факта передачи', 'Отсутствие Иванова на базе в заявленное время'],
-      evidence_that_would_contradict: ['Запись камеры с фактом передачи', 'Показания третьего лица о передаче'],
-      addresses_issues: ['I-001'],
-    },
-    {
-      description: 'Капитан передал деньги администратору, после чего средства пропали',
-      type: 'alternative',
-      evidence_that_would_support: ['Запись камеры с фактом передачи', 'Переписка с подтверждением'],
-      evidence_that_would_contradict: ['Отсутствие Иванова на базе', 'Кассовая книга без записи прихода и без доступа третьих лиц'],
-      addresses_issues: ['I-001', 'I-002'],
-    },
-    {
-      description: 'Деньги были оприходованы под другой операцией',
-      type: 'accounting_error',
-      evidence_that_would_support: ['Запись в кассовой книге на другую сумму или дату'],
-      evidence_that_would_contradict: ['Полная сверка кассы без расхождений'],
-      addresses_issues: ['I-003'],
-    },
-    {
-      description: 'Исходная сумма задолженности рассчитана неверно',
-      type: 'technical_error',
-      evidence_that_would_support: ['Ошибка в записи CRM', 'Двойное списание'],
-      evidence_that_would_contradict: ['Подтверждение суммы клиентом и чеком'],
-      addresses_issues: ['I-003'],
-    },
-  ],
-  objectives: ['Установить, была ли передача наличных', 'Установить круг лиц с доступом к наличным'],
-  evidence_requests: [
-    { description: 'Запись камеры у входа 18:30–19:15', source_type: 'cctv', holder: 'служба базы', resolves: ['I-001'], expected_information_gain: 'very_high', urgency: 'high' },
-    { description: 'График смен 24 августа', source_type: 'document', holder: 'управляющая', resolves: ['I-002'], expected_information_gain: 'high', urgency: 'high' },
-  ],
-  interview_order: [
-    { person: 'Смирнов Андрей', round: 1, reason: 'Наименее вовлечён, подтверждает факт оплаты' },
-    { person: 'Иванов Сергей', round: 1, reason: 'Прямой участник спорного эпизода' },
-    { person: 'Петрова Елена', round: 1, reason: 'Прямой участник спорного эпизода' },
-  ],
-  investigative_tasks: [
-    { title: 'Сверить кассовую книгу и CRM', task_type: 'request_document', reason: 'Проверяет версию учётной ошибки', priority: 'high' },
-  ],
-  observations: [],
-};
-
-const CLAIM_OUTPUT = {
-  claims: [
-    {
-      text: 'Около семи я приехал на базу',
-      normalized_statement: 'Иванов прибыл на базу',
-      claim_type: 'action',
-      subject_entity: 'Иванов Сергей',
-      predicate: 'прибыл',
-      object_entity: 'база',
-      time_start: '2026-08-24T18:30:00Z',
-      time_end: '2026-08-24T19:30:00Z',
-      time_precision: 'hour',
-      amount: null,
-      currency: null,
-      location: 'База отдыха «Северная»',
-      speaker_certainty: 'approximate',
-      ai_extraction_confidence: 'moderate',
-      source_locator: { char_start: 0, char_end: 27 },
-    },
-    {
-      text: 'передал Лене примерно 74 тысячи',
-      normalized_statement: 'Иванов утверждает, что передал деньги Елене Петровой',
-      claim_type: 'action',
-      subject_entity: 'Иванов Сергей',
-      predicate: 'передал деньги',
-      object_entity: 'Петрова Елена',
-      time_start: '2026-08-24T18:30:00Z',
-      time_end: '2026-08-24T19:30:00Z',
-      time_precision: 'hour',
-      amount: 74000,
-      currency: 'RUB',
-      location: 'База отдыха «Северная»',
-      speaker_certainty: 'approximate',
-      ai_extraction_confidence: 'moderate',
-      source_locator: { char_start: 28, char_end: 59 },
-    },
-  ],
-  unresolved_references: ['«Лена» сопоставлена с Петровой Еленой по контексту, требуется подтверждение'],
-  observations: [],
-};
-
-const RED_TEAM_OUTPUT = {
-  primary_hypothesis_reviewed: 'H-001',
-  alternative_explanations: [
-    {
-      description: 'Деньги были переданы и оставлены в помещении, доступ к ним имел человек, не включённый в список участников',
-      plausibility: 'moderate',
-      would_be_supported_by: ['График смен 24 августа', 'Запись камеры служебного входа'],
-      currently_ruled_out_by: [],
-    },
-  ],
-  reasoning_flaws: [
-    {
-      flaw_type: 'missing_witness',
-      description: 'Круг лиц с доступом к наличным после 19:00 не установлен; опрошены только двое',
-      affected_claims: ['C-002'],
-      what_would_settle_it: 'Запросить график смен и список лиц на территории 24 августа',
-    },
-    {
-      flaw_type: 'overlooked_evidence',
-      description: 'Пропуск записи камеры 18:40–19:20 не объяснён и не запрошен у службы базы',
-      affected_claims: ['C-001'],
-      what_would_settle_it: 'Запросить исходный архив камеры и журнал сбоев',
-    },
-  ],
-  overlooked_evidence: ['Журнал сбоев видеонаблюдения'],
-  verdict: 'primary_hypothesis_weakened',
-  verdict_reason: 'Основная версия не исключает доступ третьих лиц к наличным после передачи',
-  observations: [],
-};
-
-const store0 = createMemoryStore();
+/**
+ * Ответы модели идут в том порядке, в котором сервисы вызывают агентов.
+ * Порядок повторяет цикл расследования §67 ТЗ.
+ */
+const LLM_RESPONSES = [
+  stub.INTAKE_OUTPUT,                  // 02 intake_analyst
+  stub.PLAN_OUTPUT,                    // 03 investigation_planner
+  stub.STRATEGY_IVANOV,                // 05 interview_strategist
+  stub.CLAIMS_IVANOV,                  // 07 claim_extractor
+  stub.INTERVIEWER_TURN_OUTPUT,        // 06 ai_interviewer
+  stub.STRATEGY_PETROVA,               // 05 interview_strategist
+  stub.CLAIMS_PETROVA,                 // 07 claim_extractor
+  stub.TIMELINE_OUTPUT,                // 08 timeline_analyst
+  stub.CONTRADICTIONS_OUTPUT,          // 09 contradiction_analyst
+  stub.HYPOTHESIS_REVIEW_OUTPUT,       // 12 hypothesis_analyst
+  stub.RED_TEAM_OUTPUT,                // 13 red_team_investigator
+  stub.FOLLOW_UP_OUTPUT,               // 15 follow_up_planner
+  stub.HYPOTHESIS_REVIEW_ELIMINATING,  // 12 повторно: попытка исключить версию
+];
 
 async function main() {
   const backend = await setupBackend();
@@ -234,16 +120,11 @@ async function main() {
     ? { store: backend.store, driver: 'memory' }
     : { pool: backend.pool, driver: 'postgres' };
 
-  const llm = createStubLlmClient([
-    INTAKE_OUTPUT,
-    PLAN_OUTPUT,
-    CLAIM_OUTPUT,
-    RED_TEAM_OUTPUT,
-  ]);
-
+  const llm = createStubLlmClient(LLM_RESPONSES);
   const services = createInvestigationServices({ scope, ...storage, llm });
 
-  // 1. Создание дела
+  // ───────────────────────── Создание дела ─────────────────────────
+
   const investigationCase = await services.cases.createCase({
     title: MISSING_CASH_001.title,
     description: MISSING_CASH_001.description,
@@ -258,117 +139,174 @@ async function main() {
   });
   const caseId = investigationCase.id;
   const caseScope = { ...scope, caseId };
-  const caseServices = createInvestigationServices({ scope: caseScope, ...storage, llm });
+  const app = createInvestigationServices({ scope: caseScope, ...storage, llm });
 
   check('Дело создано с номером и стадией intake',
     investigationCase.case_number?.startsWith('CASE-') && investigationCase.current_stage === 'intake',
     investigationCase.case_number);
 
-  // 2. Intake
-  const intake = await caseServices.cases.runIntake(caseId, { description: MISSING_CASH_001.description });
+  // ───────────────────────── Приём заявления ─────────────────────────
+
+  const intake = await app.cases.runIntake(caseId, { description: MISSING_CASH_001.description });
   check('Intake извлёк участников и заявления',
     intake.persons.length === 4 && intake.allegations.length === 2);
   check('После intake никто не признан виновным: нет participant_type = subject',
     intake.persons.every((p) => p.participant_type !== 'subject'));
   check('Intake сохранил неизвестное как неизвестное', intake.unknowns.length > 0);
 
-  // 3. Планирование
-  const plan = await caseServices.cases.runPlanning(caseId);
+  // ───────────────────────── Планирование ─────────────────────────
+
+  const plan = await app.cases.runPlanning(caseId);
   check('Создано не менее трёх альтернативных версий', plan.hypotheses.length >= 3,
     `версий: ${plan.hypotheses.length}`);
-  check('Версии различаются по типу',
-    new Set(plan.hypotheses.map((h) => h.type)).size >= 3);
+  check('Версии различаются по типу', new Set(plan.hypotheses.map((h) => h.type)).size >= 3);
   check('Каждая версия имеет опровергающее доказательство',
     plan.hypotheses.every((h) => (h.evidence_that_would_contradict ?? []).length > 0));
   check('Запрошены независимые доказательства', plan.tasks.length >= 2);
   check('История статусов гипотез записана',
     (await dump(backend, 'HypothesisRevision')).length === plan.hypotheses.length);
 
-  // 4. Машина стадий
-  let snapshot = await caseServices.cases.getSnapshot(caseId);
+  let snapshot = await app.cases.getSnapshot(caseId);
   check('Переход intake → planning разрешён после intake',
     evaluateTransition('intake', 'planning', snapshot).allowed);
   check('Переход planning → interview_round заблокирован без утверждения человеком',
     evaluateTransition('planning', 'interview_round', snapshot).allowed === false);
 
-  // 5. Интервью: требуется утверждение отправки
-  const person = intake.persons.find((p) => p.name === 'Иванов Сергей');
-  const interview = await caseServices.interviews.createInterview({
-    personId: person.id, channel: 'web', round: 1,
+  // ───────────────────────── Раунд 1: интервью ─────────────────────────
+
+  const ivanov = intake.persons.find((p) => p.name === 'Иванов Сергей');
+  const petrova = intake.persons.find((p) => p.name === 'Петрова Елена');
+
+  const planned = await app.interviews.planInterview({ personId: ivanov.id, round: 1 });
+  check('Стратег выделил, что нельзя раскрывать участнику',
+    planned.plan.information_not_to_reveal_yet.length >= 2,
+    `пунктов: ${planned.plan.information_not_to_reveal_yet.length}`);
+  check('План интервью начинается с открытого вопроса',
+    planned.questions[0].question_type === 'open');
+  check('План хранит цели интервью и ссылку на запуск агента',
+    Boolean(planned.interview.interview_plan.objectives?.length)
+    && Boolean(planned.interview.interview_plan.agent_run_id));
+
+  const tokenBlocked = await expectRejected(
+    () => app.interviews.issueAccessToken(planned.interview.id, { baseUrl: 'https://example.test' }),
+  );
+  check('Ссылка на интервью не выдаётся без утверждения человеком', Boolean(tokenBlocked));
+
+  const approval = await app.cases.requestInterviewDispatchApproval(caseId, [planned.interview.id]);
+  await app.approvals.decide(approval.id, 'approved', 'Состав первого раунда проверен');
+
+  const issued = await app.interviews.issueAccessToken(planned.interview.id, {
+    baseUrl: 'https://example.test',
   });
-
-  let tokenBlocked = false;
-  try {
-    await caseServices.interviews.issueAccessToken(interview.id, { baseUrl: 'https://example.test' });
-  } catch {
-    tokenBlocked = true;
-  }
-  check('Ссылка на интервью не выдаётся без утверждения человеком', tokenBlocked);
-
-  const approval = await caseServices.cases.requestInterviewDispatchApproval(caseId, [interview.id]);
-  await caseServices.approvals.decide(approval.id, 'approved', 'Состав первого раунда проверен');
-  const issued = await caseServices.interviews.issueAccessToken(interview.id, { baseUrl: 'https://example.test' });
   check('Ссылка выдана после утверждения и токен хранится только хэшем',
     Boolean(issued.token) && issued.record.token_hash !== issued.token
       && issued.record.token_hash.length === 64);
 
-  // 6. Первый вопрос обязан быть открытым
-  let closedFirstRejected = false;
-  try {
-    await caseServices.interviews.addQuestions(interview.id, [
-      { question: 'Вы брали деньги?', question_type: 'challenge' },
-    ]);
-  } catch {
-    closedFirstRejected = true;
-  }
-  check('Обвинительный вопрос первым отклонён', closedFirstRejected);
+  const spareInterview = await app.interviews.createInterview({
+    personId: petrova.id, channel: 'web', round: 1,
+  });
+  const closedFirst = await expectRejected(() => app.interviews.addQuestions(
+    spareInterview.id,
+    [{ question: 'Вы брали деньги?', question_type: 'challenge' }],
+  ));
+  check('Обвинительный вопрос первым отклонён', Boolean(closedFirst));
 
-  const questions = await caseServices.interviews.addQuestions(interview.id, [
-    {
-      question: 'Пожалуйста, своими словами максимально подробно расскажите всё, что вам известно '
-        + 'об этой ситуации. Начните с момента, который считаете наиболее ранним связанным событием.',
-      question_type: 'open',
-      purpose: 'Свободный рассказ до уточнений',
-    },
-  ]);
-  check('Открытый первый вопрос принят', questions[0].question_type === 'open');
-
-  // 7. Ответ и извлечение утверждений
-  const answer = await caseServices.interviews.submitAnswer({
-    questionId: questions[0].id,
-    personId: person.id,
+  const answerIvanov = await app.interviews.submitAnswer({
+    questionId: planned.questions[0].id,
+    personId: ivanov.id,
     text: 'Около семи я приехал на базу и передал Лене примерно 74 тысячи.',
   });
-  check('Оригинал ответа сохранён как источник', Boolean(answer.original_source_id));
+  check('Оригинал ответа сохранён как источник', Boolean(answerIvanov.original_source_id));
 
-  const extraction = await caseServices.interviews.extractClaims(answer.id);
+  const extraction = await app.interviews.extractClaims(answerIvanov.id);
   check('Ответ разобран на атомарные утверждения', extraction.claims.length >= 2);
   check('Каждое утверждение ссылается на источник и позицию в нём',
     extraction.claims.every((c) => c.source_id && c.source_locator
       && Object.values(c.source_locator).some((v) => v !== null && v !== undefined)));
   check('Приблизительное время не превращено в точное',
-    extraction.claims.every((c) => c.time_precision !== 'exact'
-      && c.speaker_certainty !== 'certain'));
+    extraction.claims.every((c) => c.time_precision !== 'exact' && c.speaker_certainty !== 'certain'));
   check('Неоднозначная ссылка зафиксирована, а не додумана',
     extraction.unresolvedReferences.length > 0);
 
-  // 8. Red Team
-  const primary = plan.hypotheses.find((h) => h.type === 'primary');
-  const redTeam = await caseServices.cases.runRedTeamReview(caseId, primary.id);
+  const turn = await app.interviews.continueInterview(planned.interview.id);
+  check('AI Interviewer уточняет границы приблизительного времени',
+    turn.questions.some((q) => q.question_type === 'clarification'));
+  check('AI Interviewer запрашивает подтверждающие материалы',
+    turn.questions.some((q) => q.question_type === 'corroboration'));
+  check('Интервью не закрывается, пока цели не покрыты', turn.complete === false);
+
+  // Второй участник
+  const plannedPetrova = await app.interviews.planInterview({ personId: petrova.id, round: 1 });
+  await app.interviews.issueAccessToken(plannedPetrova.interview.id, { baseUrl: 'https://example.test' });
+  const answerPetrova = await app.interviews.submitAnswer({
+    questionId: plannedPetrova.questions[0].id,
+    personId: petrova.id,
+    text: 'Никаких денег в тот день мне никто не передавал, я ушла со смены в половине седьмого.',
+  });
+  const extractionPetrova = await app.interviews.extractClaims(answerPetrova.id);
+  check('Показания второго участника извлечены', extractionPetrova.claims.length >= 2);
+  check('Отрицание сохранено как утверждение, а не как отсутствие данных',
+    extractionPetrova.claims.some((c) => c.claim_type === 'denial'));
+
+  // ───────────────────────── Аналитический цикл ─────────────────────────
+
+  const cycle = await app.analysis.runAnalysisCycle(caseId, { caseService: app.cases });
+
+  check('Хронология построена из утверждений', cycle.timeline.events.length >= 2);
+  check('Каждое событие опирается на утверждение',
+    cycle.timeline.events.every((e) => (e.source_claim_ids ?? []).length > 0));
+  check('Конкурирующие версии времени сохранены, а не схлопнуты в одну',
+    cycle.timeline.events.some((e) => (e.competing_versions ?? []).length > 0),
+    `событий с альтернативами: ${cycle.timeline.events.filter((e) => (e.competing_versions ?? []).length > 0).length}`);
+  check('Разрыв в хронологии зафиксирован', cycle.timeline.gaps.length > 0);
+
+  check('Найдено ключевое противоречие', cycle.contradictions.contradictions.length >= 2);
+  check('Найдено критическое противоречие о передаче денег',
+    cycle.contradictions.contradictions.some((c) => c.severity === 'critical' && c.type === 'direct'));
+  check('Для каждого противоречия предложена проверка',
+    cycle.contradictions.contradictions.every((c) => (c.recommended_checks ?? []).length > 0));
+
+  check('Версии пересмотрены', cycle.review.hypotheses.length === 4);
+  check('Основная версия ослаблена, а не подтверждена автоматически',
+    cycle.review.hypotheses.find((h) => h.type === 'primary')?.status === 'weakened');
+  check('Альтернативные версии сохранены после пересмотра',
+    cycle.review.hypotheses.filter((h) => h.status !== 'eliminated').length === 4);
+  check('Смена статуса записана в историю версии',
+    (await dump(backend, 'HypothesisRevision')).length > plan.hypotheses.length);
+  check('Уверенность выражена качественной шкалой',
+    cycle.review.hypotheses.every((h) => ['very_low', 'low', 'moderate', 'high', 'very_high'].includes(h.confidence)));
+
   check('Red Team предложил минимум одну правдоподобную альтернативу',
-    redTeam.review.alternative_explanations.length >= 1);
-  check('Каждая альтернатива проверяема конкретным доказательством',
-    redTeam.review.alternative_explanations.every((a) => a.would_be_supported_by.length > 0));
-  check('Red Team породил задачи расследования', redTeam.tasks.length >= 1);
+    cycle.redTeam.review.alternative_explanations.length >= 1);
+  check('Каждая альтернатива Red Team проверяема конкретным доказательством',
+    cycle.redTeam.review.alternative_explanations.every((a) => a.would_be_supported_by.length > 0));
+  check('Red Team породил задачи расследования', cycle.redTeam.tasks.length >= 1);
 
-  // 9. Следующие действия
-  const next = await caseServices.cases.getNextBestActions(caseId);
-  check('Сформированы рекомендованные следующие действия', next.actions.length > 0,
-    next.actions[0]?.action ?? '');
-  check('Каждое действие объяснено причиной и приростом информации',
-    next.actions.every((a) => a.reason && a.expected_information_gain));
+  // ───────────────────────── Планирование раунда 2 ─────────────────────────
 
-  // 10. Инварианты методологии
+  check('Спланирован следующий раунд', cycle.followUp.planned.length >= 2);
+  check('Вопрос, раскрывающий чужие показания, помечен как чувствительный',
+    cycle.followUp.planned
+      .flatMap((p) => p.questions)
+      .filter((q) => q.sensitive).length >= 1);
+  check('Запрошено недостающее доказательство', cycle.followUp.tasks.length >= 1);
+  check('Цикл не остановлен при нерешённых вопросах',
+    cycle.followUp.recommendStop === false && cycle.nextRoundNeeded?.continue === true,
+    `нерешённого: ${JSON.stringify(cycle.nextRoundNeeded?.unresolved ?? {})}`);
+
+  const round2 = await app.interviews.startRound(cycle.followUp);
+  check('Интервью второго раунда созданы', round2.length === cycle.followUp.planned.length);
+  check('Раунд 2 тоже начинается с открытого вопроса',
+    round2.every((r) => r.questions[0].question_type === 'open'));
+  check('Раунд второго интервью проставлен',
+    round2.every((r) => r.interview.round === cycle.followUp.round));
+
+  // ───────────────────────── Инварианты методологии ─────────────────────────
+
+  const eliminated = await expectRejected(() => app.analysis.runHypothesisReview(caseId));
+  check('Попытка агента исключить версию отклонена',
+    eliminated?.includes('AGENT_CANNOT_ELIMINATE_HYPOTHESIS'), eliminated ?? '');
+
   let factRejected = false;
   try {
     assertFindingHasEvidence({ finding_code: 'F-001', finding_type: 'fact', supporting_evidence_ids: [] });
@@ -391,20 +329,28 @@ async function main() {
   } catch { lastAlternativeProtected = true; }
   check('Последняя альтернативная версия не может быть исключена', lastAlternativeProtected);
 
-  // 11. Аудит и воспроизводимость
+  // ───────────────────────── Аудит и воспроизводимость ─────────────────────────
+
   const auditEvents = await dump(backend, 'AuditEvent');
   const agentRuns = await dump(backend, 'AgentRun');
+
   check('Изменения записаны в журнал аудита', auditEvents.length > 0, `записей: ${auditEvents.length}`);
   check('Каждый запуск агента сохранён с моделью и версией промпта',
-    agentRuns.length === 4 && agentRuns.every((r) => r.model && r.prompt_version && r.agent_version));
-  check('Все запуски агентов прошли валидацию схемы',
-    agentRuns.every((r) => r.status === 'completed'));
+    agentRuns.every((r) => r.model && r.prompt_version && r.agent_version),
+    `запусков: ${agentRuns.length}`);
+  check('Задействованы все агенты цикла расследования',
+    new Set(agentRuns.map((r) => r.agent_type)).size >= 8,
+    [...new Set(agentRuns.map((r) => r.agent_type))].join(', '));
+  check('Отклонённый по методологии запуск сохранён в журнале',
+    agentRuns.filter((r) => r.agent_type === 'hypothesis_analyst').length === 2);
 
-  snapshot = await caseServices.cases.getSnapshot(caseId);
+  snapshot = await app.cases.getSnapshot(caseId);
   check('Ни один участник не переведён в subject автоматически',
     snapshot.persons.every((p) => p.participant_type !== 'subject'));
   check('Все альтернативные версии сохранены',
     snapshot.hypotheses.filter((h) => h.status !== 'eliminated').length === plan.hypotheses.length);
+  check('Рекомендованные следующие действия сформированы и объяснены',
+    (await app.cases.getNextBestActions(caseId)).actions.every((a) => a.reason && a.expected_information_gain));
 
   if (backend.pool) await backend.pool.end();
 

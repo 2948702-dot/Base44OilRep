@@ -53,6 +53,7 @@ const postgresDriver = {
     db,
     table: SCHEMA[entity].table,
     columns: SCHEMA[entity].columns,
+    jsonColumns: SCHEMA[entity].jsonColumns,
     scope,
     audit,
     caseScoped,

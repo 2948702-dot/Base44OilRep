@@ -14,6 +14,7 @@ import {
   CLAIM_TYPE,
   TIME_PRECISION,
   QUESTION_TYPE,
+  CONTRADICTION_TYPE,
 } from '../domain/enums.js';
 
 const confidence = z.enum(/** @type {[string, ...string[]]} */ (CONFIDENCE_LEVELS));
@@ -204,7 +205,134 @@ export const RedTeamReviewSchema = z.object({
   observations,
 });
 
+
+export const InterviewPlanSchema = z.object({
+  // Стратег обязан сначала разложить, что известно следствию, что человек может знать
+  // и чего раскрывать нельзя, и только потом формулировать вопросы. Порядок не
+  // декоративный: вопросы, придуманные до этого разбора, неизбежно раскрывают лишнее.
+  known_to_investigation: z.array(z.string()),
+  potential_knowledge: z.array(z.string()),
+  unknown: z.array(z.string()),
+  information_not_to_reveal_yet: z.array(z.object({
+    item: z.string(),
+    reason: z.string(),
+  })),
+  objectives: z.array(z.string()).min(1),
+  questions: z.array(z.object({
+    question: z.string(),
+    question_type: z.enum(/** @type {[string, ...string[]]} */ (QUESTION_TYPE)),
+    purpose: z.string(),
+    addresses_issue: z.string().nullable(),
+    sensitive: z.boolean(),
+    sensitive_reason: z.string().nullable(),
+  })).min(1),
+  observations,
+});
+
+export const InterviewTurnSchema = z.object({
+  assessment: z.object({
+    covered_objectives: z.array(z.string()).default([]),
+    open_objectives: z.array(z.string()).default([]),
+    unclear_points: z.array(z.string()).default([]),
+  }),
+  follow_up_questions: z.array(z.object({
+    question: z.string(),
+    question_type: z.enum(/** @type {[string, ...string[]]} */ (QUESTION_TYPE)),
+    purpose: z.string(),
+    responds_to_answer_id: z.string().nullable(),
+    sensitive: z.boolean(),
+  })),
+  interview_complete: z.boolean(),
+  completion_reason: z.string(),
+  observations,
+});
+
+export const TimelineSchema = z.object({
+  events: z.array(z.object({
+    event_code_hint: z.string(),
+    event_type: z.string(),
+    description: z.string(),
+    start_at: z.string().nullable(),
+    end_at: z.string().nullable(),
+    time_precision: z.enum(/** @type {[string, ...string[]]} */ (TIME_PRECISION)),
+    location: z.string().nullable(),
+    participant_names: z.array(z.string()).default([]),
+    source_claim_codes: z.array(z.string()).min(1),
+    confidence,
+    // Конкурирующие версии времени не схлопываются в одну: выбор между источниками
+    // делает человек, а не модель (§11, §30 ТЗ).
+    competing_versions: z.array(z.object({
+      start_at: z.string().nullable(),
+      end_at: z.string().nullable(),
+      time_precision: z.enum(/** @type {[string, ...string[]]} */ (TIME_PRECISION)),
+      source_claim_codes: z.array(z.string()).min(1),
+      note: z.string(),
+    })).default([]),
+  })),
+  gaps: z.array(z.object({
+    from: z.string().nullable(),
+    to: z.string().nullable(),
+    description: z.string(),
+    why_it_matters: z.string(),
+  })).default([]),
+  impossible_sequences: z.array(z.object({
+    description: z.string(),
+    involved_claim_codes: z.array(z.string()).min(1),
+    what_would_resolve_it: z.string(),
+  })).default([]),
+  observations,
+});
+
+export const ContradictionScanSchema = z.object({
+  contradictions: z.array(z.object({
+    claim_a_code: z.string(),
+    claim_b_code: z.string(),
+    type: z.enum(/** @type {[string, ...string[]]} */ (CONTRADICTION_TYPE)),
+    severity: z.enum(['low', 'medium', 'high', 'critical']),
+    description: z.string(),
+    // Противоречие без предложенной проверки бесполезно: оно не двигает расследование,
+    // а только фиксирует несогласие (§31 ТЗ).
+    recommended_checks: z.array(z.string()).min(1),
+  })),
+  observations,
+});
+
+export const FollowUpPlanSchema = z.object({
+  priorities: z.array(z.object({
+    target_person_name: z.string(),
+    reason_category: z.enum([
+      'critical_contradiction',
+      'hypothesis_changing_fact',
+      'missing_evidence',
+      'timeline_gap',
+      'financial_gap',
+    ]),
+    questions: z.array(z.object({
+      question: z.string(),
+      question_type: z.enum(/** @type {[string, ...string[]]} */ (QUESTION_TYPE)),
+      purpose: z.string(),
+      // Раскрытие чужих показаний — отдельное решение человека, поэтому вопрос,
+      // который их касается, обязан быть помечен как чувствительный (§37 ТЗ).
+      reveals_other_testimony: z.boolean(),
+      sensitive: z.boolean(),
+    })).min(1),
+  })),
+  evidence_requests: z.array(z.object({
+    description: z.string(),
+    resolves: z.string(),
+    expected_information_gain: confidence,
+  })).default([]),
+  recommend_stop: z.boolean(),
+  stop_reason: z.string().nullable(),
+  observations,
+});
+
 export const AGENT_OUTPUT_SCHEMAS = {
+  InterviewPlanSchema,
+  InterviewTurnSchema,
+  TimelineSchema,
+  ContradictionScanSchema,
+  FollowUpPlanSchema,
   CaseStateSchema,
   IntakeAnalysisSchema,
   InvestigationPlanSchema,

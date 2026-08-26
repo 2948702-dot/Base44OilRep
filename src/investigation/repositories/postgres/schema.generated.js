@@ -4,7 +4,7 @@
 
 /**
  * Соответствие сущностей домена таблицам и колонкам схемы.
- * @type {Record<string, {table: string, caseScoped: boolean, columns: string[]}>}
+ * @type {Record<string, {table: string, caseScoped: boolean, columns: string[], jsonColumns: string[]}>}
  */
 export const SCHEMA = {
   "Organization": {
@@ -21,7 +21,8 @@ export const SCHEMA = {
       "deleted_by",
       "deletion_reason",
       "slug"
-    ]
+    ],
+    "jsonColumns": []
   },
   "User": {
     "table": "app_user",
@@ -36,7 +37,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "InvestigationCase": {
     "table": "investigation_case",
@@ -66,7 +68,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "Person": {
     "table": "person",
@@ -89,7 +92,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "Allegation": {
     "table": "allegation",
@@ -107,7 +111,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "Issue": {
     "table": "issue",
@@ -126,7 +131,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "Hypothesis": {
     "table": "hypothesis",
@@ -155,7 +161,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "HypothesisRevision": {
     "table": "hypothesis_revision",
@@ -176,6 +183,9 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
+    ],
+    "jsonColumns": [
+      "snapshot"
     ]
   },
   "Source": {
@@ -206,7 +216,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "Evidence": {
     "table": "evidence",
@@ -229,6 +240,9 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
+    ],
+    "jsonColumns": [
+      "source_locator"
     ]
   },
   "Claim": {
@@ -265,6 +279,9 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
+    ],
+    "jsonColumns": [
+      "source_locator"
     ]
   },
   "ClaimEvidenceLink": {
@@ -286,7 +303,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "InvestigationEvent": {
     "table": "investigation_event",
@@ -311,6 +329,9 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
+    ],
+    "jsonColumns": [
+      "competing_versions"
     ]
   },
   "Contradiction": {
@@ -335,7 +356,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "Interview": {
     "table": "interview",
@@ -358,6 +380,9 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
+    ],
+    "jsonColumns": [
+      "interview_plan"
     ]
   },
   "InterviewQuestion": {
@@ -385,7 +410,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "InterviewAnswer": {
     "table": "interview_answer",
@@ -410,7 +436,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "InterviewAccessToken": {
     "table": "interview_access_token",
@@ -433,7 +460,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "MoneyTransaction": {
     "table": "money_transaction",
@@ -458,7 +486,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "MoneyFlowEdge": {
     "table": "money_flow_edge",
@@ -481,7 +510,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "Finding": {
     "table": "finding",
@@ -508,7 +538,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "InvestigationTask": {
     "table": "investigation_task",
@@ -537,7 +568,8 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
-    ]
+    ],
+    "jsonColumns": []
   },
   "ApprovalRequest": {
     "table": "approval_request",
@@ -558,6 +590,9 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
+    ],
+    "jsonColumns": [
+      "payload"
     ]
   },
   "AgentRun": {
@@ -586,6 +621,9 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
+    ],
+    "jsonColumns": [
+      "output"
     ]
   },
   "InvestigationJob": {
@@ -607,6 +645,10 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
+    ],
+    "jsonColumns": [
+      "payload",
+      "result"
     ]
   },
   "AuditEvent": {
@@ -629,6 +671,10 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
+    ],
+    "jsonColumns": [
+      "old_value",
+      "new_value"
     ]
   },
   "KnowledgeDocument": {
@@ -649,6 +695,9 @@ export const SCHEMA = {
       "deleted_by",
       "deletion_reason",
       "embedding"
+    ],
+    "jsonColumns": [
+      "metadata"
     ]
   },
   "TrainingCase": {
@@ -672,6 +721,13 @@ export const SCHEMA = {
       "deleted_at",
       "deleted_by",
       "deletion_reason"
+    ],
+    "jsonColumns": [
+      "ground_truth",
+      "evidence_sequence",
+      "persons",
+      "events",
+      "claims"
     ]
   }
 };
