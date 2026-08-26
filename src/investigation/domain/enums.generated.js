@@ -539,6 +539,7 @@ export const ENUMS = {
   "InvestigationJob": {
     "job_type": [
       "transcription",
+      "ocr",
       "document_parse",
       "claim_extraction",
       "timeline_rebuild",

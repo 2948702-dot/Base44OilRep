@@ -733,7 +733,7 @@ create table investigation_job (
   deletion_reason text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint investigation_job_job_type_check check (job_type is null or job_type in ('transcription', 'document_parse', 'claim_extraction', 'timeline_rebuild', 'contradiction_scan', 'hypothesis_review', 'report_generation')),
+  constraint investigation_job_job_type_check check (job_type is null or job_type in ('transcription', 'ocr', 'document_parse', 'claim_extraction', 'timeline_rebuild', 'contradiction_scan', 'hypothesis_review', 'report_generation')),
   constraint investigation_job_status_check check (status is null or status in ('queued', 'running', 'completed', 'failed'))
 );
 

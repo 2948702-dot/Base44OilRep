@@ -178,13 +178,23 @@ export function registerCaseRoutes(app) {
     const { caseId, sourceId } = request.params;
     if (!app.jobs) return reply.code(503).send({ error: 'Исполнитель очереди не запущен' });
 
+    // Скан и фотография документа сначала распознаются, и только потом разбираются:
+    // разбирать изображение как текст нечего. Выбор делается по самому материалу,
+    // а не спрашивается у следователя — он и так знает, что приложил фотографию.
+    const services = servicesFor(app, request, caseId);
+    const source = await services.repositories.sources.get(sourceId);
+    if (!source) return reply.code(404).send({ error: 'Источник не найден' });
+
+    const isImage = String(source.mime_type ?? '').startsWith('image/')
+      || /\.(png|jpe?g|tiff?|bmp|webp)$/i.test(source.original_filename ?? '');
+
     const job = await app.jobs.enqueue({
       organizationId: request.scope.organizationId,
       caseId,
-      jobType: 'document_parse',
+      jobType: isImage ? 'ocr' : 'document_parse',
       payload: { source_id: sourceId },
     });
-    return reply.code(202).send({ status: 'queued', job_id: job.id });
+    return reply.code(202).send({ status: 'queued', job_id: job.id, job_type: job.job_type });
   });
 
   app.post('/api/cases/:caseId/sources/:sourceId/evidence', async (request, reply) => {

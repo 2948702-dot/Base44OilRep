@@ -11,6 +11,7 @@ import { nextCode } from '../domain/codes.js';
 import { detectInjectionMarkers } from '../agents/framework/promptEnvelope.js';
 import { assertClaimIsAttributed } from '../engine/invariants.js';
 import { createAgentContext } from '../agents/framework/AgentContext.js';
+import { isLowConfidence } from '../server/ocr.js';
 import { getAgent } from '../agents/registry.js';
 
 export function createSourceService({ repositories, scope, llm, extractDocument }) {
@@ -103,6 +104,7 @@ export function createSourceService({ repositories, scope, llm, extractDocument 
           derived_from_source_id: originalSourceId,
           derivation_method: method,
           untrusted_content: true,
+          notes: meta.notes ?? null,
         });
       }
 
@@ -121,6 +123,9 @@ export function createSourceService({ repositories, scope, llm, extractDocument 
         derived_from_source_id: originalSourceId,
         derivation_method: method,
         untrusted_content: true,
+        // Пометка о происхождении текста видна следователю рядом с самим текстом:
+        // распознанный программой документ не должен выглядеть как прочитанный человеком.
+        notes: meta.notes ?? null,
       });
     },
 
@@ -179,6 +184,52 @@ export function createSourceService({ repositories, scope, llm, extractDocument 
      * Утверждения, извлечённые из документа, получают source_locator: без него
      * утверждение нельзя показать в оригинале, а вывод на нём нельзя защитить.
      */
+    /**
+     * Распознавание текста на скане или фотографии документа (§26 ТЗ).
+     *
+     * Изображение остаётся первичным материалом и не изменяется. Распознанный текст
+     * появляется рядом производным источником — с указанием, что читал не человек,
+     * и с уверенностью распознавания. Утверждение, извлечённое из такого текста,
+     * ссылается на строку в нём и через неё — на исходное изображение.
+     *
+     * @param {string} sourceId
+     * @param {{ocr?: Object}} [options]
+     */
+    async ocrSource(sourceId, { ocr } = {}) {
+      if (!ocr) throw new Error('Распознавание скана требует клиента OCR');
+
+      const source = await repositories.sources.get(sourceId);
+      if (!source) throw new Error(`Источник ${sourceId} не найден`);
+      if (!source.original_file) throw new Error(`У источника ${sourceId} нет файла изображения`);
+
+      const image = await repositories.files.read(source.original_file);
+      const result = await ocr.recognize(image, {
+        filename: source.original_filename ?? 'scan',
+      });
+
+      const lowConfidence = isLowConfidence(result.confidence);
+      const derived = await this.createDerivedSource(sourceId, {
+        type: 'document',
+        text: result.text,
+        method: `ocr:tesseract:${result.languages}`,
+        meta: {
+          title: `Распознанный текст ${source.title ?? source.original_filename ?? sourceId}`,
+          notes: `Распознано программой, уверенность ${result.confidence ?? '—'}%, слов: ${result.words}.`
+            + (lowConfidence
+              ? ' Уверенность низкая: текст требует сверки с оригиналом до использования в выводах.'
+              : ''),
+        },
+      });
+
+      return {
+        derivedSourceId: derived.id,
+        text: result.text,
+        confidence: result.confidence,
+        words: result.words,
+        lowConfidence,
+      };
+    },
+
     async analyzeDocument(sourceId) {
       if (!llm) throw new Error('Разбор документа требует клиента модели');
       if (!extractDocument) throw new Error('Разбор документа требует извлечения текста');

@@ -587,7 +587,7 @@ export const ENTITIES = [
     name: 'InvestigationJob',
     title: 'Фоновая задача',
     fields: [
-      'job_type:transcription,document_parse,claim_extraction,timeline_rebuild,contradiction_scan,hypothesis_review,report_generation',
+      'job_type:transcription,ocr,document_parse,claim_extraction,timeline_rebuild,contradiction_scan,hypothesis_review,report_generation',
       'status:queued,running,completed,failed',
       'payload{}',
       'result{}',

@@ -95,3 +95,15 @@ begin
     );
   end loop;
 end $$;
+
+-- Новый тип задачи: распознавание текста на скане.
+--
+-- Перечень типов задан ограничением, а не только кодом: задача с выдуманным типом
+-- не должна попасть в очередь и там застрять. Ограничение обновляется отдельно,
+-- потому что базы, где 0001 уже применена, переписывать нельзя.
+alter table investigation_job drop constraint if exists investigation_job_job_type_check;
+alter table investigation_job add constraint investigation_job_job_type_check
+  check (job_type is null or job_type in (
+    'transcription', 'ocr', 'document_parse', 'claim_extraction', 'timeline_rebuild',
+    'contradiction_scan', 'hypothesis_review', 'report_generation'
+  ));

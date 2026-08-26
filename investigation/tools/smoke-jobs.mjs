@@ -13,6 +13,7 @@ import { createInvestigationServices } from '../../src/investigation/services/in
 import { createJobRunner } from '../../src/investigation/server/jobRunner.js';
 import { createStubLlmClient } from '../../src/investigation/agents/framework/llmClient.js';
 import { createStubTranscriptionClient } from '../../src/investigation/server/transcription.js';
+import { createStubOcrClient } from '../../src/investigation/server/ocr.js';
 import { MISSING_CASH_001 } from '../../src/investigation/fixtures/missingCash001.js';
 import * as stub from './fixtures/stub-outputs.mjs';
 
@@ -55,6 +56,9 @@ try {
     stub.STRATEGY_IVANOV,
     stub.CLAIMS_IVANOV,
     stub.CLAIMS_IVANOV,
+    // Распознанный скан разбирается тем же агентом, что и приложенный документ:
+    // после распознавания это обычный текстовый материал дела.
+    stub.DOCUMENT_ANALYSIS_OUTPUT,
     stub.DOCUMENT_ANALYSIS_OUTPUT,
   ]);
 
@@ -111,6 +115,11 @@ try {
     // очереди и неизменяемость оригинала, а не качество расшифровки.
     transcription: createStubTranscriptionClient([
       'Около семи вечера я приехал на базу и передал деньги администратору.',
+    ]),
+    // Распознавание скана тоже заготовлено: проверяется порядок шагов и пометка
+    // о происхождении текста, а не качество tesseract.
+    ocr: createStubOcrClient([
+      'Кассовая книга за 24 августа 2026 года\nЗаписи о приходе 74 000 рублей нет',
     ]),
   });
 
@@ -177,6 +186,44 @@ try {
   while (await runner.processOne()) drainedAfterVoice += 1;
   check('Очередь дорабатывается до пустоты', drainedAfterVoice >= 1,
     `обработано: ${drainedAfterVoice}`);
+
+  // ───────────────── Скан документа ─────────────────
+
+  const scan = Buffer.from('фиктивное изображение скана для проверки очереди');
+  const scanSource = await app.sources.ingestFile(scan, {
+    type: 'document',
+    title: 'Скан кассовой книги',
+    filename: 'kassa.png',
+    mimeType: 'image/png',
+  });
+
+  await runner.enqueue({
+    organizationId: tenant.organizationId,
+    caseId,
+    jobType: 'ocr',
+    payload: { source_id: scanSource.id },
+  });
+  await runner.processOne();
+
+  const recognised = (await app.repositories.sources.list({ is_derived: true }))
+    .find((item) => item.derived_from_source_id === scanSource.id);
+  check('Распознанный текст сохранён отдельным производным источником',
+    Boolean(recognised) && recognised.derivation_method?.startsWith('ocr:'),
+    recognised?.derivation_method ?? '');
+  check('Происхождение текста видно рядом с текстом',
+    (recognised?.notes ?? '').includes('Распознано программой'),
+    (recognised?.notes ?? '').slice(0, 50));
+
+  const scanAfter = await app.repositories.sources.get(scanSource.id);
+  check('Оригинал скана не изменён распознаванием',
+    scanAfter.sha256 === scanSource.sha256 && scanAfter.is_derived === false);
+
+  const afterOcr = await app.repositories.jobs.list({ job_type: 'document_parse' });
+  check('После распознавания поставлен разбор распознанного текста',
+    afterOcr.some((j) => j.payload?.reason === 'ocr'
+      && j.payload?.source_id === recognised.id));
+
+  while (await runner.processOne());
 
   // ───────────────── Разбор приобщённого материала ─────────────────
 

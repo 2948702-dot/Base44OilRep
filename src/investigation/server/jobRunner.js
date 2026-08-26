@@ -17,6 +17,7 @@
 import { withTenant } from '../repositories/postgres/pool.js';
 import { createInvestigationServices } from '../services/index.js';
 import { createWhisperClient } from './transcription.js';
+import { createTesseractClient } from './ocr.js';
 import { extractDocument } from './documentExtraction.js';
 
 const MAX_ATTEMPTS = 3;
@@ -101,6 +102,7 @@ export function createJobRunner(options) {
   const { pool, llm, logger = console } = options;
   const intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
   const transcription = options.transcription ?? createWhisperClient();
+  const ocr = options.ocr ?? createTesseractClient();
 
   let running = false;
   let timer = null;
@@ -224,6 +226,37 @@ export function createJobRunner(options) {
         transcript_source_id: derived.id,
         characters: result.text.length,
         language: result.language,
+      };
+    },
+
+    /**
+     * Распознавание текста на скане или фотографии документа.
+     *
+     * Как и расшифровка голоса, идёт отдельным шагом: изображение остаётся первичным
+     * материалом, распознанный текст появляется рядом, и только после этого документ
+     * разбирается на утверждения. Порядок обратный — разбор изображения — невозможен:
+     * разбирать было бы нечего.
+     */
+    async ocr(job, services) {
+      const sourceId = job.payload?.source_id;
+      if (!sourceId) throw new Error('ocr без source_id');
+
+      const result = await services.sources.ocrSource(sourceId, { ocr });
+
+      await services.repositories.jobs.create({
+        case_id: job.case_id,
+        job_type: 'document_parse',
+        status: 'queued',
+        payload: { source_id: result.derivedSourceId, reason: 'ocr' },
+        attempts: 0,
+        scheduled_at: new Date().toISOString(),
+      });
+
+      return {
+        derived_source_id: result.derivedSourceId,
+        characters: result.text.length,
+        confidence: result.confidence,
+        low_confidence: result.lowConfidence,
       };
     },
 
