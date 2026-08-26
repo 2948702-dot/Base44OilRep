@@ -21,13 +21,12 @@ SFTP, .env с правами 0600, пересборка и перезапуск 
     ANTHROPIC_API_KEY     ключ модели
 """
 
-import io
 import os
 import posixpath
 import sys
 import time
 
-import paramiko
+from ssh_connect import connect, run
 
 HOST = os.environ.get("SSH_HOST", "188.116.23.111")
 PASSWORD = os.environ.get("SSH_PASSWORD", "")
@@ -69,42 +68,6 @@ def build_env_file() -> str:
         "TZ": os.environ.get("TZ", "Europe/Moscow"),
     }
     return "".join(f"{name}={value}\n" for name, value in lines.items())
-
-
-def connect() -> paramiko.SSHClient:
-    """Вход по ключу, если он задан; иначе резервный вход root по паролю."""
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-    private_key = os.environ.get("SSH_PRIVATE_KEY", "").strip()
-    if private_key:
-        key = paramiko.Ed25519Key.from_private_key(io.StringIO(private_key))
-        client.connect(HOST, username=os.environ.get("SSH_USER", "deploy"), pkey=key,
-                       timeout=30, look_for_keys=False, allow_agent=False)
-        print("вход по ключу")
-        return client
-
-    if not PASSWORD:
-        print("ERROR: не задан ни SSH_PRIVATE_KEY, ни SSH_PASSWORD", file=sys.stderr)
-        sys.exit(1)
-    client.connect(HOST, username="root", password=PASSWORD, timeout=30)
-    print("вход по паролю root (резервный вариант; переведите сервер на ключи)")
-    return client
-
-
-def run(client, command, *, check=True, quiet=False):
-    _, stdout, stderr = client.exec_command(command)
-    code = stdout.channel.recv_exit_status()
-    out = stdout.read().decode("utf-8", "replace")
-    err = stderr.read().decode("utf-8", "replace")
-    if not quiet and out.strip():
-        print(out.strip())
-    if code != 0:
-        if err.strip():
-            print(err.strip(), file=sys.stderr)
-        if check:
-            raise RuntimeError(f"команда завершилась с кодом {code}: {command.split()[0]}")
-    return code, out, err
 
 
 def upload(sftp, local, remote):

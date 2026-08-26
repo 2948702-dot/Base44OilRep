@@ -16,13 +16,12 @@
     INVESTIGATION_DOMAIN   домен платформы
 """
 
-import io
 import os
 import socket
 import sys
 import time
 
-import paramiko
+from ssh_connect import connect, run
 
 HOST = os.environ.get("SSH_HOST", "188.116.23.111")
 DOMAIN = os.environ.get("INVESTIGATION_DOMAIN", "investigation.regattayg.space")
@@ -30,39 +29,6 @@ CADDYFILE = "/etc/caddy/Caddyfile"
 BACKUP = "/etc/caddy/Caddyfile.before-investigation"
 MARKER_BEGIN = "# >>> investigation platform (управляется investigation/deploy/setup-caddy.py)"
 MARKER_END = "# <<< investigation platform"
-
-
-def connect() -> paramiko.SSHClient:
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-    private_key = os.environ.get("SSH_PRIVATE_KEY", "").strip()
-    if private_key:
-        key = paramiko.Ed25519Key.from_private_key(io.StringIO(private_key))
-        client.connect(HOST, username=os.environ.get("SSH_USER", "deploy"), pkey=key,
-                       timeout=30, look_for_keys=False, allow_agent=False)
-        return client
-
-    password = os.environ.get("SSH_PASSWORD", "")
-    if not password:
-        print("ERROR: не задан ни SSH_PRIVATE_KEY, ни SSH_PASSWORD", file=sys.stderr)
-        sys.exit(1)
-    client.connect(HOST, username="root", password=password, timeout=30)
-    return client
-
-
-def run(client, command, *, check=True, quiet=False):
-    _, stdout, stderr = client.exec_command(command)
-    code = stdout.channel.recv_exit_status()
-    out = stdout.read().decode("utf-8", "replace")
-    err = stderr.read().decode("utf-8", "replace")
-    if not quiet and out.strip():
-        print(out.strip())
-    if code != 0 and check:
-        if err.strip():
-            print(err.strip(), file=sys.stderr)
-        raise RuntimeError(f"команда завершилась с кодом {code}")
-    return code, out, err
 
 
 def site_block() -> str:
@@ -133,7 +99,9 @@ def main():
         print(f"на {HOST}. Добавьте A-запись и запустите этот шаг повторно.")
         sys.exit(1)
 
-    client = connect()
+    # Установка пакетов и правка /etc/caddy требуют root: пользователь развёртывания
+    # получит доступ к каталогам платформы, но не к системным.
+    client = connect(prefer_root=True)
     try:
         code, _, _ = run(client, "command -v caddy", check=False, quiet=True)
         if code != 0:

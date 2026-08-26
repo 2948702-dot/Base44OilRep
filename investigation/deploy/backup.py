@@ -18,12 +18,11 @@
     POSTGRES_PASSWORD
 """
 
-import io
 import os
 import posixpath
 import sys
 
-import paramiko
+from ssh_connect import connect, run
 
 HOST = os.environ.get("SSH_HOST", "188.116.23.111")
 DB_CONTAINER = "investigation-db"
@@ -35,38 +34,6 @@ WEEKLY_KEEP = 4
 # Таблицы, по которым сверяется восстановленный дамп. Пустая база восстанавливается
 # без ошибок, поэтому проверять надо содержимое, а не факт успешного restore.
 VERIFY_TABLES = ["organization", "investigation_case", "claim", "source", "audit_event"]
-
-
-def connect() -> paramiko.SSHClient:
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-    private_key = os.environ.get("SSH_PRIVATE_KEY", "").strip()
-    if private_key:
-        key = paramiko.Ed25519Key.from_private_key(io.StringIO(private_key))
-        client.connect(HOST, username=os.environ.get("SSH_USER", "deploy"), pkey=key, timeout=30)
-        return client
-
-    password = os.environ.get("SSH_PASSWORD", "")
-    if not password:
-        print("ERROR: не задан ни SSH_PRIVATE_KEY, ни SSH_PASSWORD", file=sys.stderr)
-        sys.exit(1)
-    client.connect(HOST, username="root", password=password, timeout=30)
-    return client
-
-
-def run(client, command, *, check=True, quiet=False):
-    _, stdout, stderr = client.exec_command(command)
-    code = stdout.channel.recv_exit_status()
-    out = stdout.read().decode("utf-8", "replace")
-    err = stderr.read().decode("utf-8", "replace")
-    if not quiet and out.strip():
-        print(out.strip())
-    if code != 0 and check:
-        if err.strip():
-            print(err.strip(), file=sys.stderr)
-        raise RuntimeError(f"команда завершилась с кодом {code}")
-    return code, out, err
 
 
 def psql(container_env, database, sql):
